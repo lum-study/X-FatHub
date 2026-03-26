@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:xfathub/features/activity_health/views/dashboard.dart';
 import 'package:xfathub/features/activity_health/views/hydration_log.dart';
 import 'package:xfathub/features/home/views/home_screen.dart';
+import 'package:xfathub/features/booking/views/packages_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -15,7 +16,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final pages = [
     const Center(child: Text("Post Screen")), // Placeholder
-    const Center(child: Text("Packages Screen")), // Placeholder
+    const PackagesScreen(),
     HomeScreen(),
     Dashboard(),
     HydrationLog(),
@@ -39,9 +40,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(titles[index]),
-        ),
+        // Removing AppBar as the screens have their own headers in the design
         body: IndexedStack(
           index: index,
           children: pages,
