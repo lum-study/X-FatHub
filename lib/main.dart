@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:xfathub/core/config/env_config.dart';
+import 'package:xfathub/core/service/supabase_service.dart';
 import 'package:xfathub/routes/app_routes.dart';
 
-void main() {
+Future<void> main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await EnvConfig.init();
+  await SupabaseService.init();
+
   runApp(const MyApp());
 }
 
