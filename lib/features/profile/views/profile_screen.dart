@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../activity_health/views/dashboard.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text('Profile'),
         elevation: 0,
       ),
       body: Center(
@@ -16,13 +15,13 @@ class HomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.home,
+              Icons.person,
               size: 64,
               color: Colors.orange.withOpacity(0.5),
             ),
             const SizedBox(height: 16),
             Text(
-              'Home Module',
+              'Profile Module',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
