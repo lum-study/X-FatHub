@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../features/home/views/home_screen.dart';
 import '../features/post/views/post_screen.dart';
 import '../features/packages/views/packages_screen.dart';
@@ -7,6 +8,8 @@ import '../features/activity_health/views/tracker_feature_list_screen.dart';
 import '../features/activity_health/views/step_tracker_screen.dart';
 import '../features/activity_health/views/hydration_log_screen.dart';
 import '../features/activity_health/views/activity_log_screen.dart';
+import '../features/activity_health/viewmodels/step_tracker_viewmodel.dart';
+import '../features/activity_health/repositories/step_tracker_repository.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -16,15 +19,21 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 2;
   late List<GlobalKey<NavigatorState>> _navigatorKeys;
 
   // Define all the tabs
-  static const List<String> _tabNames = ['Home', 'Post', 'Packages', 'Tracker', 'Profile'];
+  static const List<String> _tabNames = [
+    'Post',
+    'Packages',
+    'Home',
+    'Tracker',
+    'Profile',
+  ];
   static const List<IconData> _tabIcons = [
-    Icons.home,
     Icons.add_circle_outline,
     Icons.shopping_bag,
+    Icons.home,
     Icons.fitness_center,
     Icons.person,
   ];
@@ -74,9 +83,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return Navigator(
       key: _navigatorKeys[index],
       onGenerateRoute: (settings) {
-        return MaterialPageRoute(
-          builder: homeBuilder,
-        );
+        return MaterialPageRoute(builder: homeBuilder);
       },
     );
   }
@@ -89,10 +96,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
         switch (settings.name) {
           case '/tracker/step-tracker':
-            builder = (_) => const StepTrackerScreen();
+            builder = (_) => ChangeNotifierProvider(
+              create: (_) => StepTrackerViewModel(
+                repository: StepTrackerRepository(),
+              ),
+              child: const StepTrackerScreen(),
+            );
             break;
           case '/tracker/hydration-log':
-            builder = (_) => const HydrationLogScreen();
+            builder = (_) => HydrationLogScreen();
             break;
           case '/tracker/activity-log':
             builder = (_) => const ActivityLogScreen();
@@ -101,10 +113,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             builder = (_) => const TrackerFeatureListScreen();
         }
 
-        return MaterialPageRoute(
-          builder: builder,
-          settings: settings,
-        );
+        return MaterialPageRoute(builder: builder, settings: settings);
       },
     );
   }
@@ -128,12 +137,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       return Future.value(false); // Don't exit the app
     } else {
       // If we're in the Home tab and can't pop, exit
-      if (_selectedIndex == 0) {
+      if (_selectedIndex == 2) {
         return Future.value(true); // Exit the app
       } else {
         // Otherwise, return to Home tab
         setState(() {
-          _selectedIndex = 0;
+          _selectedIndex = 2;
         });
         return Future.value(false); // Don't exit the app
       }
