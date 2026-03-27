@@ -48,4 +48,4 @@ app.*.map.json
 /macos
 /linux
 .env
-
+**/generated*

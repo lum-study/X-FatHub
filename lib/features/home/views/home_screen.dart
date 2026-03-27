@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../activity_health/views/dashboard.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -7,24 +6,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Home'), elevation: 0),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.home,
-              size: 64,
-              color: Colors.orange.withOpacity(0.5),
-            ),
+            Icon(Icons.home, size: 64, color: Colors.orange.withOpacity(0.5)),
             const SizedBox(height: 16),
-            Text(
-              'Home Module',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Home Module', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             const Text(
               'Coming soon',
