@@ -3,6 +3,7 @@ import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
 import '../repository/booking_repository.dart';
+import 'dart:async';
 
 class BookingProvider extends ChangeNotifier {
   final BookingRepository _repository = BookingRepository();
@@ -18,6 +19,9 @@ class BookingProvider extends ChangeNotifier {
   PackageModel? _selectedPackage;
   DateTime _selectedDate = DateTime.now();
   SlotModel? _selectedSlot;
+
+  StreamSubscription<List<PackageModel>>? _packagesSubscription;
+  StreamSubscription<List<SlotModel>>? _slotsSubscription;
 
   // Getters
   List<PackageModel> get packages => _packages;
@@ -39,6 +43,7 @@ class BookingProvider extends ChangeNotifier {
   void selectDate(DateTime date) {
     _selectedDate = date;
     fetchSlotsForDate(date);
+    startListeningSlotsForDate(date);
     notifyListeners();
   }
 
@@ -48,6 +53,49 @@ class BookingProvider extends ChangeNotifier {
   }
 
   // Business Logic
+  Future<void> initializePackagesPage() async {
+    // Fetch first to guarantee full list render, then attach realtime updates.
+    await fetchPackages();
+    await fetchSlotsForDate(_selectedDate);
+    startListeningPackages();
+    startListeningSlotsForDate(_selectedDate);
+  }
+
+  Future<void> refreshPackagesPage() async {
+    await fetchPackages();
+    await fetchSlotsForDate(_selectedDate);
+  }
+
+  void startListeningPackages() {
+    _packagesSubscription?.cancel();
+    _packagesSubscription = _repository.streamPackages().listen(
+      (data) {
+        _packages = data;
+        _errorMessage = null;
+        notifyListeners();
+      },
+      onError: (e) {
+        _errorMessage = e.toString();
+        notifyListeners();
+      },
+    );
+  }
+
+  void startListeningSlotsForDate(DateTime date) {
+    _slotsSubscription?.cancel();
+    _slotsSubscription = _repository.streamSlotsByDate(date).listen(
+      (data) {
+        _slots = data;
+        _errorMessage = null;
+        notifyListeners();
+      },
+      onError: (e) {
+        _errorMessage = e.toString();
+        notifyListeners();
+      },
+    );
+  }
+
   Future<void> fetchPackages() async {
     _setLoading(true);
     try {
@@ -114,5 +162,12 @@ class BookingProvider extends ChangeNotifier {
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _packagesSubscription?.cancel();
+    _slotsSubscription?.cancel();
+    super.dispose();
   }
 }

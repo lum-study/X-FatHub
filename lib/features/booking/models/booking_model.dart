@@ -27,16 +27,16 @@ class BookingModel {
 
   factory BookingModel.fromMap(Map<String, dynamic> map) {
     return BookingModel(
-      id: map['id'] ?? '',
-      userId: map['user_id'] ?? '',
-      packageId: map['package_id'] ?? '',
-      slotId: map['slot_id'],
-      bookingDate: DateTime.parse(map['booking_date']),
-      status: BookingStatus.values.byName(map['status'] ?? 'upcoming'),
-      totalPaid: (map['total_paid'] ?? 0).toDouble(),
-      receiptUrl: map['receipt_url'],
-      qrCodeData: map['qr_code_data'],
-      sessionNumber: map['session_number'] ?? 1,
+      id: map['id']?.toString() ?? '',
+      userId: map['user_id']?.toString() ?? '',
+      packageId: map['package_id']?.toString() ?? '',
+      slotId: map['slot_id']?.toString(),
+      bookingDate: DateTime.tryParse(map['booking_date']?.toString() ?? '') ?? DateTime.now(),
+      status: BookingStatus.values.byName(map['status']?.toString() ?? 'upcoming'),
+      totalPaid: double.tryParse(map['total_paid']?.toString() ?? '0') ?? 0.0,
+      receiptUrl: map['receipt_url']?.toString(),
+      qrCodeData: map['qr_code_data']?.toString(),
+      sessionNumber: int.tryParse(map['session_number']?.toString() ?? '1') ?? 1,
     );
   }
 

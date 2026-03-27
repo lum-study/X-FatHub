@@ -25,14 +25,14 @@ class SlotModel {
 
   factory SlotModel.fromMap(Map<String, dynamic> map) {
     return SlotModel(
-      id: map['id'] ?? '',
-      startTime: DateTime.parse(map['start_time']),
-      endTime: DateTime.parse(map['end_time']),
-      className: map['class_name'] ?? '',
-      coachName: map['coach_name'] ?? '',
-      location: map['location'] ?? '',
-      totalSpots: map['total_spots'] ?? 0,
-      occupiedSpots: map['occupied_spots'] ?? 0,
+      id: map['id']?.toString() ?? '',
+      startTime: DateTime.tryParse(map['start_time']?.toString() ?? '') ?? DateTime.now(),
+      endTime: DateTime.tryParse(map['end_time']?.toString() ?? '') ?? DateTime.now().add(const Duration(hours: 1)),
+      className: map['class_name']?.toString() ?? '',
+      coachName: map['coach_name']?.toString() ?? '',
+      location: map['location']?.toString() ?? '',
+      totalSpots: int.tryParse(map['total_spots']?.toString() ?? '20') ?? 20,
+      occupiedSpots: int.tryParse(map['occupied_spots']?.toString() ?? '0') ?? 0,
     );
   }
 

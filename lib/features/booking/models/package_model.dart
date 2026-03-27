@@ -21,14 +21,14 @@ class PackageModel {
 
   factory PackageModel.fromMap(Map<String, dynamic> map) {
     return PackageModel(
-      id: map['id'] ?? '',
-      name: map['name'] ?? '',
-      description: map['description'] ?? '',
-      price: (map['price'] ?? 0).toDouble(),
-      sessionsCount: map['sessions_count'] ?? 0,
-      badge: map['badge'],
-      isFeatured: map['is_featured'] ?? false,
-      iconName: map['icon_name'] ?? 'fitness_center',
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+      price: double.tryParse(map['price']?.toString() ?? '0') ?? 0.0,
+      sessionsCount: int.tryParse(map['sessions_count']?.toString() ?? '0') ?? 0,
+      badge: map['badge']?.toString(),
+      isFeatured: map['is_featured'] == true,
+      iconName: map['icon_name']?.toString() ?? 'fitness_center',
     );
   }
 

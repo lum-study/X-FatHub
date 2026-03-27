@@ -7,6 +7,14 @@ class BookingRepository {
   final _supabase = Supabase.instance.client;
 
   // --- Packages ---
+  Stream<List<PackageModel>> streamPackages() {
+    return _supabase
+        .from('packages')
+        .stream(primaryKey: ['id'])
+        .order('price', ascending: true)
+        .map((data) => data.map((d) => PackageModel.fromMap(d)).toList());
+  }
+
   Future<List<PackageModel>> fetchPackages() async {
     try {
       final response = await _supabase
@@ -23,6 +31,24 @@ class BookingRepository {
   }
 
   // --- Gym Slots ---
+  Stream<List<SlotModel>> streamSlotsByDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+    return _supabase
+        .from('gym_slots')
+        .stream(primaryKey: ['id'])
+        .order('start_time', ascending: true)
+        .map((data) {
+      return data
+          .map((d) => SlotModel.fromMap(d))
+          .where((slot) =>
+              slot.startTime.isAfter(startOfDay.subtract(const Duration(seconds: 1))) &&
+              slot.startTime.isBefore(endOfDay.add(const Duration(seconds: 1))))
+          .toList();
+    });
+  }
+
   Future<List<SlotModel>> fetchSlotsByDate(DateTime date) async {
     try {
       final startOfDay = DateTime(date.year, date.month, date.day).toIso8601String();

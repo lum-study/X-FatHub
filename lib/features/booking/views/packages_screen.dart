@@ -21,8 +21,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final provider = Provider.of<BookingProvider>(context, listen: false);
-        provider.fetchPackages();
-        provider.fetchSlotsForDate(DateTime.now());
+        provider.initializePackagesPage();
       }
     });
   }
@@ -40,8 +39,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
 
             return RefreshIndicator(
               onRefresh: () async {
-                await provider.fetchPackages();
-                await provider.fetchSlotsForDate(DateTime.now());
+                await provider.refreshPackagesPage();
               },
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
