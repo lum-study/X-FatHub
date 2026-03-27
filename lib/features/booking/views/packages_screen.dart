@@ -1,74 +1,113 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:xfathub/features/booking/providers/booking_provider.dart';
+import 'package:xfathub/features/booking/models/package_model.dart';
+import 'package:xfathub/features/booking/models/slot_model.dart';
+import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
 
-class PackagesScreen extends StatelessWidget {
+class PackagesScreen extends StatefulWidget {
   const PackagesScreen({super.key});
+
+  @override
+  State<PackagesScreen> createState() => _PackagesScreenState();
+}
+
+class _PackagesScreenState extends State<PackagesScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Use package-style import for the provider to match app_providers.dart
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final provider = Provider.of<BookingProvider>(context, listen: false);
+        provider.fetchPackages();
+        provider.fetchSlotsForDate(DateTime.now());
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 16),
-              _buildSearchBar(),
-              const SizedBox(height: 14),
-              _buildCategoryPills(),
-              const SizedBox(height: 14),
-              _buildSectionTitle(Icons.layers, "Class Packages"),
-              const SizedBox(height: 8),
-              _buildPackageCard(
-                isFeatured: true,
-                badge: "Popular",
-                icon: Icons.fitness_center,
-                name: "Ultimate Strength Pack",
-                desc: "12 Sessions · Full Gym Access · Trainer Guided",
-                price: "199",
-                sessions: "12 Sessions Included",
+        child: Consumer<BookingProvider>(
+          builder: (context, provider, child) {
+            if (provider.isLoading && provider.packages.isEmpty) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFFFFA500)));
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                await provider.fetchPackages();
+                await provider.fetchSlotsForDate(DateTime.now());
+              },
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 16),
+                    _buildSearchBar(),
+                    const SizedBox(height: 14),
+                    _buildCategoryPills(),
+                    const SizedBox(height: 14),
+                    _buildSectionTitle(Icons.layers, "Class Packages"),
+                    const SizedBox(height: 8),
+                    
+                    if (provider.packages.isEmpty && !provider.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text("No packages available.", style: TextStyle(color: Colors.white54)),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: provider.packages.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final pkg = provider.packages[index];
+                          return _buildPackageCard(
+                            package: pkg,
+                            onTap: () {
+                              provider.selectPackage(pkg);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const BookAndPayScreen()),
+                              );
+                            },
+                          );
+                        },
+                      ),
+
+                    const SizedBox(height: 14),
+                    _buildSectionTitle(Icons.calendar_today, "Today's Gym Slots"),
+                    const SizedBox(height: 8),
+
+                    if (provider.slots.isEmpty && !provider.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text("No slots available for today.", style: TextStyle(color: Colors.white54)),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: provider.slots.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final slot = provider.slots[index];
+                          return _buildSlotCard(slot: slot);
+                        },
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
-              _buildPackageCard(
-                isFeatured: false,
-                icon: Icons.directions_run,
-                name: "HIIT Blast — 6 Sessions",
-                desc: "High Intensity · Cardio Focused · Group Class",
-                price: "89",
-                sessions: "6 Sessions Included",
-              ),
-              const SizedBox(height: 14),
-              _buildSectionTitle(Icons.calendar_today, "Today's Gym Slots"),
-              const SizedBox(height: 8),
-              _buildSlotCard(
-                time: "07:00",
-                ampm: "AM",
-                name: "Morning Strength",
-                coach: "Coach Rafi · Zone A",
-                spots: "4 spots",
-              ),
-              const SizedBox(height: 8),
-              _buildSlotCard(
-                time: "10:00",
-                ampm: "AM",
-                name: "Yoga Flow",
-                coach: "Coach Aina · Studio 2",
-                spots: "2 left",
-                isLow: true,
-              ),
-              const SizedBox(height: 8),
-              _buildSlotCard(
-                time: "06:00",
-                ampm: "PM",
-                name: "Evening HIIT",
-                coach: "Coach Ben · Zone B",
-                spots: "Full",
-                isFull: true,
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -168,21 +207,21 @@ class PackagesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPackageCard({
-    required bool isFeatured,
-    String? badge,
-    required IconData icon,
-    required String name,
-    required String desc,
-    required String price,
-    required String sessions,
-  }) {
+  Widget _buildPackageCard({required PackageModel package, required VoidCallback onTap}) {
+    IconData getIcon(String name) {
+      switch (name) {
+        case 'directions_run': return Icons.directions_run;
+        case 'fitness_center': 
+        default: return Icons.fitness_center;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isFeatured ? const Color(0xFF0F0F0F) : const Color(0xFF111111),
+        color: package.isFeatured ? const Color(0xFF0F0F0F) : const Color(0xFF111111),
         border: Border.all(
-          color: isFeatured ? const Color(0xFFFFA500) : const Color(0xFF2A2A2A),
+          color: package.isFeatured ? const Color(0xFFFFA500) : const Color(0xFF2A2A2A),
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -198,11 +237,11 @@ class PackagesScreen extends StatelessWidget {
                   color: const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: const Color(0xFFFFA500), size: 20),
+                child: Icon(getIcon(package.iconName), color: const Color(0xFFFFA500), size: 20),
               ),
               const SizedBox(height: 8),
               Text(
-                name,
+                package.name,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
@@ -211,7 +250,7 @@ class PackagesScreen extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                desc,
+                package.description,
                 style: const TextStyle(color: Color(0xFF666666), fontSize: 11),
               ),
               const SizedBox(height: 10),
@@ -226,7 +265,7 @@ class PackagesScreen extends StatelessWidget {
                         text: TextSpan(
                           children: [
                             TextSpan(
-                              text: "RM $price ",
+                              text: "RM ${package.price.toStringAsFixed(0)} ",
                               style: const TextStyle(
                                 color: Color(0xFFFFA500),
                                 fontSize: 18,
@@ -250,7 +289,7 @@ class PackagesScreen extends StatelessWidget {
                               color: Color(0xFFFFA500), size: 12),
                           const SizedBox(width: 4),
                           Text(
-                            sessions,
+                            "${package.sessionsCount} Sessions Included",
                             style: const TextStyle(
                               color: Color(0xFF888888),
                               fontSize: 11,
@@ -260,34 +299,37 @@ class PackagesScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFA500),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isFeatured)
-                          const Icon(Icons.bolt, color: Colors.black, size: 14),
-                        Text(
-                          "Buy",
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                  GestureDetector(
+                    onTap: onTap,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFA500),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (package.isFeatured)
+                            const Icon(Icons.bolt, color: Colors.black, size: 14),
+                          const Text(
+                            "Buy",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          if (badge != null)
+          if (package.badge != null)
             Positioned(
               top: 0,
               right: 0,
@@ -298,7 +340,7 @@ class PackagesScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(50),
                 ),
                 child: Text(
-                  badge.toUpperCase(),
+                  package.badge!.toUpperCase(),
                   style: const TextStyle(
                     color: Colors.black,
                     fontSize: 9,
@@ -313,25 +355,20 @@ class PackagesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSlotCard({
-    required String time,
-    required String ampm,
-    required String name,
-    required String coach,
-    required String spots,
-    bool isLow = false,
-    bool isFull = false,
-  }) {
+  Widget _buildSlotCard({required SlotModel slot}) {
     Color spotsColor = const Color(0xFFAAAAAA);
     Color spotsBg = const Color(0xFF1E1E1E);
 
-    if (isLow) {
+    if (slot.isLow) {
       spotsColor = const Color(0xFFFF6B35);
       spotsBg = const Color(0xFF1E1208);
-    } else if (isFull) {
+    } else if (slot.isFull) {
       spotsColor = const Color(0xFF555555);
       spotsBg = const Color(0xFF1A1A1A);
     }
+
+    final timeStr = DateFormat('hh:mm').format(slot.startTime);
+    final ampmStr = DateFormat('a').format(slot.startTime);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -352,7 +389,7 @@ class PackagesScreen extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  time,
+                  timeStr,
                   style: const TextStyle(
                     color: Color(0xFFFFA500),
                     fontSize: 13,
@@ -362,7 +399,7 @@ class PackagesScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  ampm,
+                  ampmStr,
                   style: const TextStyle(color: Color(0xFF666666), fontSize: 10),
                 ),
               ],
@@ -374,7 +411,7 @@ class PackagesScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  slot.className,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -387,7 +424,7 @@ class PackagesScreen extends StatelessWidget {
                     const Icon(Icons.person, color: Color(0xFFFFA500), size: 12),
                     const SizedBox(width: 3),
                     Text(
-                      coach,
+                      "${slot.coachName} · ${slot.location}",
                       style: const TextStyle(
                         color: Color(0xFF666666),
                         fontSize: 11,
@@ -405,7 +442,7 @@ class PackagesScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(50),
             ),
             child: Text(
-              spots,
+              slot.isFull ? "Full" : "${slot.spotsLeft} spots",
               style: TextStyle(
                 color: spotsColor,
                 fontSize: 10,
