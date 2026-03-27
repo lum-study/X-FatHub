@@ -1,15 +1,17 @@
 import 'package:provider/provider.dart';
-import 'package:flutter/material.dart';
-import '../../features/activity_health/viewmodels/step_tracker_viewmodel.dart';
-import '../../features/activity_health/repositories/step_tracker_repository.dart';
+import 'package:provider/single_child_widget.dart';
+import 'package:xfathub/features/activity_health/viewmodels/step_tracker_viewmodel.dart';
+import 'package:xfathub/features/activity_health/repositories/step_tracker_repository.dart';
+import 'package:xfathub/features/booking/providers/booking_provider.dart';
 
 /// Setup all providers for the application
-/// This should be used in MultiProvider at the root level
-List<ChangeNotifierProvider> appProviders = [
-  // Step Tracker ViewModel
-  ChangeNotifierProvider(
+List<SingleChildWidget> appProviders = [
+  ChangeNotifierProvider<StepTrackerViewModel>(
     create: (_) => StepTrackerViewModel(
       repository: StepTrackerRepository(),
     ),
+  ),
+  ChangeNotifierProvider<BookingProvider>(
+    create: (_) => BookingProvider(),
   ),
 ];

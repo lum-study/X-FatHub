@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../features/home/views/home_screen.dart';
 import '../features/post/views/post_screen.dart';
-import '../features/packages/views/packages_screen.dart';
+import '../features/booking/views/packages_screen.dart'; // Using the one in booking features
 import '../features/profile/views/profile_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
 import '../features/activity_health/views/step_tracker_screen.dart';
@@ -49,32 +49,95 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return WillPopScope(
       onWillPop: _handleBackPress,
       child: Scaffold(
+        backgroundColor: Colors.black,
         body: IndexedStack(
           index: _selectedIndex,
           children: [
-            // Post tab with its own navigator
             _buildTab(0, (_) => const PostScreen()),
-            // Packages tab with its own navigator
             _buildTab(1, (_) => const PackagesScreen()),
-            // Home tab with its own navigator
             _buildTab(2, (_) => const HomeScreen()),
-            // Tracker tab with nested navigation
             _buildTrackerTab(),
-            // Profile tab with its own navigator
             _buildTab(4, (_) => const ProfileScreen()),
           ],
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onTabTapped,
-          items: List.generate(
-            _tabNames.length,
-            (index) => BottomNavigationBarItem(
-              icon: Icon(_tabIcons[index]),
-              label: _tabNames[index],
+        floatingActionButton: Container(
+          margin: const EdgeInsets.only(top: 20), // Lowering the FAB
+          height: 64,
+          width: 64,
+          child: FloatingActionButton(
+            onPressed: () => _onTabTapped(2),
+            backgroundColor: const Color(0xFFFFA500),
+            shape: const CircleBorder(),
+            elevation: 4,
+            child: Icon(
+              Icons.home,
+              size: 30,
+              color: _selectedIndex == 2 ? Colors.black : Colors.black.withOpacity(0.7),
             ),
           ),
         ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        bottomNavigationBar: BottomAppBar(
+          color: const Color(0xFF0D0D0D),
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 8,
+          child: SizedBox(
+            height: 60,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Left Side: Post, Packages
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(0, Icons.grid_view_rounded, "Post"),
+                      _buildNavItem(1, Icons.card_giftcard, "Packages"),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 80), // Space for FAB
+                // Right Side: Tracker, Profile
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(3, Icons.fitness_center, "Tracker"),
+                      _buildNavItem(4, Icons.person_outline, "Profile"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => _onTabTapped(index),
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -93,7 +156,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       key: _navigatorKeys[3],
       onGenerateRoute: (settings) {
         WidgetBuilder builder;
-
         switch (settings.name) {
           case '/tracker/step-tracker':
             builder = (_) => ChangeNotifierProvider(
@@ -120,31 +182,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   void _onTabTapped(int index) {
     if (index == _selectedIndex) {
-      // If tapping the same tab, pop to root
       _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
     } else {
-      // Switch to the new tab
       setState(() {
         _selectedIndex = index;
       });
     }
   }
 
-  Future<bool> _handleBackPress() {
-    // Check if the current tab's navigator can pop
+  Future<bool> _handleBackPress() async {
     if (_navigatorKeys[_selectedIndex].currentState?.canPop() ?? false) {
       _navigatorKeys[_selectedIndex].currentState?.pop();
-      return Future.value(false); // Don't exit the app
+      return false;
     } else {
       // If we're in the Home tab and can't pop, exit
       if (_selectedIndex == 2) {
         return Future.value(true); // Exit the app
       } else {
-        // Otherwise, return to Home tab
         setState(() {
           _selectedIndex = 2;
         });
-        return Future.value(false); // Don't exit the app
+        return false;
       }
     }
   }
