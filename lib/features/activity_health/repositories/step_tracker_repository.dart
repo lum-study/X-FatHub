@@ -60,7 +60,7 @@ class StepTrackerRepository {
         _userIdColumn: userId,
         _goalStepsColumn: goalSteps,
         _updatedAtColumn: DateTime.now().toIso8601String(),
-      });
+      }, onConflict: _userIdColumn);
 
       print('Goal steps updated to $goalSteps');
     } catch (e) {
@@ -149,9 +149,25 @@ class StepTrackerRepository {
 
   /// Get daily steps for the last 7 days from local database
   /// Returns a list of 7 integers representing steps for each day
+  /// Last element (today) is replaced with live pedometer data instead of database
   Future<List<int>> getSevenDaySteps() async {
     try {
-      return await LocalStepDatabase.getSevenDaySteps();
+      var dailySteps = await LocalStepDatabase.getSevenDaySteps();
+      
+      // Validate that we're getting daily values, not cumulative
+      // Typical daily steps should be < 100,000 (unrealistic to exceed this in one day)
+      for (int i = 0; i < dailySteps.length - 1; i++) { // Check all except today
+        if (dailySteps[i] > 100000) {
+          print('⚠️ Warning: Suspiciously high step count detected (${dailySteps[i]} on day $i)');
+          print('   This may indicate cumulative data. Please verify database integrity.');
+        }
+      }
+      
+      // Replace today's data (index 6) with live pedometer data
+      final todayStepsLive = await getTodaySteps();
+      dailySteps[6] = todayStepsLive;
+      
+      return dailySteps;
     } catch (e) {
       print('Error fetching 7-day steps: $e');
       return [0, 0, 0, 0, 0, 0, 0];
@@ -173,26 +189,23 @@ class StepTrackerRepository {
   /// Combines hardware sensor data with user's goal from Supabase and historical data
   /// 
   /// Key behavior:
-  /// - Retrieves TODAY'S STEPS from device using baseline calculation (not cumulative)
+  /// - Retrieves TODAY'S STEPS from device using baseline calculation (real-time, not from DB)
   /// - Fetches user's step goal from Supabase
   /// - Gets distance from device sensor
   /// - Calculates kcal burned: distance(km) × bodyWeight(kg) × 0.75
-  /// - Retrieves 7-day history from local SQLite
-  /// - Automatically saves calculated daily steps to local SQLite
+  /// - Retrieves last 6 days from local SQLite + today's live data from pedometer
+  /// - Background service saves today's final steps to SQLite only at 11:59 PM
   Future<StepTrackerModel> getStepTrackerData() async {
     try {
-      // Get today's steps using baseline calculation (not raw cumulative)
+      // Get today's steps using baseline calculation (real-time from pedometer, not DB)
       final steps = await getTodaySteps();
       final goalSteps = await getGoalSteps();
       final distance = await getDistance();
       final kcal = await calculateKcal(distance);
-      final dailySteps = await getSevenDaySteps();
+      final dailySteps = await getSevenDaySteps(); // Last element is today's live data
 
       // Calculate progress as a percentage (0.0 to 1.0)
       final progress = goalSteps > 0 ? (steps / goalSteps).clamp(0.0, 1.0) : 0.0;
-
-      // Save today's calculated steps to local SQLite for history tracking
-      await saveTodaySteps(steps);
 
       return StepTrackerModel(
         steps: steps,
