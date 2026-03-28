@@ -312,7 +312,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                           if (package.isFeatured)
                             const Icon(Icons.bolt, color: Colors.black, size: 14),
                           const Text(
-                            "Buy",
+                            "Book",
                             style: TextStyle(
                               color: Colors.black,
                               fontSize: 12,
