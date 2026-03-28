@@ -5,6 +5,8 @@ import '../models/booking_model.dart';
 import '../repository/booking_repository.dart';
 import 'dart:async';
 
+enum PaymentMethodOption { card, applePay, eWallet, fpx }
+
 class BookingProvider extends ChangeNotifier {
   final BookingRepository _repository = BookingRepository();
 
@@ -16,9 +18,16 @@ class BookingProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  final DateTime _bookingWindowStartDate = _localToday();
   PackageModel? _selectedPackage;
-  DateTime _selectedDate = DateTime.now();
+  late DateTime _selectedDate = _bookingWindowStartDate;
   SlotModel? _selectedSlot;
+  PaymentMethodOption _selectedPaymentMethod = PaymentMethodOption.card;
+
+  static DateTime _localToday() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
 
   StreamSubscription<List<PackageModel>>? _packagesSubscription;
   StreamSubscription<List<SlotModel>>? _slotsSubscription;
@@ -33,22 +42,90 @@ class BookingProvider extends ChangeNotifier {
   PackageModel? get selectedPackage => _selectedPackage;
   DateTime get selectedDate => _selectedDate;
   SlotModel? get selectedSlot => _selectedSlot;
+  PaymentMethodOption get selectedPaymentMethod => _selectedPaymentMethod;
+  DateTime get bookingWindowStartDate => _bookingWindowStartDate;
+  List<DateTime> get bookingWindowDates => List<DateTime>.generate(
+        7,
+        (index) => _bookingWindowStartDate.add(Duration(days: index)),
+      );
+
+  bool isWithinBookingWindow(DateTime date) {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final bookingWindowEndExclusive =
+        _bookingWindowStartDate.add(const Duration(days: 7));
+
+    return !normalizedDate.isBefore(_bookingWindowStartDate) &&
+        normalizedDate.isBefore(bookingWindowEndExclusive);
+  }
+
+  bool get canProceedToPayment =>
+      _selectedPackage != null && _selectedSlot != null;
+
+  Map<String, dynamic>? buildCheckoutContext({double sstRate = 0.08}) {
+    if (!canProceedToPayment) {
+      return null;
+    }
+
+    final package = _selectedPackage!;
+    final slot = _selectedSlot!;
+    final subtotal = package.price;
+    final sst = subtotal * sstRate;
+    final total = subtotal + sst;
+
+    return {
+      'packageId': package.id,
+      'packageName': package.name,
+      'slotId': slot.id,
+      'slotStartTimeIso': slot.startTime.toIso8601String(),
+      'slotEndTimeIso': slot.endTime.toIso8601String(),
+      'selectedDateIso': _selectedDate.toIso8601String(),
+      'paymentMethod': _selectedPaymentMethod.name,
+      'subtotal': subtotal,
+      'sst': sst,
+      'total': total,
+    };
+  }
 
   // Setters/Selectors
   void selectPackage(PackageModel package) {
     _selectedPackage = package;
+    _selectedSlot = null;
+    _errorMessage = null;
     notifyListeners();
   }
 
-  void selectDate(DateTime date) {
-    _selectedDate = date;
-    fetchSlotsForDate(date);
-    startListeningSlotsForDate(date);
+  Future<void> selectDate(DateTime date) async {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    if (!isWithinBookingWindow(normalizedDate)) {
+      return;
+    }
+
+    final isSameDay = _selectedDate.year == normalizedDate.year &&
+        _selectedDate.month == normalizedDate.month &&
+        _selectedDate.day == normalizedDate.day;
+
+    if (isSameDay) return;
+
+    _selectedDate = normalizedDate;
+    _selectedSlot = null;
+    _errorMessage = null;
     notifyListeners();
+
+    await fetchSlotsForDate(_selectedDate);
+    startListeningSlotsForDate(_selectedDate);
   }
 
   void selectSlot(SlotModel slot) {
     _selectedSlot = slot;
+    notifyListeners();
+  }
+
+  void selectPaymentMethod(PaymentMethodOption method) {
+    if (_selectedPaymentMethod == method) {
+      return;
+    }
+
+    _selectedPaymentMethod = method;
     notifyListeners();
   }
 
@@ -59,6 +136,21 @@ class BookingProvider extends ChangeNotifier {
     await fetchSlotsForDate(_selectedDate);
     startListeningPackages();
     startListeningSlotsForDate(_selectedDate);
+  }
+
+  Future<void> initializeBookSession() async {
+    if (_selectedPackage == null) {
+      _errorMessage = 'Please select a package first.';
+      notifyListeners();
+      return;
+    }
+
+    await fetchSlotsForDate(_selectedDate);
+    startListeningSlotsForDate(_selectedDate);
+  }
+
+  Future<void> refreshBookSession() async {
+    await fetchSlotsForDate(_selectedDate);
   }
 
   Future<void> refreshPackagesPage() async {
@@ -87,6 +179,7 @@ class BookingProvider extends ChangeNotifier {
       (data) {
         _slots = data;
         _errorMessage = null;
+        _syncSelectedSlotWithAvailableSlots();
         notifyListeners();
       },
       onError: (e) {
@@ -113,11 +206,26 @@ class BookingProvider extends ChangeNotifier {
     try {
       _slots = await _repository.fetchSlotsByDate(date);
       _errorMessage = null;
+      _syncSelectedSlotWithAvailableSlots();
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
       _setLoading(false);
     }
+  }
+
+  void _syncSelectedSlotWithAvailableSlots() {
+    if (_selectedSlot == null) {
+      return;
+    }
+
+    final match = _slots.where((slot) => slot.id == _selectedSlot!.id);
+    if (match.isEmpty) {
+      _selectedSlot = null;
+      return;
+    }
+
+    _selectedSlot = match.first;
   }
 
   Future<void> fetchUserBookings(String userId) async {

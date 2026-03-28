@@ -6,6 +6,21 @@ import '../models/booking_model.dart';
 class BookingRepository {
   final _supabase = Supabase.instance.client;
 
+  DateTime _localDayStart(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  DateTime _localDayEndExclusive(DateTime date) {
+    return _localDayStart(date).add(const Duration(days: 1));
+  }
+
+  bool _isInSelectedLocalDay(DateTime timestamp, DateTime selectedDate) {
+    final localTimestamp = timestamp.toLocal();
+    final start = _localDayStart(selectedDate);
+    final end = _localDayEndExclusive(selectedDate);
+    return !localTimestamp.isBefore(start) && localTimestamp.isBefore(end);
+  }
+
   // --- Packages ---
   Stream<List<PackageModel>> streamPackages() {
     return _supabase
@@ -32,33 +47,31 @@ class BookingRepository {
 
   // --- Gym Slots ---
   Stream<List<SlotModel>> streamSlotsByDate(DateTime date) {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
     return _supabase
         .from('gym_slots')
         .stream(primaryKey: ['id'])
         .order('start_time', ascending: true)
         .map((data) {
-      return data
+      final filtered = data
           .map((d) => SlotModel.fromMap(d))
-          .where((slot) =>
-              slot.startTime.isAfter(startOfDay.subtract(const Duration(seconds: 1))) &&
-              slot.startTime.isBefore(endOfDay.add(const Duration(seconds: 1))))
+          .where((slot) => _isInSelectedLocalDay(slot.startTime, date))
           .toList();
+
+      filtered.sort((a, b) => a.startTime.compareTo(b.startTime));
+      return filtered;
     });
   }
 
   Future<List<SlotModel>> fetchSlotsByDate(DateTime date) async {
     try {
-      final startOfDay = DateTime(date.year, date.month, date.day).toIso8601String();
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59).toIso8601String();
+      final startUtc = _localDayStart(date).toUtc().toIso8601String();
+      final endUtc = _localDayEndExclusive(date).toUtc().toIso8601String();
 
       final response = await _supabase
           .from('gym_slots')
           .select()
-          .gte('start_time', startOfDay)
-          .lte('start_time', endOfDay)
+          .gte('start_time', startUtc)
+          .lt('start_time', endUtc)
           .order('start_time', ascending: true);
 
       return (response as List)
