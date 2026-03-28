@@ -75,16 +75,23 @@ class BackgroundService {
   }
 
   /// Save today's steps to local database at 11:59 PM
+  /// Only saves once at the end of the day to persist today's final step count
   static Future<void> _saveDailyStepsAtNight() async {
-    final now = DateTime.now();
-    final nightTime = DateTime(now.year, now.month, now.day, 23, 59, 0);
-    
-    // Check if it's close to 11:59 PM (within 5-minute window)
-    if (now.isAfter(nightTime) || now.isAfter(nightTime.subtract(const Duration(minutes: 5)))) {
-      // Save steps to local database
-      final steps = await PedometerService.getTodaySteps();
-      await LocalStepDatabase.saveTodaySteps(steps);
-      print('✓ Saved today\'s steps ($steps) to local database at night');
+    try {
+      final now = DateTime.now();
+      final nightTime = DateTime(now.year, now.month, now.day, 23, 59, 0);
+      
+      // Check if it's 11:59 PM (within a 1-minute window)
+      final isNearNightTime = now.hour == 23 && now.minute == 59;
+      
+      if (isNearNightTime) {
+        // Save steps to local database only at 11:59 PM
+        final steps = await PedometerService.getTodaySteps();
+        await LocalStepDatabase.saveTodaySteps(steps);
+        print('✓ Saved today\'s final steps ($steps) to local database at 11:59 PM');
+      }
+    } catch (e) {
+      print('Error saving daily steps at night: $e');
     }
   }
 
@@ -138,7 +145,7 @@ class BackgroundService {
             'date': date,
             'steps': steps,
             'updated_at': DateTime.now().toIso8601String(),
-          });
+          }, onConflict: 'user_id,date');
 
           successfulDates.add(date);
           uploadedCount++;
@@ -192,7 +199,7 @@ class BackgroundService {
             'date': date,
             'steps': steps,
             'updated_at': DateTime.now().toIso8601String(),
-          });
+          }, onConflict: 'user_id,date');
 
           // Mark as synced in local database
           await LocalStepDatabase.markAsSynced(date);
