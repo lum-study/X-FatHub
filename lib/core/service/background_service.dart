@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pedometer_service.dart';
 import '../database/local_step_db.dart';
+import '../database/local_hydration_db.dart';
 import '../config/env_config.dart';
+import '../../features/activity_health/repositories/hydration_repository.dart';
 
 /// Service to handle background step tracking
 /// Manages continuous step monitoring even when app is closed
@@ -56,6 +58,9 @@ class BackgroundService {
         // Save steps at 11:59 PM
         await _saveDailyStepsAtNight();
         
+        // Sync hydration entries at 11:59 PM
+        await _syncHydrationAtNight();
+        
         // Weekly sync: Upload all records to Supabase every Saturday at 11:59 PM
         await _syncWeeklyToSupabase();
         
@@ -92,6 +97,24 @@ class BackgroundService {
       }
     } catch (e) {
       print('Error saving daily steps at night: $e');
+    }
+  }
+
+  /// Sync hydration entries to Supabase at 11:59 PM
+  static Future<void> _syncHydrationAtNight() async {
+    try {
+      final now = DateTime.now();
+      
+      // Check if it's close to 11:59 PM (within a 1-minute window)
+      final isNearNightTime = now.hour == 23 && now.minute == 59;
+      
+      if (isNearNightTime) {
+        final repository = HydrationRepository();
+        await repository.syncToSupabase();
+        print('✓ Synced hydration entries to Supabase at 11:59 PM');
+      }
+    } catch (e) {
+      print('Error syncing hydration at night: $e');
     }
   }
 
