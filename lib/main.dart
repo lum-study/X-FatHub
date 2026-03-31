@@ -6,6 +6,7 @@ import 'package:xfathub/core/service/permission_service.dart';
 import 'package:xfathub/core/providers/app_providers.dart';
 import 'package:xfathub/routes/app_routes.dart';
 import 'package:xfathub/core/service/background_service.dart';
+import 'package:xfathub/core/service/work_manager_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,8 +14,14 @@ Future<void> main() async {
   await EnvConfig.init();
   await SupabaseService.init();
   
-  // Initialize Background Service for step tracking
+  // Initialize Background Service for continuous step tracking
   await BackgroundService.initializeService();
+  
+  // Initialize WorkManager for reliable scheduled background tasks
+  await WorkManagerService.initWorkManager();
+  
+  // Execute quick sync on app launch
+  await WorkManagerService.executeQuickSyncOnAppLaunch();
   
   // Request permissions early (Activity recognition for step tracking)
   await PermissionService.requestStepTrackerPermissions();
