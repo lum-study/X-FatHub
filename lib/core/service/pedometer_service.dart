@@ -79,25 +79,37 @@ class PedometerService {
 
       // Check if it's a new day
       if (lastDate != todayStr) {
+        // NEW DAY - Reset counters and set baseline
         todaySteps = 0;
         await prefs.setString(_lastUpdateDateKey, todayStr);
-        print('📅 New day - steps reset to 0');
+        // IMPORTANT: Also reset sensor baseline to current value on new day
+        // This prevents large diff values on the first sensor event of a new day
+        await prefs.setInt(_lastSensorValueKey, event.steps);
+        print('📅 New day detected - step counter reset to 0, baseline set to ${event.steps}');
+        // Return early to avoid adding steps from old baseline
+        return;
       }
 
-      // Calculate difference since last update
+      // SAME DAY - Calculate difference since last update
       final diff = event.steps - lastSensorValue;
       
       // If positive difference, add to today's total
-      // If negative, device likely rebooted - just update baseline
       if (diff > 0) {
         todaySteps += diff;
+        print('📊 Steps accumulated: sensor=${event.steps}, today=$todaySteps, diff=$diff');
+      } 
+      // If negative, device likely rebooted - just update baseline without adding
+      else if (diff < 0) {
+        print('⚠️ Detected device reboot: sensor=${event.steps}, lastSensor=$lastSensorValue, diff=$diff (resetting baseline)');
+      } else {
+        print('ℹ️ No step change: sensor=${event.steps}, today=$todaySteps, diff=$diff');
       }
 
-      // Save current states
+      // Always update the last sensor value to current reading
       await prefs.setInt(_lastSensorValueKey, event.steps);
+      // Update today's step count
       await prefs.setInt(_todayStepsKey, todaySteps);
       
-      print('📊 Steps: sensor=${ event.steps}, today=$todaySteps, diff=$diff');
     } catch (e) {
       print('Error handling step update: $e');
     }

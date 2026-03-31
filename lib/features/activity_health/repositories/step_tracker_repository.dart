@@ -19,50 +19,22 @@ class StepTrackerRepository {
   StepTrackerRepository({SupabaseClient? supabaseClient})
       : _supabaseClient = supabaseClient ?? Supabase.instance.client;
 
-  /// Get the user's daily step goal from Supabase
+  /// Get the user's daily step goal from local database
   /// Returns [_defaultGoalSteps] (10000) if no goal is set in the database
   Future<int> getGoalSteps() async {
     try {
-      final userId = _supabaseClient.auth.currentUser?.id ?? '5734d344-0bee-4bf6-bfcd-553e0dd5db68';
-      if (userId == null) {
-        print('Warning: No authenticated user found. Using default goal.');
-        return _defaultGoalSteps;
-      }
-
-      final response = await _supabaseClient
-          .from(_goalsTableName)
-          .select(_goalStepsColumn)
-          .eq(_userIdColumn, userId)
-          .maybeSingle();
-
-      if (response == null) {
-        print('No goal found in database. Using default: $_defaultGoalSteps');
-        return _defaultGoalSteps;
-      }
-
-      return (response[_goalStepsColumn] as int?) ?? _defaultGoalSteps;
+      return await LocalStepDatabase.getGoalSteps();
     } catch (e) {
-      print('Error fetching goal steps from Supabase: $e');
+      print('Error fetching goal steps from local database: $e');
       return _defaultGoalSteps;
     }
   }
 
-  /// Update the user's daily step goal in Supabase
+  /// Update the user's daily step goal in local database
   Future<void> setGoalSteps(int goalSteps) async {
     try {
-      final userId = _supabaseClient.auth.currentUser?.id ?? '5734d344-0bee-4bf6-bfcd-553e0dd5db68';
-
-      if (userId == null) {
-        throw Exception('No authenticated user found');
-      }
-
-      await _supabaseClient.from(_goalsTableName).upsert({
-        _userIdColumn: userId,
-        _goalStepsColumn: goalSteps,
-        _updatedAtColumn: DateTime.now().toIso8601String(),
-      }, onConflict: _userIdColumn);
-
-      print('Goal steps updated to $goalSteps');
+      await LocalStepDatabase.setGoalSteps(goalSteps);
+      print('Goal steps updated to $goalSteps in local database');
     } catch (e) {
       print('Error updating goal steps: $e');
       rethrow;
