@@ -1,4 +1,5 @@
 import 'package:permission_handler/permission_handler.dart';
+import 'location_tracking_service.dart';
 
 class PermissionService {
   /// Request activity recognition permission for step counting
@@ -28,5 +29,25 @@ class PermissionService {
   static Future<bool> requestStepTrackerPermissions() async {
     final isGranted = await requestActivityPermission();
     return isGranted;
+  }
+
+  /// Request location permission for activity tracking
+  static Future<bool> requestActivityTrackingPermissions() async {
+    final hasLocationPermission = await LocationTrackingService.requestLocationPermissions();
+    if (!hasLocationPermission) {
+      print('Location permission required for activity tracking');
+      return false;
+    }
+
+    // Also request activity recognition if available
+    await requestActivityPermission();
+    
+    return true;
+  }
+
+  /// Check if all activity tracking permissions are granted
+  static Future<bool> hasActivityTrackingPermissions() async {
+    final hasLocation = await LocationTrackingService.hasLocationPermission();
+    return hasLocation;
   }
 }

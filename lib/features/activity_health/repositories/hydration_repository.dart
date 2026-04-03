@@ -18,50 +18,22 @@ class HydrationRepository {
   HydrationRepository({SupabaseClient? supabaseClient})
       : _supabaseClient = supabaseClient ?? Supabase.instance.client;
 
-  /// Get the user's daily hydration goal from local/Supabase
+  /// Get the user's daily hydration goal from local database
   /// Returns [_defaultGoalMl] (2000ml) if no goal is set
   Future<int> getGoalMl() async {
     try {
-      final userId = _supabaseClient.auth.currentUser?.id ?? '5734d344-0bee-4bf6-bfcd-553e0dd5db68';
-      if (userId == null) {
-        print('Warning: No authenticated user found. Using default goal.');
-        return _defaultGoalMl;
-      }
-
-      final response = await _supabaseClient
-          .from(_goalsTableName)
-          .select(_goalMlColumn)
-          .eq(_userIdColumn, userId)
-          .maybeSingle();
-
-      if (response == null) {
-        print('No goal found in database. Using default: $_defaultGoalMl ml');
-        return _defaultGoalMl;
-      }
-
-      return (response[_goalMlColumn] as int?) ?? _defaultGoalMl;
+      return await LocalHydrationDatabase.getGoalMl();
     } catch (e) {
-      print('Error fetching goal ml from Supabase: $e');
+      print('Error fetching goal ml from local database: $e');
       return _defaultGoalMl;
     }
   }
 
-  /// Update the user's daily hydration goal in Supabase
+  /// Update the user's daily hydration goal in local database
   Future<void> setGoalMl(int goalMl) async {
     try {
-      final userId = _supabaseClient.auth.currentUser?.id ?? '5734d344-0bee-4bf6-bfcd-553e0dd5db68';
-
-      if (userId == null) {
-        throw Exception('No authenticated user found');
-      }
-
-      await _supabaseClient.from(_goalsTableName).upsert({
-        _userIdColumn: userId,
-        _goalMlColumn: goalMl,
-        _updatedAtColumn: DateTime.now().toIso8601String(),
-      }, onConflict: _userIdColumn);
-
-      print('Goal ml updated to $goalMl');
+      await LocalHydrationDatabase.setGoalMl(goalMl);
+      print('Goal ml updated to $goalMl in local database');
     } catch (e) {
       print('Error updating goal ml: $e');
       rethrow;
@@ -153,20 +125,34 @@ class HydrationRepository {
     }
   }
 
-  /// Sync unsynced entries to Supabase (called at 11:59 PM)
-  /// This is typically called by the background service at end of day
+  /// Sync hydration data to Supabase
+  /// Syncs both unsynced entries and the current goal
   Future<void> syncToSupabase() async {
     try {
-      final unsyncedEntries = await LocalHydrationDatabase.getUnsyncedEntries();
-      
-      if (unsyncedEntries.isEmpty) {
-        print('No unsynced hydration entries to sync');
-        return;
-      }
-
       final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         print('Warning: Cannot sync - no authenticated user');
+        return;
+      }
+
+      // Sync goal first
+      try {
+        final goalMl = await LocalHydrationDatabase.getGoalMl();
+        await _supabaseClient.from(_goalsTableName).upsert({
+          _userIdColumn: userId,
+          _goalMlColumn: goalMl,
+          _updatedAtColumn: DateTime.now().toIso8601String(),
+        }, onConflict: _userIdColumn);
+        print('✓ Synced hydration goal to Supabase: $goalMl ml');
+      } catch (e) {
+        print('Warning: Error syncing hydration goal: $e');
+      }
+
+      // Then sync entries
+      final unsyncedEntries = await LocalHydrationDatabase.getUnsyncedEntries();
+      
+      if (unsyncedEntries.isEmpty) {
+        print('ℹ️ No unsynced hydration entries to sync');
         return;
       }
 

@@ -3,7 +3,9 @@ import 'dart:ui';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'pedometer_service.dart';
+import 'work_manager_service.dart';
 import '../database/local_step_db.dart';
 import '../database/local_hydration_db.dart';
 import '../config/env_config.dart';
@@ -11,13 +13,15 @@ import '../../features/activity_health/repositories/hydration_repository.dart';
 
 /// Service to handle background step tracking
 /// Manages continuous step monitoring even when app is closed
+/// Uses WorkManager for reliable scheduled synchronization tasks
 class BackgroundService {
-  static const Duration _syncInterval = Duration(minutes: 5);
-  
-  static Timer? _syncTimer;
-  static DateTime? _lastSyncTime;
+  static StreamSubscription? _connectivitySubscription;
   static int _syncRetryCount = 0;
   static const int _maxSyncRetries = 3;
+  
+  // Shared preferences keys for sync queue
+  static const String _pendingWeeklySyncKey = 'pending_weekly_sync_step_count';
+  static const String _lastWeeklySyncDateKey = 'last_weekly_sync_date';
 
   static Future<void> initializeService() async {
     final service = FlutterBackgroundService();
@@ -49,94 +53,78 @@ class BackgroundService {
   static void onStart(ServiceInstance service) async {
     DartPluginRegistrant.ensureInitialized();
 
-    // Initialize Pedometer for background tracking
+    // Initialize Pedometer for continuous background tracking
+    // This ensures steps are continuously counted even when app is closed
     await PedometerService.initPedometer();
+    print('✓ Background service started - Pedometer initialized for continuous monitoring');
 
-    // Periodic sync to database
-    _syncTimer = Timer.periodic(_syncInterval, (timer) async {
-      try {
-        // Save steps at 11:59 PM
-        await _saveDailyStepsAtNight();
-        
-        // Sync hydration entries at 11:59 PM
-        await _syncHydrationAtNight();
-        
-        // Weekly sync: Upload all records to Supabase every Saturday at 11:59 PM
-        await _syncWeeklyToSupabase();
-        
-        // Sync unsynced records (older than 7 days) to Supabase
-        await _syncUnsyncedRecordsToSupabase();
-      } catch (e) {
-        print('Background sync error: $e');
-      }
-    });
+    // Set up network connectivity listener for automatic retries on network restoration
+    _setupConnectivityListener();
 
     // Listen to service stop events
     if (service is AndroidServiceInstance) {
       service.on('stopService').listen((event) {
-        _syncTimer?.cancel();
+        _connectivitySubscription?.cancel();
+        print('✓ Background service stopped');
       });
     }
   }
 
-  /// Save today's steps to local database at 11:59 PM
-  /// Only saves once at the end of the day to persist today's final step count
-  static Future<void> _saveDailyStepsAtNight() async {
+  /// Set up listener for network connectivity changes
+  /// Automatically retries pending syncs when network becomes available
+  static void _setupConnectivityListener() {
     try {
-      final now = DateTime.now();
-      final nightTime = DateTime(now.year, now.month, now.day, 23, 59, 0);
+      _connectivitySubscription?.cancel();
       
-      // Check if it's 11:59 PM (within a 1-minute window)
-      final isNearNightTime = now.hour == 23 && now.minute == 59;
+      _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+        (result) async {
+          // Check if just connected
+          if (result != ConnectivityResult.none) {
+            print('📡 Network connected: $result - Retrying pending syncs...');
+            // Retry pending syncs when network is restored
+            await _retryPendingSync();
+          } else {
+            print('📡 Network disconnected');
+          }
+        },
+        onError: (e) {
+          print('Connectivity listener error: $e');
+        },
+      );
       
-      if (isNearNightTime) {
-        // Save steps to local database only at 11:59 PM
-        final steps = await PedometerService.getTodaySteps();
-        await LocalStepDatabase.saveTodaySteps(steps);
-        print('✓ Saved today\'s final steps ($steps) to local database at 11:59 PM');
-      }
+      print('✓ Connectivity listener set up for automatic retry on network restoration');
     } catch (e) {
-      print('Error saving daily steps at night: $e');
+      print('Error setting up connectivity listener: $e');
     }
   }
 
-  /// Sync hydration entries to Supabase at 11:59 PM
-  static Future<void> _syncHydrationAtNight() async {
+  /// Retry pending syncs when network is restored
+  static Future<void> _retryPendingSync() async {
     try {
-      final now = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      final isPending = prefs.getBool(_pendingWeeklySyncKey) ?? false;
       
-      // Check if it's close to 11:59 PM (within a 1-minute window)
-      final isNearNightTime = now.hour == 23 && now.minute == 59;
-      
-      if (isNearNightTime) {
-        final repository = HydrationRepository();
-        await repository.syncToSupabase();
-        print('✓ Synced hydration entries to Supabase at 11:59 PM');
+      if (!isPending) {
+        return; // No pending sync
       }
+      
+      print('🔄 Retrying pending weekly sync now that network is restored...');
+      await _performWeeklySyncToSupabase();
+      
+      // Clear the pending flag after successful retry
+      await prefs.setBool(_pendingWeeklySyncKey, false);
+      print('✅ Pending sync completed successfully');
     } catch (e) {
-      print('Error syncing hydration at night: $e');
+      print('❌ Error retrying pending sync: $e');
     }
   }
 
-  /// Weekly sync: Upload all local records to Supabase every Saturday at 11:59 PM
-  /// Deletes records from local database if upload is successful
-  static Future<void> _syncWeeklyToSupabase() async {
+  /// Perform the actual weekly sync upload
+  /// This is called when network is available (both on schedule and on network restoration)
+  static Future<void> _performWeeklySyncToSupabase() async {
     try {
-      final now = DateTime.now();
-      
-      // Check if it's Saturday (weekday 6 = Saturday)
-      if (now.weekday != 6) {
-        return; // Not Saturday
-      }
-      
-      // Check if it's close to 11:59 PM (within 5-minute window)
-      final nightTime = DateTime(now.year, now.month, now.day, 23, 59, 0);
-      if (!now.isAfter(nightTime.subtract(const Duration(minutes: 5))) && !now.isAfter(nightTime)) {
-        return; // Not the right time
-      }
-
       final client = Supabase.instance.client;
-      final userId = client.auth.currentUser?.id ?? '5734d344-0bee-4bf6-bfcd-553e0dd5db68';
+      final userId = client.auth.currentUser?.id;
 
       if (userId == null) {
         print('⚠ No authenticated user for weekly sync');
@@ -194,10 +182,11 @@ class BackgroundService {
   }
 
   /// Sync unsynced records (older than 7 days) to Supabase
+  /// This is called periodically by WorkManager
   static Future<void> _syncUnsyncedRecordsToSupabase() async {
     try {
       final client = Supabase.instance.client;
-      final userId = client.auth.currentUser?.id ?? '5734d344-0bee-4bf6-bfcd-553e0dd5db68';
+      final userId = client.auth.currentUser?.id;
 
       if (userId == null) {
         _syncRetryCount = 0;
