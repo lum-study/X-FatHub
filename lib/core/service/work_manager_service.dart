@@ -37,14 +37,14 @@ class WorkManagerService {
     }
   }
 
-  /// Schedule local save task: Every 1 hour save steps to local DB
-  /// Runs continuously throughout the day
+  /// Schedule local save task: Every 30 minutes save steps to local DB
+  /// Runs continuously throughout the day with more frequent saves
   static Future<void> scheduleLocalSaveStepsTask() async {
     try {
       await Workmanager().registerPeriodicTask(
         localSaveStepsTaskId,
         'local_save_steps',
-        frequency: const Duration(hours: 1),
+        frequency: const Duration(minutes: 30),
         constraints: Constraints(
           networkType: NetworkType.notRequired,
           requiresBatteryNotLow: false,
@@ -56,20 +56,20 @@ class WorkManagerService {
         initialDelay: const Duration(minutes: 5),
       );
 
-      print('✓ Local save steps task scheduled (every 1 hour)');
+      print('✓ Local save steps task scheduled (every 30 minutes)');
     } catch (e) {
       print('✗ Error scheduling local save steps task: $e');
     }
   }
 
-  /// Schedule Supabase sync task: Every 1 day sync to Supabase
-  /// Uploads today's accumulated steps to remote database
+  /// Schedule Supabase sync task: Every 1 hour sync to Supabase
+  /// Uploads today's accumulated steps to remote database with hourly retry
   static Future<void> scheduleSupabaseSyncTask() async {
     try {
       await Workmanager().registerPeriodicTask(
         supabaseSyncTaskId,
         'supabase_sync',
-        frequency: const Duration(days: 1),
+        frequency: const Duration(hours: 1),
         constraints: Constraints(
           networkType: NetworkType.connected,
           requiresBatteryNotLow: false,
@@ -81,19 +81,20 @@ class WorkManagerService {
         initialDelay: const Duration(minutes: 10),
       );
 
-      print('✓ Supabase sync task scheduled (every 1 day)');
+      print('✓ Supabase sync task scheduled (every 1 hour)');
     } catch (e) {
       print('✗ Error scheduling Supabase sync task: $e');
     }
   }
 
-/// Schedule daily task to sync hydration data to Supabase
+/// Schedule hydration sync task: Every 1 hour to sync hydration data to Supabase
+/// Increased frequency for more reliable data sync
   static Future<void> scheduleDailyHydrationSyncTask() async {
     try {
       await Workmanager().registerPeriodicTask(
         dailyHydrationSyncTaskId,
         'daily_hydration_sync',
-        frequency: const Duration(days: 1),
+        frequency: const Duration(hours: 1),
         constraints: Constraints(
           networkType: NetworkType.connected,
           requiresBatteryNotLow: false,
@@ -105,19 +106,20 @@ class WorkManagerService {
         initialDelay: const Duration(minutes: 10),
       );
       
-      print('✓ Daily hydration sync task scheduled (every 1 day)');
+      print('✓ Hydration sync task scheduled (every 1 hour)');
     } catch (e) {
-      print('✗ Error scheduling daily hydration sync task: $e');
+      print('✗ Error scheduling hydration sync task: $e');
     }
   }
 
-  /// Schedule periodic task to push unsynced records (older than 7 days)
+  /// Schedule periodic task to push unsynced records: Every 30 minutes
+  /// More frequent retries ensure old records don't accumulate
   static Future<void> scheduleUnsyncedRecordsPushTask() async {
     try {
       await Workmanager().registerPeriodicTask(
         unsyncedRecordsPushTaskId,
         'unsynced_records_push',
-        frequency: const Duration(hours: 6),
+        frequency: const Duration(minutes: 30),
         constraints: Constraints(
           networkType: NetworkType.connected,
           requiresBatteryNotLow: false,
@@ -129,7 +131,7 @@ class WorkManagerService {
         initialDelay: const Duration(minutes: 30),
       );
 
-      print('✓ Unsynced records push task scheduled');
+      print('✓ Unsynced records push task scheduled (every 30 minutes)');
     } catch (e) {
       print('✗ Error scheduling unsynced records push task: $e');
     }
@@ -263,7 +265,7 @@ Future<void> _executeLocalSaveStepsTask() async {
 }
 
 /// Execute Supabase sync task: Sync today's steps to Supabase
-/// Runs every 60 minutes - uploads current day data to remote database
+/// Runs hourly - uploads current day data to remote database with retries
 Future<void> _executeSupabaseSyncTask() async {
   try {
     // Check network connectivity
@@ -271,7 +273,7 @@ Future<void> _executeSupabaseSyncTask() async {
     final connectivityResult = await connectivity.checkConnectivity();
 
     if (connectivityResult == ConnectivityResult.none) {
-      print('📡 No network available. Skipping Supabase sync.');
+      print('📡 No network available. Skipping Supabase sync. Will retry in 1 hour.');
       return;
     }
 
@@ -279,7 +281,7 @@ Future<void> _executeSupabaseSyncTask() async {
     final userId = client.auth.currentUser?.id;
 
     if (userId == null) {
-      print('⚠️ No authenticated user for Supabase sync');
+      print('❌ [CRITICAL] No authenticated user for Supabase sync - user not logged in');
       return;
     }
 
@@ -293,11 +295,11 @@ Future<void> _executeSupabaseSyncTask() async {
     final todaySteps = await LocalStepDatabase.getStepsByDate(today);
 
     if (todaySteps == null) {
-      print('ℹ️ No steps recorded today yet');
+      print('ℹ️ No steps recorded today yet - skipping sync');
       return;
     }
 
-    // Sync today's steps to Supabase
+    // Sync today's steps to Supabase with error handling
     try {
       await client.from('step_tracker_daily').upsert({
         'user_id': userId,
@@ -307,19 +309,21 @@ Future<void> _executeSupabaseSyncTask() async {
       }, onConflict: 'user_id,date');
 
       print(
-        '✓ [SUPABASE SYNC] Synced today\'s steps ($todaySteps) to Supabase',
+        '✓ [SUPABASE SYNC] Synced today\'s steps ($todaySteps steps on $todayDate) to Supabase',
       );
     } catch (e) {
-      print('⚠️ Failed to sync today\'s steps to Supabase: $e');
+      print('❌ Failed to sync today\'s steps to Supabase: $e');
+      print('   Will retry in 1 hour');
       rethrow;
     }
   } catch (e) {
-    print('✗ Error in Supabase sync task: $e');
+    print('❌ Error in Supabase sync task: $e');
     rethrow;
   }
 }
 
-/// Execute daily task: Sync hydration data to Supabase
+/// Execute hydration sync task: Sync hydration data to Supabase
+/// Runs hourly for more reliable sync
 Future<void> _executeDailyHydrationSyncTask() async {
   try {
     // Check network connectivity
@@ -327,20 +331,27 @@ Future<void> _executeDailyHydrationSyncTask() async {
     final connectivityResult = await connectivity.checkConnectivity();
 
     if (connectivityResult == ConnectivityResult.none) {
-      print('📡 No network available. Skipping hydration sync.');
+      print('📡 No network available. Skipping hydration sync. Will retry in 1 hour.');
       return;
     }
 
-    final repository = HydrationRepository();
-    await repository.syncToSupabase();
-    print('✓ [DAILY HYDRATION SYNC] Synced hydration entries and goals to Supabase');
+    try {
+      final repository = HydrationRepository();
+      await repository.syncToSupabase();
+      print('✓ [HYDRATION SYNC] Synced hydration entries and goals to Supabase');
+    } catch (e) {
+      print('❌ Error syncing hydration data: $e');
+      print('   Will retry in 1 hour');
+      rethrow;
+    }
   } catch (e) {
-    print('✗ Error in daily hydration sync task: $e');
+    print('❌ Error in hydration sync task: $e');
     rethrow;
   }
 }
 
-/// Execute periodic task: Push unsynced records (older than 7 days)
+/// Execute periodic task: Push unsynced records
+/// Runs every 30 minutes for more frequent retries
 Future<void> _executeUnsyncedRecordsPushTask() async {
   try {
     // Check network connectivity
@@ -348,7 +359,7 @@ Future<void> _executeUnsyncedRecordsPushTask() async {
     final connectivityResult = await connectivity.checkConnectivity();
 
     if (connectivityResult == ConnectivityResult.none) {
-      print('📡 No network available. Skipping unsynced records push.');
+      print('📡 No network available. Skipping unsynced records push. Will retry in 30 minutes.');
       return;
     }
 
@@ -356,17 +367,19 @@ Future<void> _executeUnsyncedRecordsPushTask() async {
     final userId = client.auth.currentUser?.id;
 
     if (userId == null) {
-      print('⚠️ No authenticated user for unsynced records sync');
+      print('❌ [CRITICAL] No authenticated user for unsynced records sync');
       return;
     }
 
-    // Get all unsynced records (older than 7 days)
+    // Get all unsynced records
     final unsyncedRecords = await LocalStepDatabase.getUnsyncedRecords();
 
     if (unsyncedRecords.isEmpty) {
-      print('ℹ️ No unsynced records to push');
+      print('ℹ️ No unsynced records to push - all data is synced');
       return;
     }
+
+    print('📤 Attempting to sync ${unsyncedRecords.length} unsynced records...');
 
     // Sync each record to Supabase
     int uploadedCount = 0;
@@ -388,15 +401,15 @@ Future<void> _executeUnsyncedRecordsPushTask() async {
         print('✓ Synced unsynced record: $date ($steps steps)');
       } catch (e) {
         failedCount++;
-        print('⚠️ Failed to sync record: $e');
+        print('❌ Failed to sync record: $e - will retry later');
       }
     }
 
     print(
-      '✓ Unsynced records push complete: $uploadedCount uploaded, $failedCount failed',
+      '✓ Unsynced records push complete: $uploadedCount uploaded, $failedCount will retry',
     );
   } catch (e) {
-    print('✗ Error in unsynced records push task: $e');
+    print('❌ Error in unsynced records push task: $e');
     rethrow;
   }
 }

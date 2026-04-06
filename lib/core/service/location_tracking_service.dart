@@ -12,6 +12,7 @@ class LocationTrackingService {
   }
 
   /// Request location permissions
+  /// For activity tracking, we need "always" permission to track in background
   static Future<bool> requestLocationPermissions() async {
     final status = await Geolocator.requestPermission();
     
@@ -23,14 +24,33 @@ class LocationTrackingService {
         print('❌ Location permission permanently denied');
         return false;
       case LocationPermission.whileInUse:
-        print('✓ Location permission granted (while in use)');
+        print('⚠️ Location permission granted (while in use only) - background tracking limited');
+        // Still return true to allow tracking, but note the limitation
         return true;
       case LocationPermission.always:
-        print('✓ Location permission granted (always)');
+        print('✓ Location permission granted (always) - full background tracking enabled');
         return true;
       case LocationPermission.unableToDetermine:
         print('⚠️ Unable to determine location permission');
         return false;
+    }
+  }
+
+  /// Request background location permission explicitly
+  /// This is required for continuous tracking when app is in background
+  static Future<bool> requestBackgroundLocationPermission() async {
+    final status = await Geolocator.requestPermission();
+    
+    print('📍 Requesting background location permission...');
+    if (status == LocationPermission.always) {
+      print('✓ Background location permission granted (always)');
+      return true;
+    } else if (status == LocationPermission.whileInUse) {
+      print('⚠️ Only while-in-use permission granted. Background tracking will be limited.');
+      return true;
+    } else {
+      print('❌ Location permission not granted: $status');
+      return false;
     }
   }
 
@@ -40,6 +60,19 @@ class LocationTrackingService {
     return status == LocationPermission.whileInUse ||
         status == LocationPermission.always;
   }
+
+  /// Get current permission status for diagnostics
+  static Future<LocationPermission> getPermissionStatus() async {
+    return await Geolocator.checkPermission();
+  }
+
+  /// Request location permission with detailed error handling
+  /// Returns the permission status after request
+  static Future<LocationPermission> requestLocationPermissionWithStatus() async {
+    final status = await Geolocator.requestPermission();
+    return status;
+  }
+
 
   /// Get current location (one-time fetch)
   static Future<Position?> getCurrentLocation() async {
@@ -83,11 +116,12 @@ class LocationTrackingService {
       locationSettings: LocationSettings(
         accuracy: accuracy,
         distanceFilter: updateInterval, // Minimum distance in meters
-        timeLimit: const Duration(seconds: 30), // Timeout for each update
       ),
     ).handleError((error) {
       print('❌ Location tracking error: $error');
       _isTracking = false;
+      // Error is re-thrown to allow callers to handle recovery
+      throw error;
     });
   }
 
@@ -123,17 +157,6 @@ class LocationTrackingService {
     return Geolocator.bearingBetween(startLat, startLng, endLat, endLng);
   }
 
-  /// Request background location permission (Android 10+)
-  static Future<void> requestBackgroundLocationPermission() async {
-    final status = await Geolocator.requestPermission();
-    
-    if (status == LocationPermission.always) {
-      print('✓ Background location permission granted');
-    } else {
-      print('❌ Background location permission not granted (status: $status)');
-    }
-  }
-
   /// Get location accuracy description
   static String getAccuracyDescription(LocationAccuracy accuracy) {
     switch (accuracy) {
@@ -150,8 +173,7 @@ class LocationTrackingService {
       case LocationAccuracy.bestForNavigation:
         return 'Best for Navigation (~0-5m)';
       case LocationAccuracy.reduced:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return 'Reduced (~10-100m)';
     }
   }
 }
