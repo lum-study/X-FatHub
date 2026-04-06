@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:xfathub/core/database/local_activity_db.dart';
 import 'package:uuid/uuid.dart';
 import '../models/activity_model.dart';
@@ -212,8 +213,18 @@ class ActivityRepository {
 
   /// Save activity to Supabase (sync)
   /// Called when activity is completed
+  /// Checks network connectivity before attempting sync
   Future<bool> syncActivityToServer(ActivityModel activity) async {
     try {
+      // Check network connectivity first
+      final connectivity = Connectivity();
+      final connectivityResult = await connectivity.checkConnectivity();
+
+      if (connectivityResult == ConnectivityResult.none) {
+        print('📡 No network available. Activity saved locally and will sync on next app launch.');
+        return false;
+      }
+
       // Upload activity
       await supabase.from('activities').upsert({
         'id': activity.id,
@@ -252,10 +263,10 @@ class ActivityRepository {
         'is_synced_to_server': 1,
       });
 
-      print('✓ Activity synced to server: ${activity.id}');
+      print('✅ [ACTIVITY SYNC SUCCESS] Activity synced to remote database: ${activity.id}');
       return true;
     } catch (e) {
-      print('✗ Error syncing activity to server: $e');
+      print('❌ [ACTIVITY SYNC FAILED] Error syncing activity to server: $e');
       return false;
     }
   }

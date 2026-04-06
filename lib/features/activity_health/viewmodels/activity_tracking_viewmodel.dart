@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/activity_model.dart';
 import '../models/activity_location_point.dart';
 import '../repositories/activity_repository.dart';
 import '../../../core/service/location_tracking_service.dart';
 import '../../../core/service/permission_service.dart';
+import '../../../core/service/background_location_service.dart';
 
 /// ViewModel for live activity tracking feature
 /// Handles real-time location tracking, metrics calculation, and state management
@@ -31,10 +33,16 @@ class ActivityTrackingViewModel extends ChangeNotifier {
   // Location tracking
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription? _timerSubscription;
+  StreamSubscription? _connectivitySubscription;
   ActivityLocationPoint? _lastLocationPoint;
   int _locationUpdateCount = 0;
   List<ActivityLocationPoint> _routePoints = [];
   bool _isRecording = false;  // Flag to track whether to save data to DB
+  
+  // Error recovery tracking
+  int _locationRetryCount = 0;
+  DateTime? _lastLocationError;
+  Duration _retryDelay = const Duration(seconds: 5);
   
   // User data for metrics calculation
   double _userBodyWeight = 70.0; // Default weight in kg
@@ -88,6 +96,25 @@ class ActivityTrackingViewModel extends ChangeNotifier {
 
     try {
       print('📱 ===== ACTIVITY TRACKING INITIALIZATION =====');
+      
+      // Register error recovery callback from background service
+      // This receives notifications when foreground service encounters tracking errors
+      BackgroundLocationService.setErrorRecoveryCallback(
+        (errorMessage, gpsRequired, permissionRequired, retryAttempt) {
+          print('📢 Error recovery notification: $errorMessage (GPS: $gpsRequired, Permission: $permissionRequired, Attempt: $retryAttempt)');
+          
+          if (gpsRequired) {
+            _setError('🗺️ GPS is disabled. Please enable GPS to continue tracking.');
+          } else if (permissionRequired) {
+            _setError('🔐 Location permission required. Please grant permission to continue tracking.');
+          } else {
+            // Generic recovery message
+            _setError(errorMessage);
+          }
+          
+          notifyListeners(); // Trigger UI banner update
+        },
+      );
       
       // Set user body weight for calorie calculation
       if (bodyWeight != null && bodyWeight > 0) {
@@ -211,6 +238,16 @@ class ActivityTrackingViewModel extends ChangeNotifier {
       _locationUpdateCount = 0;  // Reset counter for new activity
       _routePoints.clear();  // Clear any preview points
 
+      // Enable background location tracking
+      print('🔐 Enabling background location tracking...');
+      try {
+        await LocationTrackingService.requestBackgroundLocationPermission();
+        await BackgroundLocationService.startBackgroundTracking(activityId);
+        print('✓ Background tracking enabled for activity: $activityId');
+      } catch (e) {
+        print('⚠️ Could not enable background tracking: $e (will continue with foreground tracking)');
+      }
+
       // Start elapsed time timer
       print('⏱️  Starting timer...');
       _startElapsedTimer();
@@ -280,6 +317,15 @@ class ActivityTrackingViewModel extends ChangeNotifier {
       _isTracking = false;
       _isPaused = false;
 
+      // Disable background tracking
+      print('🔐 Disabling background tracking...');
+      try {
+        await BackgroundLocationService.stopBackgroundTracking();
+        print('✓ Background tracking disabled');
+      } catch (e) {
+        print('⚠️ Error disabling background tracking: $e');
+      }
+
       // Stop all tracking immediately
       print('⏹ Stopping location tracking...');
       await _stopLocationTracking();
@@ -348,6 +394,15 @@ class ActivityTrackingViewModel extends ChangeNotifier {
       _isTracking = false;
       _isPaused = false;
 
+      // Disable background tracking
+      print('🔐 Disabling background tracking...');
+      try {
+        await BackgroundLocationService.stopBackgroundTracking();
+        print('✓ Background tracking disabled');
+      } catch (e) {
+        print('⚠️ Error disabling background tracking: $e');
+      }
+
       // Stop all tracking immediately
       print('⏹ Stopping location tracking...');
       await _stopLocationTracking();
@@ -387,35 +442,101 @@ class ActivityTrackingViewModel extends ChangeNotifier {
     }
   }
 
-  /// Start real-time location tracking
+  /// Start real-time location tracking with error recovery
   void _startLocationTracking() {
     _locationSubscription?.cancel();
+    _locationRetryCount = 0;
+    _lastLocationError = null;
+    _clearError();
 
+    _attachLocationListener();
+    _startConnectivityMonitoring();
+  }
+
+  /// Attach location listener with automatic retry on error
+  void _attachLocationListener() {
     try {
-      print('📡 Subscribing to location stream (5m update interval)...');
+      print('📡 Subscribing to location stream (5m update interval, attempt #${_locationRetryCount + 1})...');
       _locationSubscription =
           LocationTrackingService.startLocationTracking(updateInterval: 5)
               .listen(
         (Position position) {
+          if (!_isTracking) return; // Stop if tracking was stopped
+          if (_locationRetryCount > 0) {
+            print('✅ Location recovered on attempt #${_locationRetryCount + 1}!');
+            _locationRetryCount = 0; // Reset retry count on successful update
+          }
           print('📍 Location update received: ${position.latitude}, ${position.longitude} (accuracy: ${position.accuracy}m)');
           _processLocationUpdate(position);
         },
         onError: (error) {
-          print('❌ Location stream error: $error');
-          _setError('Location tracking error: $error');
+          if (!_isTracking) return; // Don't retry if user stopped tracking
+          
+          _lastLocationError = DateTime.now();
+          _locationRetryCount++;
+          print('⚠️ [LOCATION ERROR] Stream error (attempt #$_locationRetryCount): $error');
+          print('🔄 Will retry in ${_retryDelay.inSeconds} seconds...');
+          _setError('Location temporarily unavailable. Retrying in ${_retryDelay.inSeconds}s...');
+          
+          // Retry after fixed 5 second delay
+          Future.delayed(_retryDelay, () {
+            if (_isTracking) {
+              print('🔄 Retrying location tracking (attempt #${_locationRetryCount + 1})...');
+              _attachLocationListener();
+            }
+          });
         },
       );
 
       print('✓ Location tracking listener attached');
     } catch (e) {
-      print('❌ Error attaching location listener: $e');
-      _setError('Failed to start location tracking: $e');
+      if (!_isTracking) return;
+      
+      _lastLocationError = DateTime.now();
+      _locationRetryCount++;
+      print('⚠️ [LOCATION ERROR] Error attaching listener (attempt #$_locationRetryCount): $e');
+      print('🔄 Will retry in ${_retryDelay.inSeconds} seconds...');
+      _setError('Failed to start tracking. Retrying in ${_retryDelay.inSeconds}s...');
+      
+      // Retry after fixed 5 second delay
+      Future.delayed(_retryDelay, () {
+        if (_isTracking) {
+          print('🔄 Retrying location tracking attachment (attempt #${_locationRetryCount + 1})...');
+          _attachLocationListener();
+        }
+      });
     }
   }
 
-  /// Process location update
+  /// Monitor connectivity and auto-recover when connection returns
+  void _startConnectivityMonitoring() {
+    _connectivitySubscription?.cancel();
+    
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (result) {
+        if (!_isTracking || _isPaused) return;
+        
+        final hasConnection = result != ConnectivityResult.none;
+        print('📡 Connectivity changed: $result (has connection: $hasConnection)');
+        
+        // If connection recovered and we had recent errors, retry location
+        if (hasConnection && _lastLocationError != null) {
+          final timeSinceError = DateTime.now().difference(_lastLocationError!);
+          if (timeSinceError.inSeconds < 60) {
+            print('🔄 Connection recovered! Attempting to restart location tracking...');
+            _locationRetryCount = 0;
+            _attachLocationListener();
+          }
+        }
+      },
+    );
+  }
+
+  /// Process location update with error handling
   Future<void> _processLocationUpdate(Position position) async {
     try {
+      if (!_isTracking) return; // Stop if tracking was stopped
+      
       print('🔄 Processing location: ${position.latitude}, ${position.longitude} (recording: $_isRecording)');
       
       // Update UI with current position (for map display)
@@ -514,15 +635,27 @@ class ActivityTrackingViewModel extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      print('✗ Error processing location: $e');
+      if (!_isTracking) return; // Silently return if tracking stopped
+      
+      print('⚠️ [LOCATION PROCESSING ERROR] Error processing location update: $e');
+      // Continue tracking despite processing errors - don't stop
+      // Show warning but keep tracking active
+      _clearError(); // Clear previous error to avoid duplicate messages
     }
   }
 
   /// Stop location tracking
   Future<void> _stopLocationTracking() async {
-    print('⏹ Cancelling location subscription...');
+    print('⏹ Stopping location tracking...');
+    _locationRetryCount = 0;
+    _lastLocationError = null;
+    
     await _locationSubscription?.cancel();
     _locationSubscription = null;
+    
+    await _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
+    
     print('✅ Location tracking stopped');
   }
 
