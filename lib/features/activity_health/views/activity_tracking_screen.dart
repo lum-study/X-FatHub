@@ -28,7 +28,6 @@ class ActivityTrackingScreen extends StatefulWidget {
 
 class _ActivityTrackingScreenState extends State<ActivityTrackingScreen> {
   late MapController _mapController;
-  bool _centerOnUser = true;
 
   @override
   void initState() {
@@ -146,8 +145,9 @@ class _ActivityTrackingScreenState extends State<ActivityTrackingScreen> {
       },
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: Consumer<ActivityTrackingViewModel>(
-          builder: (context, viewModel, _) {
+        body: SafeArea(
+          child: Consumer<ActivityTrackingViewModel>(
+            builder: (context, viewModel, _) {
             // Convert viewModel route points to LatLng for map display
             final routeLatLngs = viewModel.routePoints.isNotEmpty
                 ? viewModel.routePoints
@@ -170,7 +170,6 @@ class _ActivityTrackingScreenState extends State<ActivityTrackingScreen> {
                 // Always center on current location (preview or tracking)
                 _mapController.move(currentPosition, 17);
               } else if (viewModel.isTracking &&
-                  _centerOnUser &&
                   routeLatLngs.isNotEmpty) {
                 // Fallback if no currentLocation but tracking
                 _mapController.move(currentPosition, 17);
@@ -314,82 +313,85 @@ class _ActivityTrackingScreenState extends State<ActivityTrackingScreen> {
                     ),
                   ),
 
-                // Status Badge
-                if (!viewModel.isTracking && !viewModel.isLoading && !viewModel.hasError)
-                  Positioned(
-                    top: 80,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.yellow[800],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.yellow, width: 1),
-                      ),
-                      child: const Text(
-                        'Waiting to start...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Metrics Dashboard (Top)
+                // Start Button + Dashboard Container (Bottom)
                 Positioned(
-                  top: 16,
+                  bottom: 16,
                   left: 16,
                   right: 16,
-                  child: _buildMetricsDashboard(viewModel),
-                ),
-                // Center on user button
-                Positioned(
-                  top: 16,
-                  right: 68,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withOpacity(0.5),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          setState(() => _centerOnUser = !_centerOnUser);
-                        },
-                        customBorder: const CircleBorder(),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Icon(
-                            _centerOnUser
-                                ? Icons.location_searching
-                                : Icons.location_on_outlined,
-                            color: Colors.white,
-                            size: 24,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.orange.withOpacity(0.5),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                // Center on current location
+                                _mapController.move(
+                                  LatLng(viewModel.currentLocation!.latitude,
+                                      viewModel.currentLocation!.longitude),
+                                  17,
+                                );
+                              },
+                              customBorder: const CircleBorder(),
+                              child: const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Icon(
+                                  Icons.location_searching,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      // Start Button
+                      _buildControlButtons(viewModel),
+                      // Spacing
+                      const SizedBox(height: 12),
+                      // Dashboard Container
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black87.withOpacity(0.95),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.5),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildMetricsDashboard(viewModel),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                // Control Buttons (Bottom)
-                Positioned(
-                  bottom: 24,
-                  left: 16,
-                  right: 16,
-                  child: _buildControlButtons(viewModel),
                 ),
               ],
             );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -397,110 +399,102 @@ class _ActivityTrackingScreenState extends State<ActivityTrackingScreen> {
 
   /// Build metrics dashboard widget
   Widget _buildMetricsDashboard(ActivityTrackingViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black87,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange, width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Time
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Time',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Time
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Time',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-              Text(
-                viewModel.formattedElapsedTime,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            Text(
+              viewModel.formattedElapsedTime,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Distance
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Distance',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Distance
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Distance',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-              Text(
-                viewModel.formattedDistance,
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            Text(
+              viewModel.formattedDistance,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Pace
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Pace',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Pace
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Pace',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-              Text(
-                viewModel.formattedPace,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            Text(
+              viewModel.formattedPace,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          // Status indicator
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: viewModel.isPaused ? Colors.yellow : Colors.green,
-                  shape: BoxShape.circle,
-                ),
+            ),
+          ],
+        ),
+        // Status indicator
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: viewModel.isPaused ? Colors.yellow : Colors.green,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 8),
-              Text(
-                viewModel.isPaused ? 'Paused' : 'Tracking',
-                style: TextStyle(
-                  color: viewModel.isPaused ? Colors.yellow : Colors.green,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              viewModel.isPaused ? 'Paused' : 'Tracking',
+              style: TextStyle(
+                color: viewModel.isPaused ? Colors.yellow : Colors.green,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

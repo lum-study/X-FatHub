@@ -28,8 +28,9 @@ class StepTrackerScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Step Tracker'), elevation: 0),
-      body: Consumer<StepTrackerViewModel>(
-        builder: (context, viewModel, _) {
+      body: SafeArea(
+        child: Consumer<StepTrackerViewModel>(
+          builder: (context, viewModel, _) {
           // Show loading screen during initial load (before first load is complete)
           if (!viewModel.isFirstLoadComplete) {
             return const Center(
@@ -110,7 +111,8 @@ class StepTrackerScreen extends StatelessWidget {
               ),
             ),
           );
-        },
+          },
+        ),
       ),
     );
   }

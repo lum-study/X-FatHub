@@ -576,10 +576,11 @@ class ActivityTrackingViewModel extends ChangeNotifier {
         _currentDistance += segmentDistance;
         print('✓ Distance segment: ${segmentDistance.toStringAsFixed(3)}km | Total: ${_currentDistance.toStringAsFixed(3)}km');
 
-        // Update max speed
-        if (position.speed > _maxSpeed) {
-          _maxSpeed = position.speed;
-          print('⚡ New max speed: ${_maxSpeed.toStringAsFixed(2)} m/s');
+        // Update max speed (convert m/s to km/h for consistency with pace display)
+        final speedKmh = position.speed * 3.6; // Convert m/s to km/h
+        if (speedKmh > _maxSpeed) {
+          _maxSpeed = speedKmh;
+          print('⚡ New max speed: ${_maxSpeed.toStringAsFixed(2)} km/h');
         }
 
         // Recalculate pace

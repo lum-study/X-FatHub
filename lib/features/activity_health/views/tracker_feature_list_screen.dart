@@ -10,9 +10,10 @@ class TrackerFeatureListScreen extends StatelessWidget {
         title: const Text('Tracker'),
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
@@ -43,8 +44,9 @@ class TrackerFeatureListScreen extends StatelessWidget {
               title: 'Activity Log',
               description: 'Track jogging and cycling with maps',
               onTap: () => Navigator.of(context).pushNamed('/tracker/activity-log'),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
