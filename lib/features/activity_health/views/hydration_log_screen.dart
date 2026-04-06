@@ -24,42 +24,41 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Hydration Log'),
-        elevation: 0,
-      ),
-      body: Consumer<HydrationViewModel>(
-        builder: (context, viewModel, _) {
-          if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      appBar: AppBar(title: const Text('Hydration Log'), elevation: 0),
+      body: SafeArea(
+        child: Consumer<HydrationViewModel>(
+          builder: (context, viewModel, _) {
+            if (viewModel.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          return Container(
-            padding: const EdgeInsets.only(left: 16, right: 16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Main content (scrollable)
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(top: 24, bottom: 16),
-                    child: Column(
-                      children: [
-                        _buildHydrationCircle(viewModel),
-                        const SizedBox(height: 18),
-                        _buildQuickAddButtons(context, viewModel),
-                        const SizedBox(height: 20),
-                        _buildLogEntries(context, viewModel),
-                        const SizedBox(height: 16),
-                        _buildHintNote(),
-                      ],
+            return Container(
+              padding: const EdgeInsets.only(left: 16, right: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Main content (scrollable)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(top: 24, bottom: 16),
+                      child: Column(
+                        children: [
+                          _buildHydrationCircle(viewModel),
+                          const SizedBox(height: 18),
+                          _buildQuickAddButtons(context, viewModel),
+                          const SizedBox(height: 20),
+                          _buildLogEntries(context, viewModel),
+                          const SizedBox(height: 16),
+                          _buildHintNote(),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -104,7 +103,10 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
                   onTap: () => _showEditGoalDialog(context),
                   child: Text(
                     'Goal ${viewModel.goalInLiters.toStringAsFixed(1)} L',
-                    style: const TextStyle(color: Color(0xFFFFA500), fontSize: 11),
+                    style: const TextStyle(
+                      color: Color(0xFFFFA500),
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
@@ -115,22 +117,15 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
     );
   }
 
-  Widget _buildQuickAddButtons(BuildContext context, HydrationViewModel viewModel) {
+  Widget _buildQuickAddButtons(
+    BuildContext context,
+    HydrationViewModel viewModel,
+  ) {
     return Row(
       children: [
-        _quickAddButton(
-          context,
-          viewModel,
-          '50ml',
-          50,
-        ),
+        _quickAddButton(context, viewModel, '50ml', 50),
         const SizedBox(width: 8),
-        _quickAddButton(
-          context,
-          viewModel,
-          '100ml',
-          100,
-        ),
+        _quickAddButton(context, viewModel, '100ml', 100),
         const SizedBox(width: 8),
         _quickAddButton(
           context,
@@ -209,10 +204,7 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
           child: Text(
             'No hydration entries yet. Start by adding water intake!',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF555555),
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: Color(0xFF555555), fontSize: 14),
           ),
         ),
       );
@@ -312,7 +304,11 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.edit, color: Color(0xFFFFA500), size: 18),
+                      const Icon(
+                        Icons.edit,
+                        color: Color(0xFFFFA500),
+                        size: 18,
+                      ),
                     ],
                   ),
                 ],
@@ -348,7 +344,10 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
     );
   }
 
-  void _showCustomAmountDialog(BuildContext context, HydrationViewModel viewModel) {
+  void _showCustomAmountDialog(
+    BuildContext context,
+    HydrationViewModel viewModel,
+  ) {
     final controller = TextEditingController();
 
     showDialog(
@@ -439,10 +438,7 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Edit Entry',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Edit Entry', style: TextStyle(color: Colors.white)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,

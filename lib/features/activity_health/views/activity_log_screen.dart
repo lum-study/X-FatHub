@@ -40,12 +40,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
             unselectedLabelColor: Colors.black,
           ),
         ),
-        body: TabBarView(
-          children: [
-            // Start Tracking Tab
-            SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+        body: SafeArea(
+          child: TabBarView(
+            children: [
+              // Start Tracking Tab
+              SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -172,9 +173,10 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                 ),
               ),
             ),
-            // History Tab
-            ActivityHistoryScreen(userId: userId),
-          ],
+              // History Tab
+              ActivityHistoryScreen(userId: userId),
+            ],
+          ),
         ),
       ),
     );
