@@ -2,19 +2,25 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 /// Local SQLite database for hydration tracking
-/// Stores daily hydration entries and syncs to Supabase at 11:59 PM
+/// Stores daily hydration entries and goals locally
 class LocalHydrationDatabase {
   static const String _dbName = 'hydration_tracker.db';
   static const String _tableName = 'hydration_entries';
+  static const String _goalsTableName = 'hydration_goals';
   static const int _dbVersion = 1;
 
-  // Column names
+  // Column names for hydration_entries table
   static const String colId = 'id';
   static const String colDate = 'date'; // Format: YYYY-MM-DD
   static const String colTime = 'time'; // Format: HH:mm
   static const String colAmount = 'amount'; // in milliliters
   static const String colSynced = 'synced'; // 0 = not synced, 1 = synced
   static const String colCreatedAt = 'created_at';
+
+  // Column names for hydration_goals table
+  static const String colGoalId = 'id';
+  static const String colGoalMl = 'goal_ml';
+  static const String colGoalUpdatedAt = 'updated_at';
 
   static Database? _database;
 
@@ -38,6 +44,7 @@ class LocalHydrationDatabase {
 
   /// Create database tables
   static Future<void> _onCreate(Database db, int version) async {
+    // Create hydration_entries table
     await db.execute('''
       CREATE TABLE $_tableName (
         $colId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +55,65 @@ class LocalHydrationDatabase {
         $colCreatedAt TEXT NOT NULL
       )
     ''');
+
+    // Create hydration_goals table
+    await db.execute('''
+      CREATE TABLE $_goalsTableName (
+        $colGoalId INTEGER PRIMARY KEY,
+        $colGoalMl INTEGER NOT NULL,
+        $colGoalUpdatedAt TEXT NOT NULL
+      )
+    ''');
+    
+    // Insert default goal (2000 ml = 2 liters)
+    await db.insert(
+      _goalsTableName,
+      {
+        colGoalId: 1,
+        colGoalMl: 2000,
+        colGoalUpdatedAt: DateTime.now().toIso8601String(),
+      },
+    );
+
     print('✓ LocalHydrationDatabase created');
+  }
+
+  /// Ensure the hydration_goals table exists (for existing databases that don't have it)
+  /// This safely creates the table if it doesn't exist
+  static Future<void> _ensureGoalsTableExists() async {
+    final db = await getDatabase();
+    
+    try {
+      // Try to get tables list
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='$_goalsTableName'"
+      );
+      
+      // Table doesn't exist, create it
+      if (tables.isEmpty) {
+        print('ℹ️ Creating missing hydration_goals table...');
+        await db.execute('''
+          CREATE TABLE $_goalsTableName (
+            $colGoalId INTEGER PRIMARY KEY,
+            $colGoalMl INTEGER NOT NULL,
+            $colGoalUpdatedAt TEXT NOT NULL
+          )
+        ''');
+        
+        // Insert default goal (2000 ml)
+        await db.insert(
+          _goalsTableName,
+          {
+            colGoalId: 1,
+            colGoalMl: 2000,
+            colGoalUpdatedAt: DateTime.now().toIso8601String(),
+          },
+        );
+        print('✓ hydration_goals table created successfully');
+      }
+    } catch (e) {
+      print('Error ensuring goals table exists: $e');
+    }
   }
 
   /// Add a hydration entry
@@ -226,6 +291,82 @@ class LocalHydrationDatabase {
     } catch (e) {
       print('Error getting entries by date: $e');
       return [];
+    }
+  }
+
+  /// Get the user's daily hydration goal from local database
+  /// Returns 2000 ml as default if not set
+  static Future<int> getGoalMl() async {
+    // Ensure the table exists (for existing databases that don't have it)
+    await _ensureGoalsTableExists();
+    
+    final db = await getDatabase();
+
+    try {
+      final result = await db.query(
+        _goalsTableName,
+        where: '$colGoalId = ?',
+        whereArgs: [1],
+        limit: 1,
+      );
+
+      if (result.isEmpty) {
+        // Goal not found, return default and save it
+        const defaultGoal = 2000;
+        await setGoalMl(defaultGoal);
+        return defaultGoal;
+      }
+
+      return result.first[colGoalMl] as int? ?? 2000;
+    } catch (e) {
+      print('Error getting goal ml: $e');
+      return 2000;
+    }
+  }
+
+  /// Save the user's daily hydration goal to local database
+  static Future<void> setGoalMl(int goalMl) async {
+    // Ensure the table exists (for existing databases that don't have it)
+    await _ensureGoalsTableExists();
+    
+    final db = await getDatabase();
+
+    try {
+      // Check if goal exists
+      final result = await db.query(
+        _goalsTableName,
+        where: '$colGoalId = ?',
+        whereArgs: [1],
+        limit: 1,
+      );
+
+      if (result.isEmpty) {
+        // Insert new goal
+        await db.insert(
+          _goalsTableName,
+          {
+            colGoalId: 1,
+            colGoalMl: goalMl,
+            colGoalUpdatedAt: DateTime.now().toIso8601String(),
+          },
+        );
+        print('✓ Hydration goal saved to local database: $goalMl ml');
+      } else {
+        // Update existing goal
+        await db.update(
+          _goalsTableName,
+          {
+            colGoalMl: goalMl,
+            colGoalUpdatedAt: DateTime.now().toIso8601String(),
+          },
+          where: '$colGoalId = ?',
+          whereArgs: [1],
+        );
+        print('✓ Hydration goal updated in local database: $goalMl ml');
+      }
+    } catch (e) {
+      print('Error saving goal ml: $e');
+      rethrow;
     }
   }
 }

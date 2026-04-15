@@ -4,6 +4,8 @@ import 'package:xfathub/features/activity_health/viewmodels/step_tracker_viewmod
 import 'package:xfathub/features/activity_health/repositories/step_tracker_repository.dart';
 import 'package:xfathub/features/activity_health/viewmodels/hydration_viewmodel.dart';
 import 'package:xfathub/features/activity_health/repositories/hydration_repository.dart';
+import 'package:xfathub/features/activity_health/viewmodels/activity_tracking_viewmodel.dart';
+import 'package:xfathub/features/activity_health/repositories/activity_repository.dart';
 import 'package:xfathub/features/booking/providers/booking_provider.dart';
 import 'package:xfathub/features/home/providers/profile_provider.dart';
 
@@ -17,6 +19,11 @@ List<SingleChildWidget> appProviders = [
   ChangeNotifierProvider<HydrationViewModel>(
     create: (_) => HydrationViewModel(
       repository: HydrationRepository(),
+    ),
+  ),
+  ChangeNotifierProvider<ActivityTrackingViewModel>(
+    create: (_) => ActivityTrackingViewModel(
+      repository: ActivityRepository(),
     ),
   ),
   ChangeNotifierProvider<BookingProvider>(

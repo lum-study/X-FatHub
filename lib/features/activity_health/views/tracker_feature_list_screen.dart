@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'step_tracker_screen.dart';
-import 'hydration_log_screen.dart';
-import 'activity_log_screen.dart';
 
 class TrackerFeatureListScreen extends StatelessWidget {
   const TrackerFeatureListScreen({super.key});
@@ -12,12 +9,6 @@ class TrackerFeatureListScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Tracker'),
         elevation: 0,
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -35,9 +26,7 @@ class TrackerFeatureListScreen extends StatelessWidget {
               icon: Icons.directions_walk,
               title: 'Step Tracker',
               description: 'Track your daily steps and goals',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const StepTrackerScreen()),
-              ),
+              onTap: () => Navigator.of(context).pushNamed('/tracker/step-tracker'),
             ),
             const SizedBox(height: 16),
             _buildFeatureCard(
@@ -45,9 +34,7 @@ class TrackerFeatureListScreen extends StatelessWidget {
               icon: Icons.local_drink,
               title: 'Hydration Log',
               description: 'Log your water intake',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HydrationLogScreen()),
-              ),
+              onTap: () => Navigator.of(context).pushNamed('/tracker/hydration-log'),
             ),
             const SizedBox(height: 16),
             _buildFeatureCard(
@@ -55,9 +42,7 @@ class TrackerFeatureListScreen extends StatelessWidget {
               icon: Icons.directions_run,
               title: 'Activity Log',
               description: 'Track jogging and cycling with maps',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ActivityLogScreen()),
-              ),
+              onTap: () => Navigator.of(context).pushNamed('/tracker/activity-log'),
             ),
           ],
         ),

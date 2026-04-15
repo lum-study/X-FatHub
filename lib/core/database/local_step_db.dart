@@ -2,18 +2,24 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 /// Local SQLite database for step tracking
-/// Stores daily step count and syncs to Supabase periodically
+/// Stores daily step count and goal steps locally
 class LocalStepDatabase {
   static const String _dbName = 'step_tracker.db';
   static const String _tableName = 'daily_steps';
+  static const String _goalsTableName = 'step_goals';
   static const int _dbVersion = 1;
 
-  // Column names
+  // Column names for daily_steps table
   static const String colId = 'id';
   static const String colDate = 'date'; // Format: YYYY-MM-DD
   static const String colSteps = 'steps';
   static const String colSynced = 'synced'; // 0 = not synced, 1 = synced
   static const String colCreatedAt = 'created_at';
+
+  // Column names for step_goals table
+  static const String colGoalId = 'id';
+  static const String colGoalSteps = 'goal_steps';
+  static const String colGoalUpdatedAt = 'updated_at';
 
   static Database? _database;
 
@@ -37,6 +43,7 @@ class LocalStepDatabase {
 
   /// Create database tables
   static Future<void> _onCreate(Database db, int version) async {
+    // Create daily_steps table
     await db.execute('''
       CREATE TABLE $_tableName (
         $colId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +53,65 @@ class LocalStepDatabase {
         $colCreatedAt TEXT NOT NULL
       )
     ''');
+
+    // Create step_goals table
+    await db.execute('''
+      CREATE TABLE $_goalsTableName (
+        $colGoalId INTEGER PRIMARY KEY,
+        $colGoalSteps INTEGER NOT NULL,
+        $colGoalUpdatedAt TEXT NOT NULL
+      )
+    ''');
+    
+    // Insert default goal
+    await db.insert(
+      _goalsTableName,
+      {
+        colGoalId: 1,
+        colGoalSteps: 10000,
+        colGoalUpdatedAt: DateTime.now().toIso8601String(),
+      },
+    );
+
     print('✓ LocalStepDatabase created');
+  }
+
+  /// Ensure the step_goals table exists (for existing databases that don't have it)
+  /// This safely creates the table if it doesn't exist
+  static Future<void> _ensureGoalsTableExists() async {
+    final db = await getDatabase();
+    
+    try {
+      // Try to get tables list
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='$_goalsTableName'"
+      );
+      
+      // Table doesn't exist, create it
+      if (tables.isEmpty) {
+        print('ℹ️ Creating missing step_goals table...');
+        await db.execute('''
+          CREATE TABLE $_goalsTableName (
+            $colGoalId INTEGER PRIMARY KEY,
+            $colGoalSteps INTEGER NOT NULL,
+            $colGoalUpdatedAt TEXT NOT NULL
+          )
+        ''');
+        
+        // Insert default goal
+        await db.insert(
+          _goalsTableName,
+          {
+            colGoalId: 1,
+            colGoalSteps: 10000,
+            colGoalUpdatedAt: DateTime.now().toIso8601String(),
+          },
+        );
+        print('✓ step_goals table created successfully');
+      }
+    } catch (e) {
+      print('Error ensuring goals table exists: $e');
+    }
   }
 
   /// Save today's steps to local database
@@ -265,5 +330,81 @@ class LocalStepDatabase {
   static Future<void> close() async {
     final db = await getDatabase();
     await db.close();
+  }
+
+  /// Get the user's daily step goal from local database
+  /// Returns 10000 as default if not set
+  static Future<int> getGoalSteps() async {
+    // Ensure the table exists (for existing databases that don't have it)
+    await _ensureGoalsTableExists();
+    
+    final db = await getDatabase();
+
+    try {
+      final result = await db.query(
+        _goalsTableName,
+        where: '$colGoalId = ?',
+        whereArgs: [1],
+        limit: 1,
+      );
+
+      if (result.isEmpty) {
+        // Goal not found, return default and save it
+        const defaultGoal = 10000;
+        await setGoalSteps(defaultGoal);
+        return defaultGoal;
+      }
+
+      return result.first[colGoalSteps] as int? ?? 10000;
+    } catch (e) {
+      print('Error getting goal steps: $e');
+      return 10000;
+    }
+  }
+
+  /// Save the user's daily step goal to local database
+  static Future<void> setGoalSteps(int goalSteps) async {
+    // Ensure the table exists (for existing databases that don't have it)
+    await _ensureGoalsTableExists();
+    
+    final db = await getDatabase();
+
+    try {
+      // Check if goal exists
+      final result = await db.query(
+        _goalsTableName,
+        where: '$colGoalId = ?',
+        whereArgs: [1],
+        limit: 1,
+      );
+
+      if (result.isEmpty) {
+        // Insert new goal
+        await db.insert(
+          _goalsTableName,
+          {
+            colGoalId: 1,
+            colGoalSteps: goalSteps,
+            colGoalUpdatedAt: DateTime.now().toIso8601String(),
+          },
+        );
+        print('✓ Step goal saved to local database: $goalSteps');
+      } else {
+        // Update existing goal
+        await db.update(
+          _goalsTableName,
+          {
+            colGoalSteps: goalSteps,
+            colGoalUpdatedAt: DateTime.now().toIso8601String(),
+          },
+          where: '$colGoalId = ?',
+          whereArgs: [1],
+        );
+        print('✓ Step goal updated in local database: $goalSteps');
+      }
+    } catch (e) {
+      print('Error saving goal steps: $e');
+      rethrow;
+    }
   }
 }
