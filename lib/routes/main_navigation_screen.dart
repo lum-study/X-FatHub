@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../features/home/views/home_screen.dart';
+import '../features/home/views/profile_dashboard_screen.dart';
 import '../features/post/views/post_screen.dart';
-import '../features/booking/views/packages_screen.dart'; // Using the one in booking features
-import '../features/profile/views/profile_screen.dart';
+import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
-import '../features/activity_health/views/step_tracker_screen.dart';
-import '../features/activity_health/views/hydration_log_screen.dart';
-import '../features/activity_health/views/activity_log_screen.dart';
-import '../features/activity_health/viewmodels/step_tracker_viewmodel.dart';
-import '../features/activity_health/repositories/step_tracker_repository.dart';
+import '../features/home/providers/profile_provider.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -22,22 +18,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 2;
   late List<GlobalKey<NavigatorState>> _navigatorKeys;
 
-  // Define all the tabs
-  static const List<String> _tabNames = [
-    'Post',
-    'Packages',
-    'Home',
-    'Tracker',
-    'Profile',
-  ];
-  static const List<IconData> _tabIcons = [
-    Icons.add_circle_outline,
-    Icons.shopping_bag,
-    Icons.home,
-    Icons.fitness_center,
-    Icons.person,
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -46,6 +26,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profileProvider = context.watch<ProfileProvider>();
+    final isAuthenticated = profileProvider.isAuthenticated;
+
+    // If not authenticated, show only the Home (Login) screen without navigation
+    if (!isAuthenticated) {
+      return const HomeScreen();
+    }
+
     return WillPopScope(
       onWillPop: _handleBackPress,
       child: Scaffold(
@@ -56,12 +44,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             _buildTab(0, (_) => const PostScreen()),
             _buildTab(1, (_) => const PackagesScreen()),
             _buildTab(2, (_) => const HomeScreen()),
-            _buildTrackerTab(),
-            _buildTab(4, (_) => const ProfileScreen()),
+            _buildTab(3, (_) => const TrackerFeatureListScreen()),
+            _buildTab(4, (_) => const ProfileDashboardScreen()), // Profile tab shows dashboard, settings via icon
           ],
         ),
         floatingActionButton: Container(
-          margin: const EdgeInsets.only(top: 20), // Lowering the FAB
+          margin: const EdgeInsets.only(top: 20),
           height: 64,
           width: 64,
           child: FloatingActionButton(
@@ -86,7 +74,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Left Side: Post, Packages
                 Expanded(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -96,8 +83,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 80), // Space for FAB
-                // Right Side: Tracker, Profile
+                const SizedBox(width: 80),
                 Expanded(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -151,43 +137,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  Widget _buildTrackerTab() {
-    return Navigator(
-      key: _navigatorKeys[3],
-      onGenerateRoute: (settings) {
-        WidgetBuilder builder;
-        switch (settings.name) {
-          case '/tracker/step-tracker':
-            builder = (_) => ChangeNotifierProvider(
-              create: (_) => StepTrackerViewModel(
-                repository: StepTrackerRepository(),
-              ),
-              child: const StepTrackerScreen(),
-            );
-            break;
-          case '/tracker/hydration-log':
-            builder = (_) => HydrationLogScreen();
-            break;
-          case '/tracker/activity-log':
-            builder = (_) => const ActivityLogScreen();
-            break;
-          default:
-            builder = (_) => const TrackerFeatureListScreen();
-        }
-
-        return MaterialPageRoute(builder: builder, settings: settings);
-      },
-    );
-  }
-
   void _onTabTapped(int index) {
-    if (index == _selectedIndex) {
-      _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   Future<bool> _handleBackPress() async {
@@ -195,15 +148,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       _navigatorKeys[_selectedIndex].currentState?.pop();
       return false;
     } else {
-      // If we're in the Home tab and can't pop, exit
-      if (_selectedIndex == 2) {
-        return Future.value(true); // Exit the app
-      } else {
-        setState(() {
-          _selectedIndex = 2;
-        });
-        return false;
-      }
+      if (_selectedIndex == 2) return Future.value(true);
+      setState(() => _selectedIndex = 2);
+      return false;
     }
   }
 }

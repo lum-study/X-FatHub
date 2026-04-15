@@ -5,6 +5,7 @@ import 'package:xfathub/features/activity_health/repositories/step_tracker_repos
 import 'package:xfathub/features/activity_health/viewmodels/hydration_viewmodel.dart';
 import 'package:xfathub/features/activity_health/repositories/hydration_repository.dart';
 import 'package:xfathub/features/booking/providers/booking_provider.dart';
+import 'package:xfathub/features/home/providers/profile_provider.dart';
 
 /// Setup all providers for the application
 List<SingleChildWidget> appProviders = [
@@ -20,5 +21,8 @@ List<SingleChildWidget> appProviders = [
   ),
   ChangeNotifierProvider<BookingProvider>(
     create: (_) => BookingProvider(),
+  ),
+  ChangeNotifierProvider<ProfileProvider>(
+    create: (_) => ProfileProvider(),
   ),
 ];
