@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 
@@ -12,7 +15,7 @@ class BookAndPayScreen extends StatefulWidget {
 }
 
 class _BookAndPayScreenState extends State<BookAndPayScreen> {
-  static const double _sstRate = 0.08;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -29,9 +32,10 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     return Consumer<BookingViewModel>(
       builder: (context, provider, child) {
         final package = provider.selectedPackage;
-        final subtotal = package?.price ?? 0;
-        final sst = subtotal * _sstRate;
-        final total = subtotal + sst;
+        final hasCredits = provider.sessionsRemaining > 0;
+        final buttonLabel = hasCredits
+            ? 'Confirm Booking'
+            : 'Buy Package First';
 
         return Scaffold(
           backgroundColor: Colors.black,
@@ -40,7 +44,10 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
               onRefresh: provider.refreshBookSession,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -63,16 +70,13 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
                     const SizedBox(height: 14),
                     _buildSectionTitle(Icons.receipt_long, "Order Summary"),
                     const SizedBox(height: 14),
-                    _buildOrderSummary(provider, subtotal, sst, total),
-                    const SizedBox(height: 14),
-                    _buildSectionTitle(Icons.credit_card, "Payment Method"),
-                    const SizedBox(height: 14),
-                    _buildPaymentMethods(provider),
+                    _buildBookingSummary(provider),
                     const SizedBox(height: 20),
                     _buildConfirmButton(
                       provider,
-                      total,
                       canProceed: provider.canProceedToPayment,
+                      hasCredits: hasCredits,
+                      label: buttonLabel,
                     ),
                   ],
                 ),
@@ -81,6 +85,182 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _handleConfirm(BookingViewModel provider) async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    if (provider.sessionsRemaining <= 0) {
+      await _showPurchasePrompt(provider);
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final result = await provider.bookSelectedSlotWithCredit();
+      if (!mounted) {
+        return;
+      }
+
+      if (result.success && result.booking != null) {
+        final qrData = _buildSafeQrData(
+          result.booking!.qrCodeData,
+          bookingId: result.booking!.id,
+        );
+
+        try {
+          await _showBookingSuccessDialog(qrData);
+        } catch (_) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Booking confirmed successfully.')),
+          );
+        }
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyBookingError(result.message))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  String _buildSafeQrData(String? rawQrData, {required String bookingId}) {
+    final raw = rawQrData?.trim();
+    if (raw != null && raw.isNotEmpty) {
+      return raw;
+    }
+
+    return jsonEncode({
+      'booking_id': bookingId,
+      'type': 'booking_confirmation',
+      'source': 'mobile_fallback',
+    });
+  }
+
+  String _friendlyBookingError(String raw) {
+    final msg = raw.toLowerCase();
+    if (msg.contains('already booked this slot')) {
+      return 'You already have a booking for this slot.';
+    }
+    return raw;
+  }
+
+  Future<void> _showPurchasePrompt(BookingViewModel provider) async {
+    final shouldBuy = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text(
+          'No Credits Left',
+          style: TextStyle(color: Color(0xFFFFA500)),
+        ),
+        content: const Text(
+          'You do not have any sessions remaining. Buy a package first?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Later',
+              style: TextStyle(color: Color(0xFFAAAAAA)),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA500),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Buy', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldBuy != true) {
+      return;
+    }
+
+    try {
+      final checkoutUrl = await provider.createCheckoutForSelectedPackage();
+      final launched = await launchUrl(
+        Uri.parse(checkoutUrl),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Checkout URL: $checkoutUrl')));
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to start checkout: $e')));
+    }
+  }
+
+  Future<void> _showBookingSuccessDialog(String qrData) async {
+    final safeQrData = qrData.trim().isEmpty
+        ? _buildSafeQrData(null, bookingId: 'unknown')
+        : qrData;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text(
+          'Booking Confirmed',
+          style: TextStyle(color: Color(0xFFFFA500)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              color: Colors.white,
+              child: QrImageView(
+                data: safeQrData,
+                size: 180,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              safeQrData,
+              style: const TextStyle(color: Color(0xFF888888), fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA500),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -161,7 +341,10 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
                 ),
                 Text(
                   "${package.sessionsCount} Sessions Included",
-                  style: const TextStyle(color: Color(0xFF777777), fontSize: 11),
+                  style: const TextStyle(
+                    color: Color(0xFF777777),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -246,7 +429,8 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: dates.map((date) {
-          final bool isSelected = selectedDate.year == date.year &&
+          final bool isSelected =
+              selectedDate.year == date.year &&
               selectedDate.month == date.month &&
               selectedDate.day == date.day;
 
@@ -256,10 +440,14 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
               margin: const EdgeInsets.only(right: 7),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF0D0D0D),
+                color: isSelected
+                    ? const Color(0xFFFFA500)
+                    : const Color(0xFF0D0D0D),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF2A2A2A),
+                  color: isSelected
+                      ? const Color(0xFFFFA500)
+                      : const Color(0xFF2A2A2A),
                 ),
               ),
               child: Column(
@@ -267,14 +455,18 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
                   Text(
                     DateFormat('EEE').format(date).toUpperCase(),
                     style: TextStyle(
-                      color: isSelected ? Colors.black : const Color(0xFF666666),
+                      color: isSelected
+                          ? Colors.black
+                          : const Color(0xFF666666),
                       fontSize: 10,
                     ),
                   ),
                   Text(
                     DateFormat('d').format(date),
                     style: TextStyle(
-                      color: isSelected ? Colors.black : const Color(0xFFAAAAAA),
+                      color: isSelected
+                          ? Colors.black
+                          : const Color(0xFFAAAAAA),
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
@@ -349,7 +541,8 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
       itemBuilder: (context, index) {
         final slot = slots[index];
         final bool isSelected = provider.selectedSlot?.id == slot.id;
-        final bool isTaken = slot.isFull;
+        final bool isAlreadyBooked = provider.isSlotAlreadyBooked(slot.id);
+        final bool isTaken = slot.isFull || isAlreadyBooked;
 
         return GestureDetector(
           onTap: isTaken ? null : () => provider.selectSlot(slot),
@@ -358,27 +551,35 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
             decoration: BoxDecoration(
               color: isSelected
                   ? const Color(0xFFFFA500)
-                  : (isTaken ? const Color(0xFF0A0A0A) : const Color(0xFF111111)),
+                  : (isTaken
+                        ? const Color(0xFF0A0A0A)
+                        : const Color(0xFF111111)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected
                     ? const Color(0xFFFFA500)
-                    : (isTaken ? const Color(0xFF1A1A1A) : const Color(0xFF2A2A2A)),
+                    : (isTaken
+                          ? const Color(0xFF1A1A1A)
+                          : const Color(0xFF2A2A2A)),
               ),
             ),
             child: Stack(
               children: [
                 Center(
                   child: Text(
-                    DateFormat('hh:mm a').format(slot.startTime),
+                    isAlreadyBooked
+                        ? 'Booked'
+                        : DateFormat('hh:mm a').format(slot.startTime),
                     style: TextStyle(
                       color: isSelected
                           ? Colors.black
                           : (isTaken
-                              ? const Color(0xFF333333)
-                              : const Color(0xFFAAAAAA)),
+                                ? const Color(0xFF333333)
+                                : const Color(0xFFAAAAAA)),
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -444,9 +645,15 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
           const SizedBox(height: 8),
           _buildSlotMetaRow(Icons.schedule, timeRange),
           const SizedBox(height: 6),
-          _buildSlotMetaRow(Icons.person, slot.coachName.isEmpty ? '-' : slot.coachName),
+          _buildSlotMetaRow(
+            Icons.person,
+            slot.coachName.isEmpty ? '-' : slot.coachName,
+          ),
           const SizedBox(height: 6),
-          _buildSlotMetaRow(Icons.location_on, slot.location.isEmpty ? '-' : slot.location),
+          _buildSlotMetaRow(
+            Icons.location_on,
+            slot.location.isEmpty ? '-' : slot.location,
+          ),
           const SizedBox(height: 6),
           _buildSlotMetaRow(
             Icons.event_seat,
@@ -472,12 +679,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     );
   }
 
-  Widget _buildOrderSummary(
-    BookingViewModel provider,
-    double subtotal,
-    double sst,
-    double total,
-  ) {
+  Widget _buildBookingSummary(BookingViewModel provider) {
     final packageName = provider.selectedPackage?.name ?? '-';
     final dateText = DateFormat('EEE, d MMM y').format(provider.selectedDate);
     final timeText = provider.selectedSlot == null
@@ -502,11 +704,26 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(color: Color(0xFF2A2A2A), height: 1, thickness: 1),
           ),
-          _buildPayRow("Subtotal", "RM ${subtotal.toStringAsFixed(2)}"),
+          _buildPayRow(
+            "Sessions Remaining",
+            provider.sessionsRemaining.toString(),
+          ),
           const SizedBox(height: 8),
-          _buildPayRow("SST (8%)", "RM ${sst.toStringAsFixed(2)}"),
+          _buildPayRow(
+            "Status",
+            provider.sessionsRemaining > 0
+                ? 'Ready to book'
+                : 'Buy a package first',
+            isOrange: provider.sessionsRemaining > 0,
+          ),
           const SizedBox(height: 8),
-          _buildPayRow("Total", "RM ${total.toStringAsFixed(2)}", isOrange: true),
+          _buildPayRow(
+            "Charge",
+            provider.sessionsRemaining > 0
+                ? 'RM 0.00'
+                : 'Package purchase required',
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -516,7 +733,10 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF666666), fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFF666666), fontSize: 12),
+        ),
         Text(
           val,
           style: TextStyle(
@@ -529,107 +749,61 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     );
   }
 
-  Widget _buildPaymentMethods(BookingViewModel provider) {
-    final methods = [
-      {'type': PaymentMethodOption.card, 'name': 'Card', 'icon': Icons.credit_card},
-      {'type': PaymentMethodOption.applePay, 'name': 'Apple Pay', 'icon': Icons.apple},
-      {
-        'type': PaymentMethodOption.eWallet,
-        'name': 'e-Wallet',
-        'icon': Icons.account_balance_wallet,
-      },
-      {'type': PaymentMethodOption.fpx, 'name': 'FPX', 'icon': Icons.account_balance},
-    ];
-
-    return Row(
-      children: methods.map((m) {
-        final method = m['type'] as PaymentMethodOption;
-        final bool isSelected = provider.selectedPaymentMethod == method;
-
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => provider.selectPaymentMethod(method),
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF1A1000) : const Color(0xFF111111),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF2A2A2A),
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    m['icon'] as IconData,
-                    color:
-                        isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
-                    size: 20,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    m['name'] as String,
-                    style: TextStyle(
-                      color:
-                          isSelected ? const Color(0xFFFFA500) : const Color(0xFF777777),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _buildConfirmButton(
-    BookingViewModel provider,
-    double total, {
+    BookingViewModel provider, {
     required bool canProceed,
+    required bool hasCredits,
+    required String label,
   }) {
-    return GestureDetector(
-      onTap: !canProceed
-          ? null
-          : () {
-              final contextPayload = provider.buildCheckoutContext();
-              if (contextPayload == null || !mounted) {
-                return;
-              }
+    final isBusy = provider.isLoading || _isSubmitting;
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Payment integration ready. Method: ${contextPayload['paymentMethod']}.',
-                  ),
-                ),
-              );
+    return GestureDetector(
+      onTap: (!canProceed || isBusy)
+          ? null
+          : () async {
+              if (hasCredits) {
+                await _handleConfirm(provider);
+              } else {
+                await _showPurchasePrompt(provider);
+              }
             },
       child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: canProceed ? const Color(0xFFFFA500) : const Color(0xFF5E5E5E),
-        borderRadius: BorderRadius.circular(50),
-        boxShadow: [
-          BoxShadow(
-            color: (canProceed ? const Color(0xFFFFA500) : const Color(0xFF5E5E5E))
-                .withValues(alpha: 0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: (canProceed && !isBusy)
+              ? const Color(0xFFFFA500)
+              : const Color(0xFF5E5E5E),
+          borderRadius: BorderRadius.circular(50),
+          boxShadow: [
+            BoxShadow(
+              color:
+                  ((canProceed && !isBusy)
+                          ? const Color(0xFFFFA500)
+                          : const Color(0xFF5E5E5E))
+                      .withValues(alpha: 0.25),
+              blurRadius: 18,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.lock, color: Colors.black, size: 16),
+            if (isBusy)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                ),
+              )
+            else
+              const Icon(Icons.lock, color: Colors.black, size: 16),
             const SizedBox(width: 8),
             Text(
-              "Confirm & Pay RM ${total.toStringAsFixed(2)}",
+              isBusy ? 'Processing...' : label,
               style: const TextStyle(
                 color: Colors.black,
                 fontSize: 14,

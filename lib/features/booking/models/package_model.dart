@@ -7,6 +7,7 @@ class PackageModel {
   final String? badge;
   final bool isFeatured;
   final String iconName;
+  final List<String> allowedClassNames;
 
   PackageModel({
     required this.id,
@@ -17,6 +18,7 @@ class PackageModel {
     this.badge,
     this.isFeatured = false,
     this.iconName = 'fitness_center',
+    this.allowedClassNames = const [],
   });
 
   factory PackageModel.fromMap(Map<String, dynamic> map) {
@@ -25,11 +27,33 @@ class PackageModel {
       name: map['name']?.toString() ?? '',
       description: map['description']?.toString() ?? '',
       price: double.tryParse(map['price']?.toString() ?? '0') ?? 0.0,
-      sessionsCount: int.tryParse(map['sessions_count']?.toString() ?? '0') ?? 0,
+      sessionsCount:
+          int.tryParse(map['sessions_count']?.toString() ?? '0') ?? 0,
       badge: map['badge']?.toString(),
       isFeatured: map['is_featured'] == true,
       iconName: map['icon_name']?.toString() ?? 'fitness_center',
+      allowedClassNames: _parseAllowedClassNames(map['allowed_class_names']),
     );
+  }
+
+  static List<String> _parseAllowedClassNames(dynamic value) {
+    if (value is List) {
+      return value
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    if (value is String && value.isNotEmpty) {
+      final cleaned = value.replaceAll('{', '').replaceAll('}', '');
+      return cleaned
+          .split(',')
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    return const [];
   }
 
   Map<String, dynamic> toMap() {
@@ -42,6 +66,7 @@ class PackageModel {
       'badge': badge,
       'is_featured': isFeatured,
       'icon_name': iconName,
+      'allowed_class_names': allowedClassNames,
     };
   }
 }

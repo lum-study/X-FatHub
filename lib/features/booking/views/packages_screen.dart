@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/models/slot_model.dart';
+import 'package:xfathub/features/booking/views/my_bookings_screen.dart';
+import 'package:xfathub/features/booking/views/package_detail_screen.dart';
 import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
 
 class PackagesScreen extends StatefulWidget {
@@ -26,6 +28,30 @@ class _PackagesScreenState extends State<PackagesScreen> {
     });
   }
 
+  void _openPackageDetail(
+    BuildContext context,
+    BookingViewModel provider,
+    PackageModel package,
+  ) {
+    provider.selectPackage(package);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PackageDetailScreen(package: package)),
+    );
+  }
+
+  void _openBookSlot(
+    BuildContext context,
+    BookingViewModel provider,
+    PackageModel package,
+  ) {
+    provider.selectPackage(package);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BookAndPayScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,7 +60,39 @@ class _PackagesScreenState extends State<PackagesScreen> {
         child: Consumer<BookingViewModel>(
           builder: (context, provider, child) {
             if (provider.isLoading && provider.packages.isEmpty) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFFFFA500)));
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFFFFA500)),
+              );
+            }
+
+            if (provider.errorMessage != null && provider.packages.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Color(0xFFFFA500),
+                        size: 36,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        provider.errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'If the database is empty, run the booking seed SQL file.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }
 
             return RefreshIndicator(
@@ -42,7 +100,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 await provider.refreshPackagesPage();
               },
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -52,50 +113,88 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     const SizedBox(height: 14),
                     _buildCategoryPills(),
                     const SizedBox(height: 14),
-                    _buildSectionTitle(Icons.layers, "Class Packages"),
+                    if (provider.activePackages.isNotEmpty) ...[
+                      _buildSectionTitle(
+                        Icons.stars_rounded,
+                        "Active Packages",
+                      ),
+                      const SizedBox(height: 8),
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: provider.activePackages.length,
+                        separatorBuilder: (context, _) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final pkg = provider.activePackages[index];
+                          final credits =
+                              provider.sessionsRemainingByPackage[pkg.id] ?? 0;
+                          final expiry = provider.expiryByPackage[pkg.id];
+                          return _buildActivePackageCard(
+                            package: pkg,
+                            credits: credits,
+                            expiry: expiry,
+                            onBookTap: () =>
+                                _openBookSlot(context, provider, pkg),
+                            onDetailsTap: () =>
+                                _openPackageDetail(context, provider, pkg),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    _buildSectionTitle(Icons.layers, "Buy Packages"),
                     const SizedBox(height: 8),
-                    
-                    if (provider.packages.isEmpty && !provider.isLoading)
+
+                    if (provider.availablePackages.isEmpty &&
+                        !provider.isLoading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text("No packages available.", style: TextStyle(color: Colors.white54)),
+                        child: Text(
+                          "No additional packages to buy right now.",
+                          style: TextStyle(color: Colors.white54),
+                        ),
                       )
                     else
                       ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.packages.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemCount: provider.availablePackages.length,
+                        separatorBuilder: (context, _) =>
+                            const SizedBox(height: 10),
                         itemBuilder: (context, index) {
-                          final pkg = provider.packages[index];
+                          final pkg = provider.availablePackages[index];
                           return _buildPackageCard(
                             package: pkg,
-                            onTap: () {
-                              provider.selectPackage(pkg);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const BookAndPayScreen()),
-                              );
-                            },
+                            onDetailsTap: () =>
+                                _openPackageDetail(context, provider, pkg),
                           );
                         },
                       ),
 
                     const SizedBox(height: 14),
-                    _buildSectionTitle(Icons.calendar_today, "Today's Gym Slots"),
+                    _buildSectionTitle(
+                      Icons.calendar_today,
+                      "Today's Gym Slots",
+                    ),
                     const SizedBox(height: 8),
 
                     if (provider.todaySlots.isEmpty && !provider.isLoading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text("No slots available for today.", style: TextStyle(color: Colors.white54)),
+                        child: Text(
+                          "No slots available for today.",
+                          style: TextStyle(color: Colors.white54),
+                        ),
                       )
                     else
                       ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: provider.todaySlots.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (context, _) =>
+                            const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final slot = provider.todaySlots[index];
                           return _buildSlotCard(slot: slot);
@@ -129,7 +228,15 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ),
           ],
         ),
-        const Icon(Icons.notifications_none, color: Color(0xFFFFA500), size: 28),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyBookingsScreen()),
+            );
+          },
+          child: const Icon(Icons.history, color: Color(0xFFFFA500), size: 28),
+        ),
       ],
     );
   }
@@ -166,10 +273,14 @@ class _PackagesScreenState extends State<PackagesScreen> {
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isActive ? const Color(0xFFFFA500) : const Color(0xFF0D0D0D),
+              color: isActive
+                  ? const Color(0xFFFFA500)
+                  : const Color(0xFF0D0D0D),
               borderRadius: BorderRadius.circular(50),
               border: Border.all(
-                color: isActive ? const Color(0xFFFFA500) : const Color(0xFF333333),
+                color: isActive
+                    ? const Color(0xFFFFA500)
+                    : const Color(0xFF333333),
                 width: 1.5,
               ),
             ),
@@ -205,21 +316,30 @@ class _PackagesScreenState extends State<PackagesScreen> {
     );
   }
 
-  Widget _buildPackageCard({required PackageModel package, required VoidCallback onTap}) {
+  Widget _buildPackageCard({
+    required PackageModel package,
+    required VoidCallback onDetailsTap,
+  }) {
     IconData getIcon(String name) {
       switch (name) {
-        case 'directions_run': return Icons.directions_run;
-        case 'fitness_center': 
-        default: return Icons.fitness_center;
+        case 'directions_run':
+          return Icons.directions_run;
+        case 'fitness_center':
+        default:
+          return Icons.fitness_center;
       }
     }
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: package.isFeatured ? const Color(0xFF0F0F0F) : const Color(0xFF111111),
+        color: package.isFeatured
+            ? const Color(0xFF0F0F0F)
+            : const Color(0xFF111111),
         border: Border.all(
-          color: package.isFeatured ? const Color(0xFFFFA500) : const Color(0xFF2A2A2A),
+          color: package.isFeatured
+              ? const Color(0xFFFFA500)
+              : const Color(0xFF2A2A2A),
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -235,7 +355,11 @@ class _PackagesScreenState extends State<PackagesScreen> {
                   color: const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(getIcon(package.iconName), color: const Color(0xFFFFA500), size: 20),
+                child: Icon(
+                  getIcon(package.iconName),
+                  color: const Color(0xFFFFA500),
+                  size: 20,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -283,8 +407,11 @@ class _PackagesScreenState extends State<PackagesScreen> {
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.check_circle,
-                              color: Color(0xFFFFA500), size: 12),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFFFFA500),
+                            size: 12,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             "${package.sessionsCount} Sessions Included",
@@ -298,10 +425,12 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     ],
                   ),
                   GestureDetector(
-                    onTap: onTap,
+                    onTap: onDetailsTap,
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 7,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFA500),
                         borderRadius: BorderRadius.circular(50),
@@ -309,10 +438,8 @@ class _PackagesScreenState extends State<PackagesScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (package.isFeatured)
-                            const Icon(Icons.bolt, color: Colors.black, size: 14),
                           const Text(
-                            "Book",
+                            "View Details",
                             style: TextStyle(
                               color: Colors.black,
                               fontSize: 12,
@@ -332,7 +459,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
               top: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFA500),
                   borderRadius: BorderRadius.circular(50),
@@ -348,6 +478,95 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivePackageCard({
+    required PackageModel package,
+    required int credits,
+    required DateTime? expiry,
+    required VoidCallback onBookTap,
+    required VoidCallback onDetailsTap,
+  }) {
+    final expiryLabel = expiry == null
+        ? '-'
+        : DateFormat('d MMM y').format(expiry);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A1000), Color(0xFF0F0F0F)],
+        ),
+        border: Border.all(color: const Color(0xFFFFA500)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  package.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFA500),
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Text(
+                  'ACTIVE',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$credits credits left · valid until $expiryLabel',
+            style: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 11),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFA500),
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: onBookTap,
+                  child: const Text('Book Slot'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFFA500)),
+                ),
+                onPressed: onDetailsTap,
+                child: const Text(
+                  'Details',
+                  style: TextStyle(color: Color(0xFFFFA500)),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -398,7 +617,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 const SizedBox(height: 2),
                 Text(
                   ampmStr,
-                  style: const TextStyle(color: Color(0xFF666666), fontSize: 10),
+                  style: const TextStyle(
+                    color: Color(0xFF666666),
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),
@@ -419,7 +641,11 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const Icon(Icons.person, color: Color(0xFFFFA500), size: 12),
+                    const Icon(
+                      Icons.person,
+                      color: Color(0xFFFFA500),
+                      size: 12,
+                    ),
                     const SizedBox(width: 3),
                     Text(
                       "${slot.coachName} · ${slot.location}",

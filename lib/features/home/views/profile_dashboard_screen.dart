@@ -19,6 +19,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfileProvider>().init();
+      context.read<BookingViewModel>().refreshCurrentUserBookingData();
     });
   }
 
@@ -34,10 +35,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         elevation: 0,
         title: const Text(
           'Health Dashboard',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -52,9 +50,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         ],
       ),
       body: profileProvider.isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.orange),
-            )
+          ? const Center(child: CircularProgressIndicator(color: Colors.orange))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -76,12 +72,17 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   const SizedBox(height: 16),
 
                   // Stats Grid
-                  Consumer3<StepTrackerViewModel, HydrationViewModel, BookingViewModel>(
+                  Consumer3<
+                    StepTrackerViewModel,
+                    HydrationViewModel,
+                    BookingViewModel
+                  >(
                     builder: (context, stepVM, hydrationVM, bookingVM, _) {
                       // Calculate streak (simple: days with steps > 0)
                       int streak = 0;
                       if (stepVM.steps > 0) {
-                        streak = 12; // Placeholder - implement streak calculation in viewmodel
+                        streak =
+                            12; // Placeholder - implement streak calculation in viewmodel
                       }
 
                       return GridView.count(
@@ -100,16 +101,20 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                           ),
                           _buildStatCard(
                             title: 'Hydration',
-                            value: hydrationVM.consumptionInLiters.toStringAsFixed(1),
+                            value: hydrationVM.consumptionInLiters
+                                .toStringAsFixed(1),
                             icon: Icons.local_drink_outlined,
-                            goal: '${hydrationVM.goalInLiters.toStringAsFixed(1)}L',
+                            goal:
+                                '${hydrationVM.goalInLiters.toStringAsFixed(1)}L',
                             color: Colors.blue,
                           ),
                           _buildStatCard(
-                            title: 'Workouts',
-                            value: bookingVM.userBookings.length.toString(),
+                            title: 'Sessions Left',
+                            value: bookingVM.sessionsRemaining.toString(),
                             icon: Icons.fitness_center,
-                            goal: '3/week',
+                            goal: bookingVM.nextExpiryDate == null
+                                ? 'No pack'
+                                : 'Active package',
                             color: Colors.green,
                           ),
                           _buildStatCard(
@@ -144,7 +149,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         icon: Icons.add_circle_outline,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Navigate to Activity Tracker')),
+                            const SnackBar(
+                              content: Text('Navigate to Activity Tracker'),
+                            ),
                           );
                         },
                       ),
@@ -153,7 +160,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         icon: Icons.calendar_today,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Navigate to Booking')),
+                            const SnackBar(
+                              content: Text('Navigate to Booking'),
+                            ),
                           );
                         },
                       ),
@@ -162,7 +171,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         icon: Icons.person_outline,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Navigate to Profile Edit')),
+                            const SnackBar(
+                              content: Text('Navigate to Profile Edit'),
+                            ),
                           );
                         },
                       ),
@@ -192,7 +203,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         const SizedBox(height: 12),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.logout, color: Colors.orange),
+                          leading: const Icon(
+                            Icons.logout,
+                            color: Colors.orange,
+                          ),
                           title: const Text(
                             'Sign Out',
                             style: TextStyle(color: Colors.white),
@@ -229,7 +243,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
               shape: BoxShape.circle,
               color: Colors.orange.withOpacity(0.2),
               border: Border.all(color: Colors.orange, width: 2),
-              image: (profile?.profilePictureUrl != null &&
+              image:
+                  (profile?.profilePictureUrl != null &&
                       profile!.profilePictureUrl!.isNotEmpty)
                   ? DecorationImage(
                       image: NetworkImage(profile.profilePictureUrl!),
@@ -237,7 +252,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                     )
                   : null,
             ),
-            child: (profile?.profilePictureUrl == null ||
+            child:
+                (profile?.profilePictureUrl == null ||
                     profile!.profilePictureUrl!.isEmpty)
                 ? const Icon(Icons.person, size: 35, color: Colors.orange)
                 : null,
@@ -260,19 +276,13 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 const SizedBox(height: 4),
                 Text(
                   profile?.email ?? 'No email',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[400],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                 ),
                 const SizedBox(height: 4),
                 if (profile?.bio != null && profile!.bio!.isNotEmpty)
                   Text(
                     profile.bio!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[300],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -328,10 +338,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           const SizedBox(height: 4),
           Text(
             'Goal: $goal',
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.grey,
-            ),
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
           ),
         ],
       ),
@@ -377,10 +384,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Sign Out',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Sign Out', style: TextStyle(color: Colors.white)),
         content: const Text(
           'Are you sure you want to sign out?',
           style: TextStyle(color: Colors.grey),
