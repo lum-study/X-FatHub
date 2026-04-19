@@ -1,27 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/profile_provider.dart';
+import 'login_screen.dart';
+import 'profile_dashboard_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProfileProvider>().init();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Home'), elevation: 0),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.home, size: 64, color: Colors.orange.withOpacity(0.5)),
-            const SizedBox(height: 16),
-            Text('Home Module', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            const Text(
-              'Coming soon',
-              style: TextStyle(color: Color(0xFFAAAAAA)),
-            ),
-          ],
-        ),
-      ),
-    );
+    final profileProvider = context.watch<ProfileProvider>();
+
+    return profileProvider.isAuthenticated
+        ? const ProfileDashboardScreen()
+        : const LoginScreen();
   }
 }
+
