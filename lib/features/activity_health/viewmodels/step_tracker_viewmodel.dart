@@ -79,6 +79,9 @@ class StepTrackerViewModel extends ChangeNotifier {
     // Load step tracker data (pedometer should have data by now)
     await loadStepTrackerData();
     
+    // Sync goal to remote on page load
+    await _repository.syncGoalToRemote();
+    
     // Mark initial load as complete - UI can now be displayed
     _isFirstLoadComplete = true;
     _setLoading(false);
