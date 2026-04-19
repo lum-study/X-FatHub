@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:xfathub/features/booking/providers/booking_provider.dart';
+import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/models/slot_model.dart';
 import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
@@ -20,7 +20,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
     // Use package-style import for the provider to match app_providers.dart
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        final provider = Provider.of<BookingProvider>(context, listen: false);
+        final provider = Provider.of<BookingViewModel>(context, listen: false);
         provider.initializePackagesPage();
       }
     });
@@ -31,7 +31,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Consumer<BookingProvider>(
+        child: Consumer<BookingViewModel>(
           builder: (context, provider, child) {
             if (provider.isLoading && provider.packages.isEmpty) {
               return const Center(child: CircularProgressIndicator(color: Color(0xFFFFA500)));
@@ -85,7 +85,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     _buildSectionTitle(Icons.calendar_today, "Today's Gym Slots"),
                     const SizedBox(height: 8),
 
-                    if (provider.slots.isEmpty && !provider.isLoading)
+                    if (provider.todaySlots.isEmpty && !provider.isLoading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Text("No slots available for today.", style: TextStyle(color: Colors.white54)),
@@ -94,10 +94,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
                       ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.slots.length,
+                        itemCount: provider.todaySlots.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final slot = provider.slots[index];
+                          final slot = provider.todaySlots[index];
                           return _buildSlotCard(slot: slot);
                         },
                       ),

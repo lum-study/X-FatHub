@@ -4,7 +4,7 @@ import '../providers/profile_provider.dart';
 import 'settings_screen.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
-import '../../booking/providers/booking_provider.dart';
+import '../../booking/viewmodels/booking_viewmodel.dart';
 
 class ProfileDashboardScreen extends StatefulWidget {
   const ProfileDashboardScreen({super.key});
@@ -76,7 +76,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   const SizedBox(height: 16),
 
                   // Stats Grid
-                  Consumer3<StepTrackerViewModel, HydrationViewModel, BookingProvider>(
+                  Consumer3<StepTrackerViewModel, HydrationViewModel, BookingViewModel>(
                     builder: (context, stepVM, hydrationVM, bookingVM, _) {
                       // Calculate streak (simple: days with steps > 0)
                       int streak = 0;

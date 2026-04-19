@@ -21,7 +21,6 @@ class BookingRepository {
     return !localTimestamp.isBefore(start) && localTimestamp.isBefore(end);
   }
 
-  // --- Packages ---
   Stream<List<PackageModel>> streamPackages() {
     return _supabase
         .from('packages')
@@ -32,20 +31,15 @@ class BookingRepository {
 
   Future<List<PackageModel>> fetchPackages() async {
     try {
-      final response = await _supabase
-          .from('packages')
-          .select()
-          .order('price', ascending: true);
-      
-      return (response as List)
-          .map((data) => PackageModel.fromMap(data))
-          .toList();
+      final response =
+          await _supabase.from('packages').select().order('price', ascending: true);
+
+      return (response as List).map((data) => PackageModel.fromMap(data)).toList();
     } catch (e) {
       throw Exception('Failed to fetch packages: $e');
     }
   }
 
-  // --- Gym Slots ---
   Stream<List<SlotModel>> streamSlotsByDate(DateTime date) {
     return _supabase
         .from('gym_slots')
@@ -74,22 +68,19 @@ class BookingRepository {
           .lt('start_time', endUtc)
           .order('start_time', ascending: true);
 
-      return (response as List)
-          .map((data) => SlotModel.fromMap(data))
-          .toList();
+      return (response as List).map((data) => SlotModel.fromMap(data)).toList();
     } catch (e) {
       throw Exception('Failed to fetch slots: $e');
     }
   }
 
-  // --- Bookings ---
   Future<void> createBooking(BookingModel booking) async {
     try {
       await _supabase.from('bookings').insert(booking.toMap());
-      
-      // If booking a specific slot, we might need to increment occupied_spots in gym_slots
+
       if (booking.slotId != null) {
-        await _supabase.rpc('increment_slot_occupancy', params: {'slot_id': booking.slotId});
+        await _supabase
+            .rpc('increment_slot_occupancy', params: {'slot_id': booking.slotId});
       }
     } catch (e) {
       throw Exception('Failed to create booking: $e');
@@ -104,9 +95,7 @@ class BookingRepository {
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
-      return (response as List)
-          .map((data) => BookingModel.fromMap(data))
-          .toList();
+      return (response as List).map((data) => BookingModel.fromMap(data)).toList();
     } catch (e) {
       throw Exception('Failed to fetch user bookings: $e');
     }
