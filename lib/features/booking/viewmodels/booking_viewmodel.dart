@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
-import '../repository/booking_repository.dart';
+import '../repositories/booking_repository.dart';
 import 'dart:async';
 
 enum PaymentMethodOption { card, applePay, eWallet, fpx }
 
-class BookingProvider extends ChangeNotifier {
+class BookingViewModel extends ChangeNotifier {
   final BookingRepository _repository = BookingRepository();
 
-  // State variables
   List<PackageModel> _packages = [];
   List<SlotModel> _slots = [];
+  List<SlotModel> _todaySlots = [];
   List<BookingModel> _userBookings = [];
-  
+
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -31,14 +31,15 @@ class BookingProvider extends ChangeNotifier {
 
   StreamSubscription<List<PackageModel>>? _packagesSubscription;
   StreamSubscription<List<SlotModel>>? _slotsSubscription;
+  StreamSubscription<List<SlotModel>>? _todaySlotsSubscription;
 
-  // Getters
   List<PackageModel> get packages => _packages;
   List<SlotModel> get slots => _slots;
+  List<SlotModel> get todaySlots => _todaySlots;
   List<BookingModel> get userBookings => _userBookings;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  
+
   PackageModel? get selectedPackage => _selectedPackage;
   DateTime get selectedDate => _selectedDate;
   SlotModel? get selectedSlot => _selectedSlot;
@@ -86,7 +87,6 @@ class BookingProvider extends ChangeNotifier {
     };
   }
 
-  // Setters/Selectors
   void selectPackage(PackageModel package) {
     _selectedPackage = package;
     _selectedSlot = null;
@@ -129,13 +129,11 @@ class BookingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Business Logic
   Future<void> initializePackagesPage() async {
-    // Fetch first to guarantee full list render, then attach realtime updates.
     await fetchPackages();
-    await fetchSlotsForDate(_selectedDate);
+    await fetchTodaySlots();
     startListeningPackages();
-    startListeningSlotsForDate(_selectedDate);
+    startListeningTodaySlots();
   }
 
   Future<void> initializeBookSession() async {
@@ -155,7 +153,19 @@ class BookingProvider extends ChangeNotifier {
 
   Future<void> refreshPackagesPage() async {
     await fetchPackages();
-    await fetchSlotsForDate(_selectedDate);
+    await fetchTodaySlots();
+  }
+
+  Future<void> fetchTodaySlots() async {
+    _setLoading(true);
+    try {
+      _todaySlots = await _repository.fetchSlotsByDate(_bookingWindowStartDate);
+      _errorMessage = null;
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      _setLoading(false);
+    }
   }
 
   void startListeningPackages() {
@@ -180,6 +190,23 @@ class BookingProvider extends ChangeNotifier {
         _slots = data;
         _errorMessage = null;
         _syncSelectedSlotWithAvailableSlots();
+        notifyListeners();
+      },
+      onError: (e) {
+        _errorMessage = e.toString();
+        notifyListeners();
+      },
+    );
+  }
+
+  void startListeningTodaySlots() {
+    _todaySlotsSubscription?.cancel();
+    _todaySlotsSubscription = _repository
+        .streamSlotsByDate(_bookingWindowStartDate)
+        .listen(
+      (data) {
+        _todaySlots = data;
+        _errorMessage = null;
         notifyListeners();
       },
       onError: (e) {
@@ -240,24 +267,25 @@ class BookingProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> confirmBooking({required String userId, required double amount}) async {
+  Future<bool> confirmBooking(
+      {required String userId, required double amount}) async {
     if (_selectedPackage == null) return false;
 
     _setLoading(true);
     try {
       final newBooking = BookingModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID generation
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: userId,
         packageId: _selectedPackage!.id,
         slotId: _selectedSlot?.id,
         bookingDate: DateTime.now(),
         totalPaid: amount,
         status: BookingStatus.upcoming,
-        sessionNumber: 1, // Logic to increment this based on user history would go here
+        sessionNumber: 1,
       );
 
       await _repository.createBooking(newBooking);
-      await fetchUserBookings(userId); // Refresh history
+      await fetchUserBookings(userId);
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -276,6 +304,7 @@ class BookingProvider extends ChangeNotifier {
   void dispose() {
     _packagesSubscription?.cancel();
     _slotsSubscription?.cancel();
+    _todaySlotsSubscription?.cancel();
     super.dispose();
   }
 }

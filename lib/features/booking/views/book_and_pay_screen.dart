@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
-import 'package:xfathub/features/booking/providers/booking_provider.dart';
+import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 
 class BookAndPayScreen extends StatefulWidget {
   const BookAndPayScreen({super.key});
@@ -19,14 +19,14 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final provider = context.read<BookingProvider>();
+      final provider = context.read<BookingViewModel>();
       provider.initializeBookSession();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<BookingProvider>(
+    return Consumer<BookingViewModel>(
       builder: (context, provider, child) {
         final package = provider.selectedPackage;
         final subtotal = package?.price ?? 0;
@@ -238,7 +238,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     );
   }
 
-  Widget _buildDatePicker(BookingProvider provider) {
+  Widget _buildDatePicker(BookingViewModel provider) {
     final selectedDate = provider.selectedDate;
     final dates = provider.bookingWindowDates;
 
@@ -288,7 +288,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     );
   }
 
-  Widget _buildTimeContent(BookingProvider provider) {
+  Widget _buildTimeContent(BookingViewModel provider) {
     if (provider.isLoading && provider.slots.isEmpty) {
       return const Center(
         child: Padding(
@@ -333,7 +333,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     return _buildTimeGrid(provider);
   }
 
-  Widget _buildTimeGrid(BookingProvider provider) {
+  Widget _buildTimeGrid(BookingViewModel provider) {
     final slots = provider.slots;
 
     return GridView.builder(
@@ -400,7 +400,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     );
   }
 
-  Widget _buildSelectedSlotDetails(BookingProvider provider) {
+  Widget _buildSelectedSlotDetails(BookingViewModel provider) {
     final slot = provider.selectedSlot;
 
     if (slot == null) {
@@ -473,7 +473,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
   }
 
   Widget _buildOrderSummary(
-    BookingProvider provider,
+    BookingViewModel provider,
     double subtotal,
     double sst,
     double total,
@@ -529,7 +529,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     );
   }
 
-  Widget _buildPaymentMethods(BookingProvider provider) {
+  Widget _buildPaymentMethods(BookingViewModel provider) {
     final methods = [
       {'type': PaymentMethodOption.card, 'name': 'Card', 'icon': Icons.credit_card},
       {'type': PaymentMethodOption.applePay, 'name': 'Apple Pay', 'icon': Icons.apple},
@@ -587,7 +587,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
   }
 
   Widget _buildConfirmButton(
-    BookingProvider provider,
+    BookingViewModel provider,
     double total, {
     required bool canProceed,
   }) {
