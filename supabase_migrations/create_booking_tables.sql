@@ -7,6 +7,7 @@ create table public.packages (
   badge text null,
   is_featured boolean null default false,
   icon_name text null default 'fitness_center'::text,
+  allowed_class_names text[] not null default '{}',
   constraint packages_pkey primary key (id)
 ) TABLESPACE pg_default;
 
