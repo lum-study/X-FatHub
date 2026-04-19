@@ -22,6 +22,12 @@ dependencies:
   sqflite: ^2.3.0
   path: ^1.8.3
   intl: ^0.20.2
+  connectivity_plus: ^7.0.0
+  workmanager: ^0.9.0+3
+  geolocator: ^11.0.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  uuid: ^4.0.0
 
 
 dev_dependencies:

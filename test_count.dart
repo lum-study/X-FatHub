@@ -1,0 +1,1 @@
+import 'package:supabase_flutter/supabase_flutter.dart'; void foo() async { final count = await Supabase.instance.client.from('posts').count(); }
