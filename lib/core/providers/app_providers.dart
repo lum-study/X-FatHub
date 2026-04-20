@@ -6,7 +6,7 @@ import 'package:xfathub/features/activity_health/viewmodels/hydration_viewmodel.
 import 'package:xfathub/features/activity_health/repositories/hydration_repository.dart';
 import 'package:xfathub/features/activity_health/viewmodels/activity_tracking_viewmodel.dart';
 import 'package:xfathub/features/activity_health/repositories/activity_repository.dart';
-import 'package:xfathub/features/booking/providers/booking_provider.dart';
+import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/home/providers/profile_provider.dart';
 import 'package:xfathub/features/community/providers/community_provider.dart';
 
@@ -27,8 +27,8 @@ List<SingleChildWidget> appProviders = [
       repository: ActivityRepository(),
     ),
   ),
-  ChangeNotifierProvider<BookingProvider>(
-    create: (_) => BookingProvider(),
+  ChangeNotifierProvider<BookingViewModel>(
+    create: (_) => BookingViewModel(),
   ),
   ChangeNotifierProvider<ProfileProvider>(
     create: (_) => ProfileProvider(),

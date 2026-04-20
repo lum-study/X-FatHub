@@ -48,51 +48,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             _buildTab(4, (_) => const ProfileDashboardScreen()), // Profile tab shows dashboard, settings via icon
           ],
         ),
-        floatingActionButton: Container(
-          margin: const EdgeInsets.only(top: 20),
-          height: 64,
-          width: 64,
-          child: FloatingActionButton(
-            onPressed: () => _onTabTapped(2),
-            backgroundColor: const Color(0xFFFFA500),
-            shape: const CircleBorder(),
-            elevation: 4,
-            child: Icon(
-              Icons.home,
-              size: 30,
-              color: _selectedIndex == 2 ? Colors.black : Colors.black.withOpacity(0.7),
-            ),
-          ),
-        ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         bottomNavigationBar: BottomAppBar(
           color: const Color(0xFF0D0D0D),
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 8,
           child: SizedBox(
             height: 60,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildNavItem(0, Icons.grid_view_rounded, "Community"),
-                      _buildNavItem(1, Icons.card_giftcard, "Packages"),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 80),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildNavItem(3, Icons.fitness_center, "Tracker"),
-                      _buildNavItem(4, Icons.person_outline, "Profile"),
-                    ],
-                  ),
-                ),
+                _buildNavItem(0, Icons.grid_view_rounded, "Community"),
+                _buildNavItem(1, Icons.card_giftcard, "Packages"),
+                _buildHomeNavItem(),
+                _buildNavItem(3, Icons.fitness_center, "Tracker"),
+                _buildNavItem(4, Icons.person_outline, "Profile"),
               ],
             ),
           ),
@@ -121,6 +88,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
               fontSize: 10,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomeNavItem() {
+    final isSelected = _selectedIndex == 2;
+    return GestureDetector(
+      onTap: () => _onTabTapped(2),
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFA500),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.home,
+              size: 20,
+              color: isSelected ? Colors.black : Colors.black.withOpacity(0.7),
             ),
           ),
         ],
