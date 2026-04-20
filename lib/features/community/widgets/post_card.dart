@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../views/comments_screen.dart';
+import '../models/post_model.dart';
+import '../providers/community_provider.dart';
 
 class PostCard extends StatefulWidget {
+  final PostModel post;
   final String author;
   final String time;
   final IconData avatarIcon;
@@ -14,9 +19,12 @@ class PostCard extends StatefulWidget {
   final VoidTapCallback? onProfileTap;
   final VoidCallback? onLikeToggle;
   final VoidCallback? onStarToggle;
+  final VoidCallback? onCommentExit;
+  final VoidCallback? onDelete;
 
   const PostCard({
     super.key,
+    required this.post,
     required this.author,
     required this.time,
     required this.avatarIcon,
@@ -29,6 +37,8 @@ class PostCard extends StatefulWidget {
     this.onProfileTap,
     this.onLikeToggle,
     this.onStarToggle,
+    this.onCommentExit,
+    this.onDelete,
   });
 
   @override
@@ -85,11 +95,11 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  void _navigateToComments() {
-    Navigator.push(
+  Future<void> _navigateToComments() async {
+    await Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const CommentsScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) => CommentsScreen(post: widget.post),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
@@ -99,6 +109,36 @@ class _PostCardState extends State<PostCard> {
         transitionDuration: const Duration(milliseconds: 200),
       ),
     );
+    if (widget.onCommentExit != null) {
+      widget.onCommentExit!();
+    }
+  }
+
+  Future<void> _deletePost() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('Delete Post', style: TextStyle(color: Colors.white)),
+        content: const Text('Are you sure you want to delete this post? This action cannot be undone.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      if (widget.onDelete != null) {
+        widget.onDelete!();
+      }
+    }
   }
 
   @override
@@ -107,7 +147,7 @@ class _PostCardState extends State<PostCard> {
       onTap: _navigateToComments,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.only(left: 14, right: 14, top: 14, bottom: 4),
         decoration: BoxDecoration(
           color: const Color(0xFF111111),
           border: Border.all(color: const Color(0xFF2A2A2A)),
@@ -152,7 +192,20 @@ class _PostCardState extends State<PostCard> {
                     ),
                   ),
                 ),
-                const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
+                if (context.read<CommunityProvider>().currentUserId == widget.post.userId)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
+                    color: const Color(0xFF1E1E1E),
+                    onSelected: (value) {
+                      if (value == 'delete') _deletePost();
+                    },
+                    itemBuilder: (BuildContext context) => [
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Delete Post', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
               ],
             ),
             const SizedBox(height: 10),
@@ -189,7 +242,7 @@ class _PostCardState extends State<PostCard> {
 
             // Actions
             Container(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 8),
               decoration: const BoxDecoration(
                 border: Border(
                   top: BorderSide(
@@ -201,7 +254,6 @@ class _PostCardState extends State<PostCard> {
               child: Column(
                 children: [
                   const Divider(color: Color(0xFF2A2A2A), height: 1),
-                  const SizedBox(height: 2),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -246,7 +298,7 @@ class _PostCardState extends State<PostCard> {
   Widget _buildActionBtn(IconData icon, String text, {bool isActive = false}) {
     return Container(
       color: Colors.transparent,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Row(
         children: [
           Icon(

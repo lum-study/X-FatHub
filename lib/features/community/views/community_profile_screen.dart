@@ -18,6 +18,8 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _userStats;
   List<PostModel> _userPosts = [];
+  bool _isFollowing = false;
+  bool _isCurrentUser = false;
 
   @override
   void initState() {
@@ -31,18 +33,30 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
     setState(() => _isLoading = true);
     
     final provider = context.read<CommunityProvider>();
+    _isCurrentUser = provider.currentUserId == widget.userId;
 
     // Fetch stats and posts in parallel
     final results = await Future.wait([
       provider.fetchUserProfileStats(widget.userId),
       provider.fetchUserPosts(widget.userId),
+      if (!_isCurrentUser) provider.isFollowing(widget.userId) else Future.value(false),
     ]);
 
-    setState(() {
-      _userStats = results[0] as Map<String, dynamic>?;
-      _userPosts = results[1] as List<PostModel>;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _userStats = results[0] as Map<String, dynamic>?;
+        _userPosts = results[1] as List<PostModel>;
+        _isFollowing = results.length > 2 ? results[2] as bool : false;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final provider = context.read<CommunityProvider>();
+    final newStatus = !_isFollowing;
+    setState(() => _isFollowing = newStatus);
+    await provider.toggleFollow(widget.userId, !newStatus);
   }
 
   @override
@@ -109,19 +123,30 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
           style: const TextStyle(color: Colors.orange, fontSize: 18),
         ),
       ),
-      body: Column(
-        children: [
-          _buildProfileHeader(name, formattedDate, totalLikes, totalPosts),
-          const Divider(color: Color(0xFF333333), height: 1),
+      body: RefreshIndicator(
+        color: Colors.orange,
+        backgroundColor: const Color(0xFF1E1E1E),
+        onRefresh: _loadProfileData,
+        child: Column(
+          children: [
+            _buildProfileHeader(name, formattedDate, totalLikes, totalPosts),
+            const Divider(color: Color(0xFF333333), height: 1),
           Expanded(
             child: _userPosts.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No posts yet',
-                      style: TextStyle(color: Color(0xFF666666)),
-                    ),
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 100),
+                      Center(
+                        child: Text(
+                          'No posts yet',
+                          style: TextStyle(color: Color(0xFF666666)),
+                        ),
+                      ),
+                    ],
                   )
                 : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     itemCount: _userPosts.length,
                     itemBuilder: (context, index) {
@@ -134,6 +159,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: PostCard(
+                          post: post,
                           author: post.authorName,
                           time: timeStr,
                           avatarIcon: Icons.person,
@@ -149,12 +175,18 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                           onStarToggle: () {
                             context.read<CommunityProvider>().toggleFavourite(post.id, !post.isFavouritedByMe);
                           },
+                          onCommentExit: _loadProfileData,
+                          onDelete: () async {
+                            await context.read<CommunityProvider>().deletePost(post.id);
+                            _loadProfileData(); // refresh after deletion
+                          },
                         ),
                       );
                     },
                   ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -184,6 +216,27 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
             'Joined $formattedDate',
             style: const TextStyle(color: Color(0xFF888888), fontSize: 13),
           ),
+          const SizedBox(height: 12),
+          if (!_isCurrentUser)
+            GestureDetector(
+              onTap: _toggleFollow,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isFollowing ? Colors.transparent : Colors.orange,
+                  border: Border.all(color: Colors.orange),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _isFollowing ? 'Following' : 'Follow',
+                  style: TextStyle(
+                    color: _isFollowing ? Colors.orange : Colors.black,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,

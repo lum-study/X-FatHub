@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import '../repository/community_repository.dart';
 
@@ -33,6 +34,31 @@ class CommunityProvider extends ChangeNotifier {
   Future<void> createPost(String content, {String? mediaUrl, String? category}) async {
     await _repository.createPost(
         content, mediaUrl: mediaUrl, category: category);
+    notifyListeners();
+  }
+
+  Future<void> deletePost(String postId) async {
+    await _repository.deletePost(postId);
+    notifyListeners();
+  }
+
+  Future<bool> isFollowing(String targetUserId) async {
+    return await _repository.isFollowing(targetUserId);
+  }
+
+  Future<void> toggleFollow(String targetUserId, bool isCurrentlyFollowing) async {
+    await _repository.toggleFollow(targetUserId, isCurrentlyFollowing);
+    notifyListeners(); // Could also let particular components rebuild themselves
+  }
+
+  Future<List<CommentModel>> getComments(String postId) async {
+    return await _repository.getComments(postId);
+  }
+
+  Future<void> addComment(String postId, String content) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    await _repository.addComment(postId, userId, content);
     notifyListeners();
   }
 }

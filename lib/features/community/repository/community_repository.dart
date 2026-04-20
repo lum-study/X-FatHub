@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/comment_model.dart';
 import '../models/post_model.dart';
 
 class CommunityRepository {
@@ -141,5 +142,67 @@ class CommunityRepository {
       'media_url': mediaUrl,
       'category': category ?? 'All Posts',
     });
+  }
+
+  // --- DELETE POST ---
+  Future<void> deletePost(String postId) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    await _supabase.from('posts').delete().eq('id', postId).eq('user_id', userId);
+  }
+
+  // --- FOLLOW ---
+  Future<bool> isFollowing(String targetUserId) async {
+    final userId = currentUserId;
+    if (userId == null) return false;
+
+    final response = await _supabase
+        .from('user_followers')
+        .select()
+        .eq('follower_id', userId)
+        .eq('following_id', targetUserId);
+    
+    return (response as List).isNotEmpty;
+  }
+
+  Future<void> toggleFollow(String targetUserId, bool isCurrentlyFollowing) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    if (isCurrentlyFollowing) {
+      await _supabase
+          .from('user_followers')
+          .delete()
+          .eq('follower_id', userId)
+          .eq('following_id', targetUserId);
+    } else {
+      await _supabase.from('user_followers').insert({
+        'follower_id': userId,
+        'following_id': targetUserId,
+      });
+    }
+  }
+
+  // --- COMMENTS METHODS ---
+
+  Future<List<CommentModel>> getComments(String postId) async {
+    final response = await _supabase
+        .from('post_comments')
+        .select('*, profiles(name)')
+        .eq('post_id', postId)
+        .order('created_at', ascending: true);
+
+    final data = response as List;
+    return data.map((json) => CommentModel.fromJson(json)).toList();
+  }
+
+  Future<CommentModel> addComment(String postId, String userId, String content) async {
+    final response = await _supabase.from('post_comments').insert({
+      'post_id': postId,
+      'user_id': userId,
+      'content': content,
+    }).select('*, profiles(name)').single();
+    
+    return CommentModel.fromJson(response);
   }
 }

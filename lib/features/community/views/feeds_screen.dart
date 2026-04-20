@@ -67,10 +67,10 @@ class _FeedsScreenState extends State<FeedsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.person, color: Colors.orange),
-            onPressed: () {
+            onPressed: () async {
               final provider = context.read<CommunityProvider>();
               if (provider.currentUserId != null) {
-                Navigator.push(
+                await Navigator.push(
                   context,
                   PageRouteBuilder(
                     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -81,6 +81,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
                     transitionDuration: const Duration(milliseconds: 200),
                   ),
                 );
+                _loadPosts();
               }
             },
           ),
@@ -150,7 +151,14 @@ class _FeedsScreenState extends State<FeedsScreen> {
                     child: CircularProgressIndicator(color: Colors.orange),
                   ),
                 )
-              : configExpandedList(),
+              : Expanded(
+                  child: RefreshIndicator(
+                    color: Colors.orange,
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    onRefresh: _loadPosts,
+                    child: configExpandedList(),
+                  ),
+                ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -158,8 +166,15 @@ class _FeedsScreenState extends State<FeedsScreen> {
         onPressed: () async {
           // Navigate to NewPostScreen
           await Navigator.push(
-            context, 
-            MaterialPageRoute(builder: (_) => const NewPostScreen())
+            context,
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  const NewPostScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: const Duration(milliseconds: 200),
+            ),
           );
           // Reload posts so the timeline is refreshed instantly!
           if (mounted) {
@@ -171,23 +186,27 @@ class _FeedsScreenState extends State<FeedsScreen> {
     );
   }
 
-  Expanded configExpandedList() {
+  Widget configExpandedList() {
     if (_posts.isEmpty) {
-      return const Expanded(
-        child: Center(
-          child: Text(
-            'No posts found',
-            style: TextStyle(color: Color(0xFF666666)),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 100),
+          Center(
+            child: Text(
+              'No posts found',
+              style: TextStyle(color: Color(0xFF666666)),
+            ),
           ),
-        ),
+        ],
       );
     }
 
-    return Expanded(
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: _posts.length + 1, // +1 for the bottom padding
-        itemBuilder: (context, index) {
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),       
+      itemCount: _posts.length + 1, // +1 for the bottom padding
+      itemBuilder: (context, index) {
           if (index == _posts.length) {
             return const SizedBox(height: 80); // Padding for FAB
           }
@@ -201,7 +220,8 @@ class _FeedsScreenState extends State<FeedsScreen> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: PostCard(
-               author: post.authorName, // This would require JOINs to profile tables
+              post: post,
+              author: post.authorName, // This would require JOINs to profile tables
               time: timeStr,
               avatarIcon: Icons.person,
               content: post.content,
@@ -214,8 +234,14 @@ class _FeedsScreenState extends State<FeedsScreen> {
                 },
                 onStarToggle: () {
                   context.read<CommunityProvider>().toggleFavourite(post.id, !post.isFavouritedByMe);
-                },              onProfileTap: () {
-                Navigator.push(
+                },
+                onCommentExit: _loadPosts,
+                onDelete: () async {
+                  await context.read<CommunityProvider>().deletePost(post.id);
+                  _loadPosts(); // refresh after deletion
+                },
+                onProfileTap: () async {
+                await Navigator.push(
                   context,
                   PageRouteBuilder(
                     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -226,11 +252,11 @@ class _FeedsScreenState extends State<FeedsScreen> {
                     transitionDuration: const Duration(milliseconds: 200),
                   ),
                 );
+                _loadPosts();
               },
             ),
           );
         },
-      ),
-    );
+      );
   }
 }

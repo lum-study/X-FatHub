@@ -1,10 +1,177 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-class CommentsScreen extends StatelessWidget {
-  const CommentsScreen({super.key});
+import '../models/comment_model.dart';
+import '../models/post_model.dart';
+import '../providers/community_provider.dart';
+import 'community_profile_screen.dart';
+
+class CommentsScreen extends StatefulWidget {
+  final PostModel post;
+
+  const CommentsScreen({super.key, required this.post});
+
+  @override
+  State<CommentsScreen> createState() => _CommentsScreenState();
+}
+
+class _CommentsScreenState extends State<CommentsScreen> {
+  final TextEditingController _commentController = TextEditingController();
+  List<CommentModel> _comments = [];
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+
+  late bool _isLiked;
+  late int _likesCount;
+  bool _isFollowing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isLiked = widget.post.isLikedByMe;
+    _likesCount = widget.post.likesCount;
+    _loadComments();
+    _checkFollowing();
+  }
+
+  Future<void> _checkFollowing() async {
+    final provider = context.read<CommunityProvider>();
+    if (provider.currentUserId == widget.post.userId) return;
+    final following = await provider.isFollowing(widget.post.userId);
+    if (mounted) {
+      setState(() => _isFollowing = following);
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final provider = context.read<CommunityProvider>();
+    final newStatus = !_isFollowing;
+    setState(() => _isFollowing = newStatus);
+    await provider.toggleFollow(widget.post.userId, !newStatus);
+  }
+
+  Future<void> _navigateToProfile() async {
+    await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            CommunityProfileScreen(userId: widget.post.userId),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
+    _loadComments();
+    _checkFollowing();
+  }
+
+  Future<void> _deletePost() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('Delete Post', style: TextStyle(color: Colors.white)),
+        content: const Text('Are you sure you want to delete this post? This action cannot be undone.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final provider = context.read<CommunityProvider>();
+        await provider.deletePost(widget.post.id);
+        if (mounted) Navigator.pop(context); // Go back after delete
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete post: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  void _toggleLike() {
+    setState(() {
+      if (_isLiked) {
+        _likesCount--;
+      } else {
+        _likesCount++;
+      }
+      _isLiked = !_isLiked;
+    });
+    context.read<CommunityProvider>().toggleLike(widget.post.id, _isLiked);
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadComments() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final provider = context.read<CommunityProvider>();
+      final comments = await provider.getComments(widget.post.id);
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading comments: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      final provider = context.read<CommunityProvider>();
+      await provider.addComment(widget.post.id, text);
+      
+      _commentController.clear();
+      FocusScope.of(context).unfocus();
+      
+      // Reload comments to show the new one
+      await _loadComments();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to post comment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final post = widget.post;
+    final diff = DateTime.now().difference(post.createdAt);
+    final timeStr = diff.inHours > 0 ? '${diff.inHours} hours ago' : '${diff.inMinutes} mins ago';
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -42,67 +209,127 @@ class CommentsScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFF1E1E1E),
-                            child: Icon(Icons.person, color: Colors.orange),
+                          GestureDetector(
+                            onTap: _navigateToProfile,
+                            child: const CircleAvatar(
+                              backgroundColor: Color(0xFF1E1E1E),
+                              child: Icon(Icons.person, color: Colors.orange),
+                            ),
                           ),
                           const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Alex Fit',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _navigateToProfile,
+                              behavior: HitTestBehavior.opaque,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    post.authorName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    timeStr,
+                                    style: const TextStyle(
+                                      color: Color(0xFF777777),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                '2 hours ago',
-                                style: const TextStyle(
-                                  color: Color(0xFF777777),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
+                          if (context.read<CommunityProvider>().currentUserId == post.userId)
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert, color: Colors.white),
+                              color: const Color(0xFF1E1E1E),
+                              onSelected: (value) {
+                                if (value == 'delete') _deletePost();
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem<String>(
+                                  value: 'delete',
+                                  child: Text('Delete Post', style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
+                            )
+                          else
+                            GestureDetector(
+                              onTap: _toggleFollow,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: _isFollowing ? Colors.transparent : Colors.orange,
+                                  border: Border.all(color: Colors.orange),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  _isFollowing ? 'Following' : 'Follow',
+                                  style: TextStyle(
+                                    color: _isFollowing ? Colors.orange : Colors.black,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Just smashed my PR on deadlifts! 120kg feeling incredibly light today. Massive thanks to @CoachRafi for fixing my form.',
-                        style: TextStyle(
+                      // Add media here if exists
+                      if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              post.mediaUrl!,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        post.content,
+                        style: const TextStyle(
                           color: Color(0xFFEEEEEE),
                           fontSize: 13,
                           height: 1.4,
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.favorite,
-                            color: Colors.orange,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            '42 Likes',
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontSize: 12,
+                      GestureDetector(
+                        onTap: _toggleLike,
+                        behavior: HitTestBehavior.opaque,
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: _isLiked ? Colors.orange : const Color(0xFF888888),
+                              size: 16,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              '$_likesCount Likes',
+                              style: TextStyle(
+                                color: _isLiked ? Colors.orange : const Color(0xFF888888),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'REPLIES (2)',
-                  style: TextStyle(
+                Text(
+                  'REPLIES (${_comments.length})',
+                  style: const TextStyle(
                     color: Color(0xFF666666),
                     fontSize: 11,
                     letterSpacing: 0.6,
@@ -112,21 +339,40 @@ class CommentsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 // Comment list
-                _buildCommentItem(
-                  author: 'Coach Rafi',
-                  time: '1h ago',
-                  text:
-                      'Form was perfect today! Keep that core engaged and we will hit 130kg next month.',
-                  icon: Icons.person_2,
-                ),
-                const SizedBox(height: 12),
-                _buildCommentItem(
-                  author: 'Jake L.',
-                  time: '30m ago',
-                  text:
-                      'Bro that is insane, good job! I need to join your sessions.',
-                  icon: Icons.person_4,
-                ),
+                if (_isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (_comments.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Center(
+                      child: Text(
+                        'No comments yet. Be the first!',
+                        style: TextStyle(color: Color(0xFF666666)),
+                      ),
+                    ),
+                  )
+                else
+                  ..._comments.map((comment) {
+                    final commentDiff = DateTime.now().difference(comment.createdAt);
+                    final commentTime = commentDiff.inHours > 0 
+                      ? '${commentDiff.inHours}h ago' 
+                      : '${commentDiff.inMinutes}m ago';
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildCommentItem(
+                        author: comment.authorName,
+                        time: commentTime,
+                        text: comment.content,
+                        icon: Icons.person,
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
@@ -149,29 +395,43 @@ class CommentsScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: TextField(
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                      decoration: InputDecoration(
+                      controller: _commentController,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: const InputDecoration(
                         hintText: 'Write a comment...',
                         hintStyle: TextStyle(color: Color(0xFF555555)),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _submitComment(),
                     ),
                   ),
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.send,
-                      color: Colors.black,
-                      size: 16,
+                  GestureDetector(
+                    onTap: _isSubmitting ? null : _submitComment,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: _isSubmitting ? Colors.grey : Colors.orange,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _isSubmitting
+                          ? const Padding(
+                              padding: EdgeInsets.all(6.0),
+                              child: CircularProgressIndicator(
+                                color: Colors.black,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.send,
+                              color: Colors.black,
+                              size: 16,
+                            ),
                     ),
                   ),
                 ],
