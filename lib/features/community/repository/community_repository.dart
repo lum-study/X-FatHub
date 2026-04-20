@@ -133,13 +133,19 @@ class CommunityRepository {
     }
   }
 
-  Future<void> createPost(String content, {String? mediaUrl, String? category}) async {
+  Future<void> createPost(String content, {List<String>? mediaUrls, String? category}) async {
     final userId = currentUserId;
     if (userId == null) return;
+
+    // Join the URLs if provided
+    final joinedMediaUrls = (mediaUrls != null && mediaUrls.isNotEmpty)
+        ? mediaUrls.join(',')
+        : null;
+
     await _supabase.from('posts').insert({
       'user_id': userId,
       'content': content,
-      'media_url': mediaUrl,
+      'media_url': joinedMediaUrls,
       'category': category ?? 'All Posts',
     });
   }

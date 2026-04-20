@@ -213,9 +213,11 @@ class _FeedsScreenState extends State<FeedsScreen> {
           final post = _posts[index];
           // Determine time formatted string, mocked here
           final diff = DateTime.now().difference(post.createdAt);
-          final timeStr = diff.inHours > 0
-              ? '${diff.inHours} hours ago'
-              : '${diff.inMinutes} mins ago';
+          final timeStr = diff.inDays > 0
+              ? '${diff.inDays} days ago'
+              : diff.inHours > 0
+                  ? '${diff.inHours} hours ago'
+                  : '${diff.inMinutes} mins ago';
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),

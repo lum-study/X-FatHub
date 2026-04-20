@@ -127,66 +127,66 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
         color: Colors.orange,
         backgroundColor: const Color(0xFF1E1E1E),
         onRefresh: _loadProfileData,
-        child: Column(
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
             _buildProfileHeader(name, formattedDate, totalLikes, totalPosts),
             const Divider(color: Color(0xFF333333), height: 1),
-          Expanded(
-            child: _userPosts.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 100),
-                      Center(
-                        child: Text(
-                          'No posts yet',
-                          style: TextStyle(color: Color(0xFF666666)),
-                        ),
-                      ),
-                    ],
-                  )
-                : ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    itemCount: _userPosts.length,
-                    itemBuilder: (context, index) {
-                      final post = _userPosts[index];
-                      final diff = DateTime.now().difference(post.createdAt);
-                      final timeStr = diff.inHours > 0
-                          ? '${diff.inHours} hours ago'
-                          : '${diff.inMinutes} mins ago';
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: PostCard(
-                          post: post,
-                          author: post.authorName,
-                          time: timeStr,
-                          avatarIcon: Icons.person,
-                          content: post.content,
-                          hasMedia: post.mediaUrl != null && post.mediaUrl!.isNotEmpty,
-                          likes: post.likesCount,
-                          comments: post.commentsCount,
-                          isLiked: post.isLikedByMe,
-                          isStarred: post.isFavouritedByMe,
-                          onLikeToggle: () {
-                            context.read<CommunityProvider>().toggleLike(post.id, !post.isLikedByMe);
-                          },
-                          onStarToggle: () {
-                            context.read<CommunityProvider>().toggleFavourite(post.id, !post.isFavouritedByMe);
-                          },
-                          onCommentExit: _loadProfileData,
-                          onDelete: () async {
-                            await context.read<CommunityProvider>().deletePost(post.id);
-                            _loadProfileData(); // refresh after deletion
-                          },
-                        ),
-                      );
-                    },
+            if (_userPosts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 100.0),
+                child: Center(
+                  child: Text(
+                    'No posts yet',
+                    style: TextStyle(color: Color(0xFF666666)),
                   ),
-          ),
-        ],
-      ),
+                ),
+              )
+            else
+              ListView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                itemCount: _userPosts.length,
+                itemBuilder: (context, index) {
+                  final post = _userPosts[index];
+                  final diff = DateTime.now().difference(post.createdAt);
+                  final timeStr = diff.inDays > 0
+                      ? '${diff.inDays} ${diff.inDays == 1 ? "day" : "days"} ago'
+                      : diff.inHours > 0
+                          ? '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago'
+                          : '${diff.inMinutes} ${diff.inMinutes == 1 ? "min" : "mins"} ago';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: PostCard(
+                      post: post,
+                      author: post.authorName,
+                      time: timeStr,
+                      avatarIcon: Icons.person,
+                      content: post.content,
+                      hasMedia: post.mediaUrl != null && post.mediaUrl!.isNotEmpty,
+                      likes: post.likesCount,
+                      comments: post.commentsCount,
+                      isLiked: post.isLikedByMe,
+                      isStarred: post.isFavouritedByMe,
+                      onLikeToggle: () {
+                        context.read<CommunityProvider>().toggleLike(post.id, !post.isLikedByMe);
+                      },
+                      onStarToggle: () {
+                        context.read<CommunityProvider>().toggleFavourite(post.id, !post.isFavouritedByMe);
+                      },
+                      onCommentExit: _loadProfileData,
+                      onDelete: () async {
+                        await context.read<CommunityProvider>().deletePost(post.id);
+                        _loadProfileData(); // refresh after deletion
+                      },
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

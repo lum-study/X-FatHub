@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import '../providers/community_provider.dart';
+import '../widgets/custom_video_player.dart';
 import 'community_profile_screen.dart';
 
 class CommentsScreen extends StatefulWidget {
@@ -101,6 +102,58 @@ class _CommentsScreenState extends State<CommentsScreen> {
     }
   }
 
+  void _showMagnifiedImage(BuildContext context, String imageUrl) {
+    final isVideo = widget.post.isVideo(imageUrl);
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: InteractiveViewer(
+                child: isVideo 
+                  ? CustomVideoPlayer(
+                      videoUrl: imageUrl,
+                      showControls: true,
+                      autoPlay: true,
+                      loop: true,
+                      fit: BoxFit.contain, // Don't cutoff video
+                    )
+                  : Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => const Center(
+                        child: Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                      ),
+                    ),
+              ),
+            ),
+            Positioned(
+              top: 50,
+              left: 20,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 24),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _toggleLike() {
     setState(() {
       if (_isLiked) {
@@ -170,7 +223,11 @@ class _CommentsScreenState extends State<CommentsScreen> {
   Widget build(BuildContext context) {
     final post = widget.post;
     final diff = DateTime.now().difference(post.createdAt);
-    final timeStr = diff.inHours > 0 ? '${diff.inHours} hours ago' : '${diff.inMinutes} mins ago';
+    final timeStr = diff.inDays > 0
+        ? '${diff.inDays} days ago'
+        : diff.inHours > 0
+            ? '${diff.inHours} hours ago'
+            : '${diff.inMinutes} mins ago';
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -244,18 +301,22 @@ class _CommentsScreenState extends State<CommentsScreen> {
                             ),
                           ),
                           if (context.read<CommunityProvider>().currentUserId == post.userId)
-                            PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, color: Colors.white),
-                              color: const Color(0xFF1E1E1E),
-                              onSelected: (value) {
-                                if (value == 'delete') _deletePost();
-                              },
-                              itemBuilder: (BuildContext context) => [
-                                const PopupMenuItem<String>(
-                                  value: 'delete',
-                                  child: Text('Delete Post', style: TextStyle(color: Colors.red)),
-                                ),
-                              ],
+                            Transform.translate(
+                              offset: const Offset(12, -10),
+                              child: PopupMenuButton<String>(
+                                padding: EdgeInsets.zero,
+                                icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
+                                color: const Color(0xFF1E1E1E),
+                                onSelected: (value) {
+                                  if (value == 'delete') _deletePost();
+                                },
+                                itemBuilder: (BuildContext context) => [
+                                  const PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: Text('Delete Post', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
                             )
                           else
                             GestureDetector(
@@ -281,16 +342,42 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       ),
                       const SizedBox(height: 8),
                       // Add media here if exists
-                      if (post.mediaUrl != null && post.mediaUrl!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              post.mediaUrl!,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
+                      if (post.mediaUrls.isNotEmpty)
+                        SizedBox(
+                          height: 200,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: post.mediaUrls.length,
+                            itemBuilder: (context, index) {
+                              final url = post.mediaUrls[index];
+                              final isVideo = post.isVideo(url);
+                              return GestureDetector(
+                                onTap: () => _showMagnifiedImage(context, url),
+                                child: Container(
+                                  width: 200,
+                                  margin: const EdgeInsets.only(right: 12, bottom: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: const Color(0xFF1E1E1E),
+                                  ),
+                                  clipBehavior: Clip.hardEdge,
+                                  child: isVideo
+                                      ? CustomVideoPlayer(
+                                          videoUrl: url,
+                                          autoPlay: false,
+                                          showControls: false,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Image.network(
+                                          url,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => const Center(
+                                            child: Icon(Icons.broken_image, color: Colors.grey),
+                                          ),
+                                        ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       Text(
@@ -359,9 +446,11 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 else
                   ..._comments.map((comment) {
                     final commentDiff = DateTime.now().difference(comment.createdAt);
-                    final commentTime = commentDiff.inHours > 0 
-                      ? '${commentDiff.inHours}h ago' 
-                      : '${commentDiff.inMinutes}m ago';
+                    final commentTime = commentDiff.inDays > 0
+                        ? '${commentDiff.inDays}d ago'
+                        : commentDiff.inHours > 0
+                            ? '${commentDiff.inHours}h ago'
+                            : '${commentDiff.inMinutes}m ago';
                     
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),

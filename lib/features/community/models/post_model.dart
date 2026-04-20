@@ -8,6 +8,19 @@ class PostModel {
   final String category;
   final DateTime createdAt;
 
+  // Helper to split mediaUrl if multiple media exist
+  List<String> get mediaUrls {
+    if (mediaUrl == null || mediaUrl!.isEmpty) return [];
+    return mediaUrl!.split(',').where((e) => e.trim().isNotEmpty).toList();
+  }
+
+  bool isVideo(String url) {
+    final lower = url.toLowerCase();
+    // Typical query separation checking just the path part
+    final path = lower.split('?').first;
+    return path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.avi') || path.endsWith('.mkv');
+  }
+
   // Extra fields for UI display
   final String authorName;
   final int likesCount;
@@ -70,5 +83,33 @@ class PostModel {
       'media_url': mediaUrl,
       'category': category,
     };
+  }
+
+  PostModel copyWith({
+    String? id,
+    String? userId,
+    String? content,
+    String? mediaUrl,
+    String? category,
+    DateTime? createdAt,
+    String? authorName,
+    int? likesCount,
+    int? commentsCount,
+    bool? isLikedByMe,
+    bool? isFavouritedByMe,
+  }) {
+    return PostModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      content: content ?? this.content,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+      authorName: authorName ?? this.authorName,
+      likesCount: likesCount ?? this.likesCount,
+      commentsCount: commentsCount ?? this.commentsCount,
+      isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      isFavouritedByMe: isFavouritedByMe ?? this.isFavouritedByMe,
+    );
   }
 }

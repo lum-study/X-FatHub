@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../views/comments_screen.dart';
 import '../models/post_model.dart';
 import '../providers/community_provider.dart';
+import 'custom_video_player.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -99,7 +100,13 @@ class _PostCardState extends State<PostCard> {
     await Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => CommentsScreen(post: widget.post),
+        pageBuilder: (context, animation, secondaryAnimation) => CommentsScreen(
+          post: widget.post.copyWith(
+            isLikedByMe: _isLiked,
+            likesCount: _likes,
+            isFavouritedByMe: _isStarred,
+          ),
+        ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
@@ -193,18 +200,22 @@ class _PostCardState extends State<PostCard> {
                   ),
                 ),
                 if (context.read<CommunityProvider>().currentUserId == widget.post.userId)
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
-                    color: const Color(0xFF1E1E1E),
-                    onSelected: (value) {
-                      if (value == 'delete') _deletePost();
-                    },
-                    itemBuilder: (BuildContext context) => [
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Text('Delete Post', style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
+                  Transform.translate(
+                    offset: const Offset(12, -10),
+                    child: PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
+                      color: const Color(0xFF1E1E1E),
+                      onSelected: (value) {
+                        if (value == 'delete') _deletePost();
+                      },
+                      itemBuilder: (BuildContext context) => [
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Delete Post', style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
                   ),
               ],
             ),
@@ -213,6 +224,8 @@ class _PostCardState extends State<PostCard> {
             // Content
             Text(
               widget.content,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFFEEEEEE),
                 fontSize: 13,
@@ -222,21 +235,36 @@ class _PostCardState extends State<PostCard> {
             const SizedBox(height: 12),
 
             // Optional Media
-            if (widget.hasMedia)
+            if (widget.post.mediaUrls.isNotEmpty)
               Container(
-                height: 140,
-                width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF222222)),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.image,
-                  color: Color(0xFF333333),
-                  size: 40,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 400),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      border: Border.all(color: const Color(0xFF222222)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: widget.post.isVideo(widget.post.mediaUrls.first)
+                          ? CustomVideoPlayer(
+                              videoUrl: widget.post.mediaUrls.first,
+                              autoPlay: false,
+                              showControls: false,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.network(
+                              widget.post.mediaUrls.first,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(child: Icon(Icons.broken_image, color: Color(0xFF555555), size: 40));
+                              },
+                            ),
+                    ),
+                  ),
                 ),
               ),
 
