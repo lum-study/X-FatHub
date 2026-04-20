@@ -1,33 +1,89 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../models/booking_model.dart';
+import '../viewmodels/booking_viewmodel.dart';
 
-class MyBookingsScreen extends StatelessWidget {
+class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
+
+  @override
+  State<MyBookingsScreen> createState() => _MyBookingsScreenState();
+}
+
+class _MyBookingsScreenState extends State<MyBookingsScreen> {
+  bool _showUpcoming = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      context.read<BookingViewModel>().refreshCurrentUserBookingData();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 16),
-              _buildActivePackageStrip(),
-              const SizedBox(height: 14),
-              _buildTabs(),
-              const SizedBox(height: 14),
-              _buildUpcomingBooking(),
-              const SizedBox(height: 10),
-              _buildQRCodeReceipt(),
-              const SizedBox(height: 10),
-              _buildHistoryBooking(),
-              const SizedBox(height: 10),
-              _buildCancelledBooking(),
-            ],
-          ),
+        child: Consumer<BookingViewModel>(
+          builder: (context, provider, _) {
+            final upcoming = provider.userBookings
+                .where((b) => b.status == BookingStatus.upcoming)
+                .toList();
+            final history = provider.userBookings
+                .where((b) => b.status != BookingStatus.upcoming)
+                .toList();
+            final visible = _showUpcoming ? upcoming : history;
+
+            return RefreshIndicator(
+              onRefresh: provider.refreshCurrentUserBookingData,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 16),
+                  _buildCreditStrip(provider),
+                  const SizedBox(height: 14),
+                  _buildTabs(),
+                  const SizedBox(height: 14),
+                  if (provider.isLoading && visible.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 40),
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFFFA500),
+                        ),
+                      ),
+                    )
+                  else if (visible.isEmpty)
+                    const _EmptyList()
+                  else
+                    ...visible.map(
+                      (booking) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _BookingCard(
+                          booking: booking,
+                          onCancel: booking.status == BookingStatus.upcoming
+                              ? () => _cancelBooking(provider, booking.id)
+                              : null,
+                          onReschedule: booking.status == BookingStatus.upcoming
+                              ? () => _rescheduleBooking(provider, booking)
+                              : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -37,27 +93,32 @@ class MyBookingsScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.confirmation_number,
-                color: Color(0xFFFFA500), size: 28),
-            const SizedBox(width: 8),
-            const Text(
-              "My Bookings",
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: const Icon(
+            Icons.chevron_left,
+            color: Color(0xFFFFA500),
+            size: 30,
+          ),
+        ),
+        const Expanded(
+          child: Center(
+            child: Text(
+              'My Bookings',
               style: TextStyle(
                 color: Color(0xFFFFA500),
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
             ),
-          ],
+          ),
         ),
-        const Icon(Icons.tune, color: Color(0xFFFFA500), size: 28),
+        const SizedBox(width: 30),
       ],
     );
   }
 
-  Widget _buildActivePackageStrip() {
+  Widget _buildCreditStrip(BookingViewModel provider) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -70,64 +131,39 @@ class MyBookingsScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.fitness_center,
-                        color: Color(0xFFFFA500), size: 14),
-                    const SizedBox(width: 5),
-                    const Text(
-                      "Ultimate Strength Pack",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Credit Wallet',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
-                const Text(
-                  "Valid Until 30 Apr 2026",
-                  style: TextStyle(color: Color(0xFF888888), fontSize: 10),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  width: 130,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: 0.58,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFA500),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                provider.nextExpiryDate == null
+                    ? 'No active package'
+                    : 'Valid until ${DateFormat('d MMM y').format(provider.nextExpiryDate!)}',
+                style: const TextStyle(color: Color(0xFF888888), fontSize: 10),
+              ),
+            ],
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text(
-                "7",
-                style: TextStyle(
+              Text(
+                provider.sessionsRemaining.toString(),
+                style: const TextStyle(
                   color: Color(0xFFFFA500),
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const Text(
-                "Sessions Left",
+                'Sessions Left',
                 style: TextStyle(
                   color: Color(0xFFFFA500),
                   fontSize: 11,
@@ -150,40 +186,145 @@ class MyBookingsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _buildTab("Upcoming", true),
-          _buildTab("History", false),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showUpcoming = true),
+              child: _tab('Upcoming', _showUpcoming),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showUpcoming = false),
+              child: _tab('History', !_showUpcoming),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String label, bool isActive) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFFFA500) : Colors.transparent,
-          borderRadius: BorderRadius.circular(50),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isActive ? Colors.black : const Color(0xFF666666),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+  Widget _tab(String label, bool active) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFFFA500) : Colors.transparent,
+        borderRadius: BorderRadius.circular(50),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: active ? Colors.black : const Color(0xFF666666),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
-  Widget _buildUpcomingBooking() {
+  Future<void> _cancelBooking(
+    BookingViewModel provider,
+    String bookingId,
+  ) async {
+    final ok = await provider.cancelBookingWithRefund(bookingId);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Booking cancelled and credit refunded.'
+              : provider.errorMessage ?? 'Unable to cancel booking.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _rescheduleBooking(
+    BookingViewModel provider,
+    BookingModel booking,
+  ) async {
+    await provider.fetchSlotsForDate(booking.bookingDate);
+    if (!mounted) {
+      return;
+    }
+
+    final newSlotId = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF111111),
+      builder: (context) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: provider.slots
+                .where((slot) => !slot.isFull && slot.id != booking.slotId)
+                .map(
+                  (slot) => ListTile(
+                    title: Text(
+                      slot.className,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      DateFormat('EEE, d MMM  hh:mm a').format(slot.startTime),
+                      style: const TextStyle(color: Color(0xFFAAAAAA)),
+                    ),
+                    onTap: () => Navigator.pop(context, slot.id),
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
+    );
+
+    if (newSlotId == null) {
+      return;
+    }
+
+    final ok = await provider.rescheduleBooking(
+      bookingId: booking.id,
+      newSlotId: newSlotId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Booking rescheduled.'
+              : provider.errorMessage ?? 'Unable to reschedule booking.',
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingCard extends StatelessWidget {
+  final BookingModel booking;
+  final VoidCallback? onCancel;
+  final VoidCallback? onReschedule;
+
+  const _BookingCard({required this.booking, this.onCancel, this.onReschedule});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUpcoming = booking.status == BookingStatus.upcoming;
+    final statusColor = isUpcoming
+        ? const Color(0xFFFFA500)
+        : booking.status == BookingStatus.cancelled
+        ? const Color(0xFFE74C3C)
+        : const Color(0xFF4CAF50);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFF111111),
-        border: Border.all(color: const Color(0xFFFFA500)),
+        border: Border.all(color: const Color(0xFF2A2A2A)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -191,406 +332,93 @@ class MyBookingsScreen extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Morning Strength",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Text(
-                    "Ultimate Strength Pack · Session 6/12",
-                    style: TextStyle(color: Color(0xFF777777), fontSize: 11),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1000),
-                  border: Border.all(color: const Color(0xFFFFA500)),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Text(
-                  "UPCOMING",
-                  style: TextStyle(
-                    color: Color(0xFFFFA500),
-                    fontSize: 9,
+              Expanded(
+                child: Text(
+                  'Booking #${booking.id.substring(0, 8)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _buildMetaItem(Icons.calendar_today, "Tue, 4 Mar 2026"),
-              const SizedBox(width: 14),
-              _buildMetaItem(Icons.access_time, "08:00 AM"),
-              const SizedBox(width: 14),
-              _buildMetaItem(Icons.location_on, "Zone A"),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _buildActionButton("Reschedule", isOutline: true, icon: Icons.edit_calendar),
-              const SizedBox(width: 8),
-              _buildActionButton("Cancel", isOutline: true, color: const Color(0xFF666666), borderColor: const Color(0xFF333333)),
-              const SizedBox(width: 8),
-              _buildActionButton("QR", icon: Icons.qr_code, color: Colors.black, bgColor: const Color(0xFFFFA500)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetaItem(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFFFFA500), size: 12),
-        const SizedBox(width: 5),
-        Text(text, style: const TextStyle(color: Color(0xFF888888), fontSize: 11)),
-      ],
-    );
-  }
-
-  Widget _buildActionButton(String label,
-      {bool isOutline = false,
-      Color? color,
-      Color? borderColor,
-      Color? bgColor,
-      IconData? icon}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: bgColor ?? Colors.transparent,
-          border: isOutline
-              ? Border.all(color: borderColor ?? const Color(0xFFFFA500), width: 1.5)
-              : null,
-          borderRadius: BorderRadius.circular(50),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, color: color ?? (bgColor != null ? Colors.black : const Color(0xFFFFA500)), size: 12),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                color: color ?? (bgColor != null ? Colors.black : const Color(0xFFFFA500)),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQRCodeReceipt() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D0D0D),
-        border: Border.all(color: const Color(0xFFFFA500)),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.qr_code, color: Color(0xFFFFA500), size: 14),
-              SizedBox(width: 5),
               Text(
-                "ENTRY QR RECEIPT",
+                booking.status.name.toUpperCase(),
                 style: TextStyle(
-                  color: Color(0xFFFFA500),
-                  fontSize: 11,
-                  letterSpacing: 0.6,
-                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Container(
-            width: 110,
-            height: 110,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+          Text(
+            DateFormat('EEE, d MMM y  hh:mm a').format(booking.bookingDate),
+            style: const TextStyle(color: Color(0xFF888888), fontSize: 11),
+          ),
+          if ((booking.qrCodeData ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              booking.qrCodeData!,
+              style: const TextStyle(color: Color(0xFF666666), fontSize: 10),
             ),
-            child: CustomPaint(
-              painter: QRPainter(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            "#BK-20260304-0081",
-            style: TextStyle(color: Color(0xFF555555), fontSize: 11, letterSpacing: 1),
-          ),
-          const Text(
-            "Morning Strength · 08:00 AM",
-            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const Text(
-            "Tue, 4 Mar 2026 · Zone A · 1 person",
-            style: TextStyle(color: Color(0xFF888888), fontSize: 11),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFFFA500), width: 1.5),
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+          ],
+          if (isUpcoming) ...[
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Icon(Icons.file_download_outlined, color: Color(0xFFFFA500), size: 16),
-                SizedBox(width: 8),
-                Text(
-                  "Save Receipt",
-                  style: TextStyle(
-                    color: Color(0xFFFFA500),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onReschedule,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFFFA500)),
+                    ),
+                    child: const Text(
+                      'Reschedule',
+                      style: TextStyle(color: Color(0xFFFFA500)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCancel,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF666666)),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Color(0xFFAAAAAA)),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryBooking() {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Evening HIIT",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Text(
-                    "HIIT Blast Pack · Session 6/6",
-                    style: TextStyle(color: Color(0xFF777777), fontSize: 11),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D1A0D),
-                  border: Border.all(color: const Color(0xFF2E5C2E)),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Text(
-                  "DONE",
-                  style: TextStyle(
-                    color: Color(0xFF4CAF50),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _buildMetaItem(Icons.calendar_today, "Fri, 27 Feb 2026"),
-              const SizedBox(width: 14),
-              _buildMetaItem(Icons.access_time, "06:00 PM"),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _buildActionButton("Receipt", icon: Icons.qr_code, color: Colors.black, bgColor: const Color(0xFFFFA500)),
-              const SizedBox(width: 8),
-              _buildActionButton("Review", isOutline: true, color: const Color(0xFFAAAAAA), borderColor: const Color(0xFF333333), icon: Icons.star_outline),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCancelledBooking() {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Yoga Flow",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Text(
-                    "Single Session · Refund Pending",
-                    style: TextStyle(color: Color(0xFF777777), fontSize: 11),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A0A0A),
-                  border: Border.all(color: const Color(0xFF5C2222)),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Text(
-                  "CANCELLED",
-                  style: TextStyle(
-                    color: Color(0xFFE74C3C),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _buildMetaItem(Icons.calendar_today, "Mon, 2 Mar 2026"),
-              const SizedBox(width: 14),
-              _buildMetaItem(Icons.access_time, "10:00 AM"),
-            ],
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-class QRPainter extends CustomPainter {
+class _EmptyList extends StatelessWidget {
+  const _EmptyList();
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black
-      ..style = PaintingStyle.fill;
-
-    const int gridCount = 21;
-    final double cellSize = size.width / gridCount;
-
-    void drawRect(int x, int y, int w, int h) {
-      canvas.drawRect(
-        Rect.fromLTWH(x * cellSize, y * cellSize, w * cellSize, h * cellSize),
-        paint,
-      );
-    }
-
-    // Top-left finder
-    drawRect(1, 1, 7, 7);
-    paint.color = Colors.white;
-    drawRect(2, 2, 5, 5);
-    paint.color = Colors.black;
-    drawRect(3, 3, 3, 3);
-
-    // Top-right finder
-    drawRect(13, 1, 7, 7);
-    paint.color = Colors.white;
-    drawRect(14, 2, 5, 5);
-    paint.color = Colors.black;
-    drawRect(15, 3, 3, 3);
-
-    // Bottom-left finder
-    drawRect(1, 13, 7, 7);
-    paint.color = Colors.white;
-    drawRect(2, 14, 5, 5);
-    paint.color = Colors.black;
-    drawRect(3, 15, 3, 3);
-
-    // Data dots (simplified based on SVG)
-    drawRect(9, 1, 1, 1);
-    drawRect(11, 1, 1, 1);
-    drawRect(9, 3, 2, 1);
-    drawRect(10, 5, 1, 2);
-    drawRect(9, 8, 1, 1);
-    drawRect(11, 8, 1, 1);
-    drawRect(1, 9, 1, 1);
-    drawRect(3, 9, 2, 1);
-    drawRect(6, 9, 2, 1);
-    drawRect(9, 9, 3, 1);
-    drawRect(13, 9, 1, 1);
-    drawRect(15, 9, 2, 1);
-    drawRect(19, 9, 1, 1);
-    drawRect(1, 11, 2, 1);
-    drawRect(5, 11, 1, 1);
-    drawRect(8, 11, 1, 1);
-    drawRect(10, 11, 2, 1);
-    drawRect(14, 11, 3, 1);
-    drawRect(19, 11, 1, 1);
-    drawRect(9, 13, 1, 1);
-    drawRect(11, 13, 2, 1);
-    drawRect(9, 15, 3, 1);
-    drawRect(13, 15, 1, 1);
-    drawRect(15, 15, 1, 2);
-    drawRect(17, 15, 2, 1);
-    drawRect(9, 17, 1, 1);
-    drawRect(11, 17, 1, 2);
-    drawRect(13, 17, 3, 1);
-    drawRect(17, 17, 1, 1);
-    drawRect(19, 17, 1, 2);
-    drawRect(9, 19, 1, 1);
-    drawRect(14, 19, 2, 1);
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2A2A2A)),
+      ),
+      child: const Text(
+        'No bookings found for this section.',
+        style: TextStyle(color: Color(0xFFAAAAAA)),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
