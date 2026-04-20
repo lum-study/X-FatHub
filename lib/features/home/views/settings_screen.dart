@@ -10,57 +10,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _nameController = TextEditingController();
-  final _bioController = TextEditingController();
   bool _notificationsEnabled = true;
   bool _emailNotifications = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<ProfileProvider>();
-      if (provider.profile != null) {
-        _nameController.text = provider.profile!.name ?? '';
-        _bioController.text = provider.profile!.bio ?? '';
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _bioController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveProfile() async {
-    final provider = context.read<ProfileProvider>();
-    try {
-      await provider.updateProfile(
-        name: _nameController.text,
-        bio: _bioController.text,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update profile'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   void _showDeleteAccountDialog() {
     showDialog(
@@ -113,8 +64,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
-
     return Scaffold(
       backgroundColor: Colors.black87,
       appBar: AppBar(
@@ -137,103 +86,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Account Settings Section
-            const Text(
-              'Account Settings',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Edit Name
-            TextFormField(
-              controller: _nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Name',
-                labelStyle: TextStyle(color: Colors.grey[400]),
-                prefixIcon: const Icon(Icons.person_outline, color: Colors.orange),
-                filled: true,
-                fillColor: Colors.grey[850],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.orange, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Edit Bio
-            TextFormField(
-              controller: _bioController,
-              style: const TextStyle(color: Colors.white),
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: 'Bio',
-                labelStyle: TextStyle(color: Colors.grey[400]),
-                prefixIcon: const Icon(Icons.create_outlined, color: Colors.orange),
-                filled: true,
-                fillColor: Colors.grey[850],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.orange, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Save Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: profileProvider.isLoading ? null : _saveProfile,
-                child: profileProvider.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                        ),
-                      )
-                    : const Text(
-                        'Save Changes',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
             // Notifications Section
             const Text(
               'Notifications',

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
 import 'settings_screen.dart';
+import 'profile_edit_screen.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
+import '../../activity_health/views/tracker_feature_list_screen.dart';
 import '../../booking/providers/booking_provider.dart';
 
 class ProfileDashboardScreen extends StatefulWidget {
@@ -60,8 +62,21 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Header
-                  _buildProfileHeader(profile),
+                  // Profile Header - Clickable for editing
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
+                      );
+                    },
+                    child: _buildProfileHeader(profile),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Weight Progress Section
+                  if (profile?.currentWeight != null || profile?.goalWeight != null)
+                    _buildWeightProgressSection(profile),
                   const SizedBox(height: 32),
 
                   // Health Stats Section
@@ -143,8 +158,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         label: 'Log Activity',
                         icon: Icons.add_circle_outline,
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Navigate to Activity Tracker')),
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const TrackerFeatureListScreen(),
+                            ),
                           );
                         },
                       ),
@@ -153,16 +170,20 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         icon: Icons.calendar_today,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Navigate to Booking')),
+                            const SnackBar(
+                              content: Text('Go to Packages tab to book sessions'),
+                              duration: Duration(seconds: 2),
+                            ),
                           );
                         },
                       ),
                       _buildActionButton(
-                        label: 'My Profile',
-                        icon: Icons.person_outline,
+                        label: 'Edit Profile',
+                        icon: Icons.edit_outlined,
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Navigate to Profile Edit')),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
                           );
                         },
                       ),
@@ -265,18 +286,136 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                     color: Colors.grey[400],
                   ),
                 ),
-                const SizedBox(height: 4),
-                if (profile?.bio != null && profile!.bio!.isNotEmpty)
+                if (profile?.age != null) ...[
+                  const SizedBox(height: 4),
                   Text(
-                    profile.bio!,
+                    'Age: ${profile?.age} years',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[300],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
+                ],
               ],
+            ),
+          ),
+          const Icon(Icons.edit_outlined, color: Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeightProgressSection(profile) {
+    final currentWeight = profile?.currentWeight ?? 0.0;
+    final goalWeight = profile?.goalWeight ?? 0.0;
+    
+    // Calculate progress percentage (0-100)
+    double progressPercent = 0.0;
+    String progressText = 'Set goals to track';
+    
+    if (goalWeight > 0 && currentWeight > 0) {
+      if (currentWeight > goalWeight) {
+        // Weight loss goal
+        progressPercent = ((currentWeight - goalWeight) / currentWeight) * 100;
+        progressText = '${progressPercent.toStringAsFixed(1)}% progress to goal';
+      } else if (currentWeight < goalWeight) {
+        // Weight gain goal
+        progressPercent = ((goalWeight - currentWeight) / goalWeight) * 100;
+        progressText = '${progressPercent.toStringAsFixed(1)}% progress to goal';
+      } else {
+        progressPercent = 100;
+        progressText = 'Goal achieved! 🎉';
+      }
+      progressPercent = progressPercent / 100; // Convert to 0-1 range for LinearProgressIndicator
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Weight Goal Progress',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Icon(Icons.monitor_weight_outlined, color: Colors.orange),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Weight display
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Current',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                  ),
+                  Text(
+                    '${currentWeight.toStringAsFixed(1)} kg',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Goal',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                  ),
+                  Text(
+                    '${goalWeight.toStringAsFixed(1)} kg',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: goalWeight > 0 ? progressPercent.clamp(0.0, 1.0) : 0.0,
+              minHeight: 8,
+              backgroundColor: Colors.grey[800],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Progress text
+          Text(
+            progressText,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[300],
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
