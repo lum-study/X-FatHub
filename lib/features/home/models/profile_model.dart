@@ -4,7 +4,12 @@ class ProfileModel {
   final String? name;
   final String? bio;
   final String? profilePictureUrl;
-  final double? weightGoal;
+  final int? age;
+  final double? currentWeight; // in kg
+  final double? goalWeight; // in kg
+  final double? height; // in cm
+  final int? stepGoal; // steps per day
+  final double? hydrationGoal; // in liters
   final DateTime? createdAt;
 
   ProfileModel({
@@ -13,7 +18,12 @@ class ProfileModel {
     this.name,
     this.bio,
     this.profilePictureUrl,
-    this.weightGoal,
+    this.age,
+    this.currentWeight,
+    this.goalWeight,
+    this.height,
+    this.stepGoal,
+    this.hydrationGoal,
     this.createdAt,
   });
 
@@ -24,7 +34,12 @@ class ProfileModel {
       name: map['name'] as String?,
       bio: map['bio'] as String?,
       profilePictureUrl: map['profile_picture_url'] as String?,
-      weightGoal: (map['weight_goal'] as num?)?.toDouble(),
+      age: map['age'] as int?,
+      currentWeight: (map['current_weight'] as num?)?.toDouble(),
+      goalWeight: (map['goal_weight'] as num?)?.toDouble(),
+      height: (map['height'] as num?)?.toDouble(),
+      stepGoal: map['step_goal'] as int?,
+      hydrationGoal: (map['hydration_goal'] as num?)?.toDouble(),
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at'] as String) : null,
     );
   }
@@ -36,7 +51,12 @@ class ProfileModel {
       'name': name,
       'bio': bio,
       'profile_picture_url': profilePictureUrl,
-      'weight_goal': weightGoal,
+      'age': age,
+      'current_weight': currentWeight,
+      'goal_weight': goalWeight,
+      'height': height,
+      'step_goal': stepGoal,
+      'hydration_goal': hydrationGoal,
       'created_at': createdAt?.toIso8601String(),
     };
   }
@@ -47,7 +67,12 @@ class ProfileModel {
     String? name,
     String? bio,
     String? profilePictureUrl,
-    double? weightGoal,
+    int? age,
+    double? currentWeight,
+    double? goalWeight,
+    double? height,
+    int? stepGoal,
+    double? hydrationGoal,
     DateTime? createdAt,
   }) {
     return ProfileModel(
@@ -56,7 +81,12 @@ class ProfileModel {
       name: name ?? this.name,
       bio: bio ?? this.bio,
       profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
-      weightGoal: weightGoal ?? this.weightGoal,
+      age: age ?? this.age,
+      currentWeight: currentWeight ?? this.currentWeight,
+      goalWeight: goalWeight ?? this.goalWeight,
+      height: height ?? this.height,
+      stepGoal: stepGoal ?? this.stepGoal,
+      hydrationGoal: hydrationGoal ?? this.hydrationGoal,
       createdAt: createdAt ?? this.createdAt,
     );
   }
