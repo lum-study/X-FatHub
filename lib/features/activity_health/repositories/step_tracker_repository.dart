@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/step_tracker_model.dart';
 import '../../../core/service/pedometer_service.dart';
 import '../../../core/database/local_step_db.dart';
@@ -30,14 +31,57 @@ class StepTrackerRepository {
     }
   }
 
-  /// Update the user's daily step goal in local database
+  /// Update the user's daily step goal in local database and sync to remote if network available
   Future<void> setGoalSteps(int goalSteps) async {
     try {
+      // First update local database
       await LocalStepDatabase.setGoalSteps(goalSteps);
       print('Goal steps updated to $goalSteps in local database');
+      
+      // Try to sync to remote if network is available
+      await _syncGoalToRemote(goalSteps);
     } catch (e) {
       print('Error updating goal steps: $e');
       rethrow;
+    }
+  }
+  
+  /// Check if network is available
+  Future<bool> _isNetworkAvailable() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      return connectivityResult != ConnectivityResult.none;
+    } catch (e) {
+      print('Error checking network availability: $e');
+      return false;
+    }
+  }
+  
+  /// Sync step goal to remote database if network is available
+  Future<void> _syncGoalToRemote(int goalSteps) async {
+    try {
+      final isNetworkAvailable = await _isNetworkAvailable();
+      if (!isNetworkAvailable) {
+        print('⚠ No network available - goal will sync when network is restored');
+        return;
+      }
+      
+      final userId = _supabaseClient.auth.currentUser?.id;
+      if (userId == null) {
+        print('Warning: Cannot sync goal - no authenticated user');
+        return;
+      }
+      
+      await _supabaseClient.from(_goalsTableName).upsert({
+        _userIdColumn: userId,
+        _goalStepsColumn: goalSteps,
+        _updatedAtColumn: DateTime.now().toIso8601String(),
+      }, onConflict: _userIdColumn);
+      
+      print('✓ Goal steps synced to remote: $goalSteps steps');
+    } catch (e) {
+      print('⚠ Error syncing goal steps to remote: $e');
+      // Don't rethrow - goal is already saved locally
     }
   }
 
@@ -157,6 +201,18 @@ class StepTrackerRepository {
     }
   }
 
+  /// Sync step goal to remote database
+  /// Called when user enters the step tracker page to ensure latest goal is synced
+  Future<void> syncGoalToRemote() async {
+    try {
+      final currentGoal = await LocalStepDatabase.getGoalSteps();
+      await _syncGoalToRemote(currentGoal);
+    } catch (e) {
+      print('Error syncing goal to remote on page load: $e');
+      // Don't rethrow - non-critical operation
+    }
+  }
+  
   /// Build a complete StepTrackerModel with current data
   /// Combines hardware sensor data with user's goal from Supabase and historical data
   /// 

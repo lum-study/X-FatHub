@@ -39,9 +39,11 @@ class HydrationViewModel extends ChangeNotifier {
           timestamp: DateTime.now(),
         );
 
-  /// Initialize the ViewModel by loading initial data
+  /// Initialize the ViewModel by loading initial data and syncing to remote
   Future<void> init() async {
     await loadHydrationData();
+    // Sync goal to remote on page load
+    await _repository.syncGoalToRemote();
   }
 
   /// Load hydration tracker data from repository

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/hydration_model.dart';
 import '../../../core/database/local_hydration_db.dart';
 
@@ -29,14 +30,57 @@ class HydrationRepository {
     }
   }
 
-  /// Update the user's daily hydration goal in local database
+  /// Update the user's daily hydration goal in local database and sync to remote if network available
   Future<void> setGoalMl(int goalMl) async {
     try {
+      // First update local database
       await LocalHydrationDatabase.setGoalMl(goalMl);
       print('Goal ml updated to $goalMl in local database');
+      
+      // Try to sync to remote if network is available
+      await _syncGoalToRemote(goalMl);
     } catch (e) {
       print('Error updating goal ml: $e');
       rethrow;
+    }
+  }
+  
+  /// Check if network is available
+  Future<bool> _isNetworkAvailable() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      return connectivityResult != ConnectivityResult.none;
+    } catch (e) {
+      print('Error checking network availability: $e');
+      return false;
+    }
+  }
+  
+  /// Sync hydration goal to remote database if network is available
+  Future<void> _syncGoalToRemote(int goalMl) async {
+    try {
+      final isNetworkAvailable = await _isNetworkAvailable();
+      if (!isNetworkAvailable) {
+        print('⚠ No network available - goal will sync when network is restored');
+        return;
+      }
+      
+      final userId = _supabaseClient.auth.currentUser?.id;
+      if (userId == null) {
+        print('Warning: Cannot sync goal - no authenticated user');
+        return;
+      }
+      
+      await _supabaseClient.from(_goalsTableName).upsert({
+        _userIdColumn: userId,
+        _goalMlColumn: goalMl,
+        _updatedAtColumn: DateTime.now().toIso8601String(),
+      }, onConflict: _userIdColumn);
+      
+      print('✓ Goal ml synced to remote: $goalMl ml');
+    } catch (e) {
+      print('⚠ Error syncing goal ml to remote: $e');
+      // Don't rethrow - goal is already saved locally
     }
   }
 
@@ -179,6 +223,18 @@ class HydrationRepository {
     }
   }
 
+  /// Sync hydration goal to remote database
+  /// Called when user enters the hydration page to ensure latest goal is synced
+  Future<void> syncGoalToRemote() async {
+    try {
+      final currentGoal = await LocalHydrationDatabase.getGoalMl();
+      await _syncGoalToRemote(currentGoal);
+    } catch (e) {
+      print('Error syncing goal to remote on page load: $e');
+      // Don't rethrow - non-critical operation
+    }
+  }
+  
   /// Get entry by ID
   Future<HydrationEntry?> getEntryById(int id) async {
     try {
