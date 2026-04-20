@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS posts (
   content TEXT NOT NULL,
   media_url TEXT,
   category TEXT DEFAULT 'All Posts',
+  location_name TEXT,
+  location_lat DOUBLE PRECISION,
+  location_lng DOUBLE PRECISION,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );

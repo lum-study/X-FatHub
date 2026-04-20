@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/community_provider.dart';
 import '../widgets/custom_video_player.dart';
+import 'map_picker_screen.dart';
 
 class NewPostScreen extends StatefulWidget {
   const NewPostScreen({super.key});
@@ -19,6 +20,11 @@ class _NewPostScreenState extends State<NewPostScreen> {
   bool _isPublishing = false;
   final ImagePicker _picker = ImagePicker();
   final List<File> _selectedFiles = [];
+
+  // Location variables
+  String? _selectedLocationName;
+  double? _selectedLat;
+  double? _selectedLng;
 
   @override
   void dispose() {
@@ -104,6 +110,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
       await context.read<CommunityProvider>().createPost(
         content,
         mediaUrls: uploadedUrls,
+        locationName: _selectedLocationName,
+        locationLat: _selectedLat,
+        locationLng: _selectedLng,
       );
 
       if (mounted) {
@@ -331,14 +340,31 @@ class _NewPostScreenState extends State<NewPostScreen> {
             const SizedBox(height: 8),
             _buildToolRow(Icons.fitness_center, 'Tag a Workout'),
             const SizedBox(height: 8),
-            _buildToolRow(Icons.location_on, 'Check in to Gym Zone'),
+            GestureDetector(
+              onTap: () async {
+                final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPickerScreen()));
+                if (result != null) {
+                  setState(() {
+                    _selectedLocationName = result['name'];
+                    _selectedLat = result['lat'];
+                    _selectedLng = result['lng'];
+                  });
+                }
+              },
+              child: _buildToolRow(
+                Icons.location_on, 
+                _selectedLocationName ?? 'Add a location',
+                iconColor: Colors.orange,
+                textColor: _selectedLocationName != null ? Colors.orange : const Color(0xFFAAAAAA),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildToolRow(IconData icon, String text) {
+  Widget _buildToolRow(IconData icon, String text, {Color iconColor = Colors.orange, Color textColor = const Color(0xFFAAAAAA)}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -348,11 +374,15 @@ class _NewPostScreenState extends State<NewPostScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.orange, size: 18),
+          Icon(icon, color: iconColor, size: 18),
           const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 13),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: textColor, fontSize: 13),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

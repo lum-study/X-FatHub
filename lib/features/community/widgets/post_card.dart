@@ -5,6 +5,7 @@ import '../views/comments_screen.dart';
 import '../models/post_model.dart';
 import '../providers/community_provider.dart';
 import 'custom_video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -233,6 +234,49 @@ class _PostCardState extends State<PostCard> {
               ),
             ),
             const SizedBox(height: 12),
+
+            // Optional Location Tag
+            if (widget.post.locationName != null && widget.post.locationLat != null && widget.post.locationLng != null)
+              GestureDetector(
+                onTap: () async {
+                  final lat = widget.post.locationLat!;
+                  final lng = widget.post.locationLng!;
+                  final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+                  try {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not open map.')),
+                      );
+                    }
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF333333)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_on, color: Colors.orange, size: 14),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          widget.post.locationName!,
+                          style: const TextStyle(color: Colors.orange, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // Optional Media
             if (widget.post.mediaUrls.isNotEmpty)

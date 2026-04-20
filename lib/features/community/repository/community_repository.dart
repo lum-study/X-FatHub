@@ -133,7 +133,7 @@ class CommunityRepository {
     }
   }
 
-  Future<void> createPost(String content, {List<String>? mediaUrls, String? category}) async {
+  Future<void> createPost(String content, {List<String>? mediaUrls, String? category, String? locationName, double? locationLat, double? locationLng}) async {
     final userId = currentUserId;
     if (userId == null) return;
 
@@ -142,12 +142,17 @@ class CommunityRepository {
         ? mediaUrls.join(',')
         : null;
 
-    await _supabase.from('posts').insert({
+    final data = {
       'user_id': userId,
       'content': content,
       'media_url': joinedMediaUrls,
       'category': category ?? 'All Posts',
-    });
+      if (locationName != null) 'location_name': locationName,
+      if (locationLat != null) 'location_lat': locationLat,
+      if (locationLng != null) 'location_lng': locationLng,
+    };
+
+    await _supabase.from('posts').insert(data);
   }
 
   // --- DELETE POST ---

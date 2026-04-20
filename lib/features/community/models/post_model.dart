@@ -7,6 +7,9 @@ class PostModel {
   final String? mediaUrl;
   final String category;
   final DateTime createdAt;
+  final String? locationName;
+  final double? locationLat;
+  final double? locationLng;
 
   // Helper to split mediaUrl if multiple media exist
   List<String> get mediaUrls {
@@ -35,6 +38,9 @@ class PostModel {
     this.mediaUrl,
     this.category = 'All Posts',
     required this.createdAt,
+    this.locationName,
+    this.locationLat,
+    this.locationLng,
     this.authorName = 'User',
     this.likesCount = 0,
     this.commentsCount = 0,
@@ -66,6 +72,9 @@ class PostModel {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : DateTime.now(),
+      locationName: map['location_name'] as String?,
+      locationLat: (map['location_lat'] as num?)?.toDouble(),
+      locationLng: (map['location_lng'] as num?)?.toDouble(),
 
       // These fields might be joined from other tables in a real query
       authorName: map['profiles']?['name'] ?? 'User',
@@ -82,6 +91,9 @@ class PostModel {
       'content': content,
       'media_url': mediaUrl,
       'category': category,
+      'location_name': locationName,
+      'location_lat': locationLat,
+      'location_lng': locationLng,
     };
   }
 
@@ -92,6 +104,9 @@ class PostModel {
     String? mediaUrl,
     String? category,
     DateTime? createdAt,
+    String? locationName,
+    double? locationLat,
+    double? locationLng,
     String? authorName,
     int? likesCount,
     int? commentsCount,
@@ -105,6 +120,9 @@ class PostModel {
       mediaUrl: mediaUrl ?? this.mediaUrl,
       category: category ?? this.category,
       createdAt: createdAt ?? this.createdAt,
+      locationName: locationName ?? this.locationName,
+      locationLat: locationLat ?? this.locationLat,
+      locationLng: locationLng ?? this.locationLng,
       authorName: authorName ?? this.authorName,
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,

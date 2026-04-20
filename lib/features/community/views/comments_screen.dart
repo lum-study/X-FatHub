@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/comment_model.dart';
 import '../models/post_model.dart';
@@ -341,6 +342,59 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
+                      Text(
+                        post.content,
+                        style: const TextStyle(
+                          color: Color(0xFFEEEEEE),
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // Optional Location Tag
+                      if (post.locationName != null && post.locationLat != null && post.locationLng != null)
+                        GestureDetector(
+                          onTap: () async {
+                            final lat = post.locationLat!;
+                            final lng = post.locationLng!;
+                            final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+                            try {
+                              await launchUrl(url, mode: LaunchMode.externalApplication);
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Could not open map.')),
+                                );
+                              }
+                            }
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A1A1A),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF333333)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.location_on, color: Colors.orange, size: 14),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    post.locationName!,
+                                    style: const TextStyle(color: Colors.orange, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
                       // Add media here if exists
                       if (post.mediaUrls.isNotEmpty)
                         SizedBox(
@@ -380,15 +434,6 @@ class _CommentsScreenState extends State<CommentsScreen> {
                             },
                           ),
                         ),
-                      Text(
-                        post.content,
-                        style: const TextStyle(
-                          color: Color(0xFFEEEEEE),
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
                       GestureDetector(
                         onTap: _toggleLike,
                         behavior: HitTestBehavior.opaque,
