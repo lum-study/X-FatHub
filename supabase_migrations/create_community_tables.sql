@@ -15,6 +15,11 @@ CREATE TABLE IF NOT EXISTS posts (
   location_name TEXT,
   location_lat DOUBLE PRECISION,
   location_lng DOUBLE PRECISION,
+  activity_id TEXT,
+  activity_type TEXT,
+  activity_title TEXT,
+  activity_duration_seconds INTEGER,
+  activity_distance DOUBLE PRECISION,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );

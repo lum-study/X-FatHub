@@ -133,7 +133,18 @@ class CommunityRepository {
     }
   }
 
-  Future<void> createPost(String content, {List<String>? mediaUrls, String? category, String? locationName, double? locationLat, double? locationLng}) async {
+  Future<void> createPost(String content, {
+    List<String>? mediaUrls, 
+    String? category, 
+    String? locationName, 
+    double? locationLat, 
+    double? locationLng,
+    String? activityId,
+    String? activityType,
+    String? activityTitle,
+    int? activityDurationSeconds,
+    double? activityDistance,
+  }) async {
     final userId = currentUserId;
     if (userId == null) return;
 
@@ -150,6 +161,11 @@ class CommunityRepository {
       if (locationName != null) 'location_name': locationName,
       if (locationLat != null) 'location_lat': locationLat,
       if (locationLng != null) 'location_lng': locationLng,
+      if (activityId != null) 'activity_id': activityId,
+      if (activityType != null) 'activity_type': activityType,
+      if (activityTitle != null) 'activity_title': activityTitle,
+      if (activityDurationSeconds != null) 'activity_duration_seconds': activityDurationSeconds,
+      if (activityDistance != null) 'activity_distance': activityDistance,
     };
 
     await _supabase.from('posts').insert(data);

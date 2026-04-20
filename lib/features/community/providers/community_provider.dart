@@ -31,9 +31,31 @@ class CommunityProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createPost(String content, {List<String>? mediaUrls, String? category, String? locationName, double? locationLat, double? locationLng}) async {
+  Future<void> createPost(String content, {
+    List<String>? mediaUrls, 
+    String? category, 
+    String? locationName, 
+    double? locationLat, 
+    double? locationLng,
+    String? activityId,
+    String? activityType,
+    String? activityTitle,
+    int? activityDurationSeconds,
+    double? activityDistance,
+  }) async {
     await _repository.createPost(
-        content, mediaUrls: mediaUrls, category: category, locationName: locationName, locationLat: locationLat, locationLng: locationLng);
+      content,
+      mediaUrls: mediaUrls,
+      category: category,
+      locationName: locationName,
+      locationLat: locationLat,
+      locationLng: locationLng,
+      activityId: activityId,
+      activityType: activityType,
+      activityTitle: activityTitle,
+      activityDurationSeconds: activityDurationSeconds,
+      activityDistance: activityDistance,
+    );
     notifyListeners();
   }
 

@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/community_provider.dart';
 import '../widgets/custom_video_player.dart';
 import 'map_picker_screen.dart';
+import 'activity_picker_screen.dart';
+import '../../activity_health/models/activity_model.dart';
 
 class NewPostScreen extends StatefulWidget {
   const NewPostScreen({super.key});
@@ -25,6 +27,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
   String? _selectedLocationName;
   double? _selectedLat;
   double? _selectedLng;
+
+  // Selected Activity variable
+  ActivityModel? _selectedActivity;
 
   @override
   void dispose() {
@@ -113,6 +118,11 @@ class _NewPostScreenState extends State<NewPostScreen> {
         locationName: _selectedLocationName,
         locationLat: _selectedLat,
         locationLng: _selectedLng,
+        activityId: _selectedActivity?.id,
+        activityType: _selectedActivity?.activityType,
+        activityTitle: _selectedActivity?.title,
+        activityDurationSeconds: _selectedActivity?.totalDuration?.inSeconds,
+        activityDistance: _selectedActivity?.distanceTraveled,
       );
 
       if (mounted) {
@@ -338,7 +348,25 @@ class _NewPostScreenState extends State<NewPostScreen> {
               child: _buildToolRow(Icons.camera_alt, 'Photo / Video'),
             ),
             const SizedBox(height: 8),
-            _buildToolRow(Icons.fitness_center, 'Tag a Workout'),
+            GestureDetector(
+              onTap: () async {
+                final selected = await Navigator.push<ActivityModel>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ActivityPickerScreen()),
+                );
+                if (selected != null) {
+                  setState(() {
+                    _selectedActivity = selected;
+                  });
+                }
+              },
+              child: _buildToolRow(
+                Icons.fitness_center,
+                _selectedActivity != null ? (_selectedActivity!.title ?? '${_selectedActivity!.activityType[0].toUpperCase()}${_selectedActivity!.activityType.substring(1)}') : 'Tag a Workout',
+                iconColor: Colors.orange,
+                textColor: _selectedActivity != null ? Colors.orange : const Color(0xFFAAAAAA),
+              ),
+            ),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: () async {

@@ -351,6 +351,60 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                                            // Optional Activity Tag
+                      if (post.activityType != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.orange.withOpacity(0.15), Colors.transparent],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            border: const Border(left: BorderSide(color: Colors.orange, width: 4)),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.fitness_center, color: Colors.orange, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      post.activityTitle ?? '${post.activityType![0].toUpperCase()}${post.activityType!.substring(1)}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          '${(post.activityDistance ?? 0.0).toStringAsFixed(2)} km',
+                                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                        ),
+                                        if (post.activityDurationSeconds != null) ...[
+                                          const Text(' • ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                          Text(
+                                            '${(post.activityDurationSeconds! ~/ 3600).toString().padLeft(2, '0')}:${((post.activityDurationSeconds! % 3600) ~/ 60).toString().padLeft(2, '0')}:${(post.activityDurationSeconds! % 60).toString().padLeft(2, '0')}',
+                                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       
                       // Optional Location Tag
                       if (post.locationName != null && post.locationLat != null && post.locationLng != null)

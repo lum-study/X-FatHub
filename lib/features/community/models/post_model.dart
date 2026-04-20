@@ -11,6 +11,13 @@ class PostModel {
   final double? locationLat;
   final double? locationLng;
 
+  // Activity fields
+  final String? activityId;
+  final String? activityType;
+  final String? activityTitle;
+  final int? activityDurationSeconds;
+  final double? activityDistance;
+
   // Helper to split mediaUrl if multiple media exist
   List<String> get mediaUrls {
     if (mediaUrl == null || mediaUrl!.isEmpty) return [];
@@ -41,6 +48,11 @@ class PostModel {
     this.locationName,
     this.locationLat,
     this.locationLng,
+    this.activityId,
+    this.activityType,
+    this.activityTitle,
+    this.activityDurationSeconds,
+    this.activityDistance,
     this.authorName = 'User',
     this.likesCount = 0,
     this.commentsCount = 0,
@@ -75,6 +87,11 @@ class PostModel {
       locationName: map['location_name'] as String?,
       locationLat: (map['location_lat'] as num?)?.toDouble(),
       locationLng: (map['location_lng'] as num?)?.toDouble(),
+      activityId: map['activity_id'] as String?,
+      activityType: map['activity_type'] as String?,
+      activityTitle: map['activity_title'] as String?,
+      activityDurationSeconds: map['activity_duration_seconds'] as int?,
+      activityDistance: (map['activity_distance'] as num?)?.toDouble(),
 
       // These fields might be joined from other tables in a real query
       authorName: map['profiles']?['name'] ?? 'User',
@@ -94,6 +111,11 @@ class PostModel {
       'location_name': locationName,
       'location_lat': locationLat,
       'location_lng': locationLng,
+      'activity_id': activityId,
+      'activity_type': activityType,
+      'activity_title': activityTitle,
+      'activity_duration_seconds': activityDurationSeconds,
+      'activity_distance': activityDistance,
     };
   }
 
@@ -107,6 +129,11 @@ class PostModel {
     String? locationName,
     double? locationLat,
     double? locationLng,
+    String? activityId,
+    String? activityType,
+    String? activityTitle,
+    int? activityDurationSeconds,
+    double? activityDistance,
     String? authorName,
     int? likesCount,
     int? commentsCount,
@@ -123,6 +150,11 @@ class PostModel {
       locationName: locationName ?? this.locationName,
       locationLat: locationLat ?? this.locationLat,
       locationLng: locationLng ?? this.locationLng,
+      activityId: activityId ?? this.activityId,
+      activityType: activityType ?? this.activityType,
+      activityTitle: activityTitle ?? this.activityTitle,
+      activityDurationSeconds: activityDurationSeconds ?? this.activityDurationSeconds,
+      activityDistance: activityDistance ?? this.activityDistance,
       authorName: authorName ?? this.authorName,
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,

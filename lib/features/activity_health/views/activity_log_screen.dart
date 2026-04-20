@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+//import 'package:supabase_flutter/supabase_flutter.dart'; //add by weikang
 import '../viewmodels/step_tracker_viewmodel.dart';
 import 'activity_tracking_screen.dart';
 import 'activity_history_screen.dart';
@@ -20,6 +21,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   Widget build(BuildContext context) {
     final stepTrackerViewModel = context.watch<StepTrackerViewModel>();
     final userId = 'user123'; // This should come from auth provider
+    //final userId = Supabase.instance.client.auth.currentUser?.id ?? 'user123'; // add by weikang
 
     return DefaultTabController(
       length: 2,

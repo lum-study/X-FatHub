@@ -235,6 +235,61 @@ class _PostCardState extends State<PostCard> {
             ),
             const SizedBox(height: 12),
 
+            // Optional Activity Tag
+            if (widget.post.activityType != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.orange.withOpacity(0.15), Colors.transparent],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  border: Border(left: BorderSide(color: Colors.orange, width: 4)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.fitness_center, color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.post.activityTitle ?? '${widget.post.activityType![0].toUpperCase()}${widget.post.activityType!.substring(1)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                '${(widget.post.activityDistance ?? 0.0).toStringAsFixed(2)} km',
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
+                              if (widget.post.activityDurationSeconds != null) ...[
+                                const Text(' • ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                Text(
+                                  '${(widget.post.activityDurationSeconds! ~/ 3600).toString().padLeft(2, '0')}:${((widget.post.activityDurationSeconds! % 3600) ~/ 60).toString().padLeft(2, '0')}:${(widget.post.activityDurationSeconds! % 60).toString().padLeft(2, '0')}',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Optional Location Tag
             if (widget.post.locationName != null && widget.post.locationLat != null && widget.post.locationLng != null)
               GestureDetector(
