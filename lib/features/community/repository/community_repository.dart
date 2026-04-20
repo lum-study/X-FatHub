@@ -1,0 +1,145 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/post_model.dart';
+
+class CommunityRepository {
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  // Fallback to dummy Alex Fit UUID if not authenticated so local testing works
+  String? get currentUserId =>
+      _supabase.auth.currentUser?.id ?? '11111111-1111-1111-1111-111111111111';
+
+  Future<List<PostModel>> fetchPosts(String selectedFilter) async {
+    if (currentUserId == null) return [];
+
+    // We select the post, inner join to profiles for authorName,
+    // and left join to likes/comments for counts.
+    final response = await _supabase
+        .from('posts')
+        .select(
+        '*, profiles(name), post_likes(user_id), post_comments(id), post_favourites(user_id)')
+        .order('created_at', ascending: false);
+
+    List<PostModel> posts = (response as List).map((map) {
+      // Map JSON to dynamic model structure matching what PostModel expects
+      return PostModel.fromMap(map, currentUserId: currentUserId);
+    }).toList();
+
+    // Map filters locally for simplicity, though this could be done via Supabase queries
+    if (selectedFilter == 'Following') {
+      final followingResponse = await _supabase
+          .from('user_followers')
+          .select('following_id')
+          .eq('follower_id', currentUserId!);
+      final followingIds = (followingResponse as List).map((
+          f) => f['following_id']).toSet();
+      posts = posts.where((p) => followingIds.contains(p.userId)).toList();
+    } else if (selectedFilter == 'Liked') {
+      posts = posts.where((p) => p.isLikedByMe).toList();
+    } else if (selectedFilter == 'Favourited') {
+      posts = posts.where((p) => p.isFavouritedByMe).toList();
+    } else if (selectedFilter != 'All Posts') {
+      posts = posts.where((p) => p.category == selectedFilter).toList();
+    }
+
+    return posts;
+  }
+
+  Future<List<PostModel>> fetchUserPosts(String targetUserId) async {
+    final response = await _supabase
+        .from('posts')
+        .select(
+        '*, profiles(name), post_likes(user_id), post_comments(id), post_favourites(user_id)')
+        .eq('user_id', targetUserId)
+        .order('created_at', ascending: false);
+
+    return (response as List)
+        .map((map) => PostModel.fromMap(map, currentUserId: currentUserId))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>?> fetchUserProfileStats(
+      String targetUserId) async {
+    try {
+      final profileResponse = await _supabase
+          .from('profiles')
+          .select('name, created_at')
+          .eq('id', targetUserId)
+          .maybeSingle();
+
+      if (profileResponse == null) {
+        // If it's returning null, it's highly likely RLS blocked it because 
+        // they are viewing someone else's profile or they are unauthenticated using the dummy ID.
+        print('Profile not found for ID: $targetUserId. Is RLS blocking this?');
+        return null;
+      }
+
+      final name = profileResponse['name'] ?? 'Unknown User';
+      
+      // Safety check if created_at is null
+      final joinedDate = profileResponse['created_at'] != null 
+          ? DateTime.parse(profileResponse['created_at'])
+          : DateTime.now();
+
+      // Count posts
+      final postsCountResponse = await _supabase
+          .from('posts')
+          .select('id')
+          .eq('user_id', targetUserId)
+          .count(CountOption.exact);
+      final postsCount = postsCountResponse.count ?? 0;
+
+      // Count likes received on their posts
+      final likesCountResponse = await _supabase
+          .from('post_likes')
+          .select('id, posts!inner(user_id)')
+          .eq('posts.user_id', targetUserId)
+          .count(CountOption.exact);
+      final likesCount = likesCountResponse.count ?? 0;
+
+      return {
+        'name': name,
+        'joinedDate': joinedDate,
+        'totalPosts': postsCount,
+        'totalLikes': likesCount,
+      };
+    } catch (e) {
+      print('Error fetching user profile stats: $e');
+      return null;
+    }
+  }
+
+  Future<void> toggleLike(String postId, bool isLiked) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    if (isLiked) {
+      await _supabase.from('post_likes').insert(
+          {'post_id': postId, 'user_id': userId});
+    } else {
+      await _supabase.from('post_likes').delete().match(
+          {'post_id': postId, 'user_id': userId});
+    }
+  }
+
+  Future<void> toggleFavourite(String postId, bool isFavourited) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    if (isFavourited) {
+      await _supabase.from('post_favourites').insert(
+          {'post_id': postId, 'user_id': userId});
+    } else {
+      await _supabase.from('post_favourites').delete().match(
+          {'post_id': postId, 'user_id': userId});
+    }
+  }
+
+  Future<void> createPost(String content, {String? mediaUrl, String? category}) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    await _supabase.from('posts').insert({
+      'user_id': userId,
+      'content': content,
+      'media_url': mediaUrl,
+      'category': category ?? 'All Posts',
+    });
+  }
+}

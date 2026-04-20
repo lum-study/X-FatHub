@@ -8,6 +8,7 @@ import 'package:xfathub/features/activity_health/viewmodels/activity_tracking_vi
 import 'package:xfathub/features/activity_health/repositories/activity_repository.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/home/providers/profile_provider.dart';
+import 'package:xfathub/features/community/providers/community_provider.dart';
 
 /// Setup all providers for the application
 List<SingleChildWidget> appProviders = [
@@ -31,5 +32,8 @@ List<SingleChildWidget> appProviders = [
   ),
   ChangeNotifierProvider<ProfileProvider>(
     create: (_) => ProfileProvider(),
+  ),
+  ChangeNotifierProvider<CommunityProvider>(
+    create: (_) => CommunityProvider(),
   ),
 ];

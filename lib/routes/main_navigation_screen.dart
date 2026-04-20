@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../features/home/views/home_screen.dart';
 import '../features/home/views/profile_dashboard_screen.dart';
-import '../features/post/views/post_screen.dart';
+import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
 import '../features/home/providers/profile_provider.dart';
@@ -41,7 +41,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         body: IndexedStack(
           index: _selectedIndex,
           children: [
-            _buildTab(0, (_) => const PostScreen()),
+            _buildTab(0, (_) => const FeedsScreen()),
             _buildTab(1, (_) => const PackagesScreen()),
             _buildTab(2, (_) => const HomeScreen()),
             _buildTab(3, (_) => const TrackerFeatureListScreen()),
@@ -55,7 +55,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildNavItem(0, Icons.grid_view_rounded, "Post"),
+                _buildNavItem(0, Icons.grid_view_rounded, "Community"),
                 _buildNavItem(1, Icons.card_giftcard, "Packages"),
                 _buildHomeNavItem(),
                 _buildNavItem(3, Icons.fitness_center, "Tracker"),
