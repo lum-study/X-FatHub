@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
 import 'settings_screen.dart';
+import 'profile_edit_screen.dart';
+import 'profile_edit_screen.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
 import '../../booking/viewmodels/booking_viewmodel.dart';
@@ -56,8 +58,36 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Header
-                  _buildProfileHeader(profile),
+                  // Profile Header - Clickable for editing
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
+                      );
+                    },
+                    child: _buildProfileHeader(profile),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Weight Progress Section
+                  if (profile?.currentWeight != null || profile?.goalWeight != null)
+                    _buildWeightProgressSection(profile),
+                  // Profile Header - Clickable for editing
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
+                      );
+                    },
+                    child: _buildProfileHeader(profile),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Weight Progress Section
+                  if (profile?.currentWeight != null || profile?.goalWeight != null)
+                    _buildWeightProgressSection(profile),
                   const SizedBox(height: 32),
 
                   // Health Stats Section
@@ -167,8 +197,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         },
                       ),
                       _buildActionButton(
-                        label: 'My Profile',
-                        icon: Icons.person_outline,
+                        label: 'Edit Profile',
+                        icon: Icons.edit_outlined,
+                        label: 'Edit Profile',
+                        icon: Icons.edit_outlined,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -278,8 +310,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   profile?.email ?? 'No email',
                   style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                 ),
-                const SizedBox(height: 4),
-                if (profile?.bio != null && profile!.bio!.isNotEmpty)
+                if (profile?.age != null) ...[
+                  const SizedBox(height: 4),
+                if (profile?.age != null) ...[
+                  const SizedBox(height: 4),
                   Text(
                     profile.bio!,
                     style: TextStyle(fontSize: 12, color: Colors.grey[300]),

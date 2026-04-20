@@ -54,7 +54,12 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> updateProfile({
     String? name,
     String? bio,
-    double? weightGoal,
+    int? age,
+    double? currentWeight,
+    double? goalWeight,
+    double? height,
+    int? stepGoal,
+    double? hydrationGoal,
     String? profilePictureUrl,
   }) async {
     final user = _repository.currentUser;
@@ -65,7 +70,12 @@ class ProfileProvider extends ChangeNotifier {
     final updatedProfile = currentProfile.copyWith(
       name: name ?? currentProfile.name,
       bio: bio ?? currentProfile.bio,
-      weightGoal: weightGoal ?? currentProfile.weightGoal,
+      age: age ?? currentProfile.age,
+      currentWeight: currentWeight ?? currentProfile.currentWeight,
+      goalWeight: goalWeight ?? currentProfile.goalWeight,
+      height: height ?? currentProfile.height,
+      stepGoal: stepGoal ?? currentProfile.stepGoal,
+      hydrationGoal: hydrationGoal ?? currentProfile.hydrationGoal,
       profilePictureUrl: profilePictureUrl ?? currentProfile.profilePictureUrl,
     );
 
