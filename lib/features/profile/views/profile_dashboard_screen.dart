@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
 import 'settings_screen.dart';
 import 'profile_edit_screen.dart';
-import 'profile_setup_dialog.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
 import '../../booking/viewmodels/booking_viewmodel.dart';
@@ -16,32 +15,17 @@ class ProfileDashboardScreen extends StatefulWidget {
 }
 
 class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
-  bool _setupDialogShown = false;
-  
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final profileProvider = context.read<ProfileProvider>();
-      print(' Dashboard init - initializing profile provider');
       await profileProvider.init();
       context.read<BookingViewModel>().refreshCurrentUserBookingData();
       
       // Wait a bit to ensure profile is fully loaded
       await Future.delayed(const Duration(milliseconds: 300));
-      
-      print('Checking if needs profile setup: ${profileProvider.needsProfileSetup}');
-      
-      // Show profile setup dialog if user hasn't completed setup (only once per session)
-      if (mounted && !_setupDialogShown && profileProvider.needsProfileSetup) {
-        _setupDialogShown = true;
-        print('Showing profile setup dialog');
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const ProfileSetupDialog(),
-        );
-      }
+      // Profile initialization complete. No first-time setup popup.
     });
   }
 
@@ -93,7 +77,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   const SizedBox(height: 24),
 
                   // Weight Progress Section - Always show
-                  _buildWeightProgressSection(profile),
+                  GestureDetector(
+                    onTap: () => _showWeightUpdateDialog(context, profile),
+                    child: _buildWeightProgressSection(profile),
+                  ),
                   const SizedBox(height: 32),
 
                   // Health Stats Section
@@ -618,6 +605,86 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showWeightUpdateDialog(BuildContext context, profile) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          final weightController = TextEditingController(
+            text: profile?.currentWeight?.toString() ?? '',
+          );
+
+          return AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: const Text(
+              'Update Current Weight',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: TextField(
+              controller: weightController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Enter weight in kg',
+                hintStyle: TextStyle(color: Colors.grey[600]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  weightController.dispose();
+                  Navigator.pop(context);
+                },
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (weightController.text.isNotEmpty) {
+                    final newWeight = double.tryParse(weightController.text);
+                    if (newWeight != null && newWeight > 0) {
+                      final provider = context.read<ProfileProvider>();
+                      await provider.updateProfile(
+                        currentWeight: newWeight,
+                      );
+
+                      if (mounted) {
+                        await Future.delayed(const Duration(milliseconds: 500));
+                        await provider.loadProfile(provider.profile?.id ?? '');
+                        weightController.dispose();
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Weight updated successfully!'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a valid weight'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Update', style: TextStyle(color: Colors.orange)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

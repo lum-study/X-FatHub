@@ -10,11 +10,12 @@ class ProfileEditScreen extends StatefulWidget {
 }
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
-  late TextEditingController _nameController;
-  late TextEditingController _ageController;
-  late TextEditingController _heightController;
-  late TextEditingController _currentWeightController;
-  late TextEditingController _goalWeightController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _bioController;
+  late final TextEditingController _ageController;
+  late final TextEditingController _heightController;
+  late final TextEditingController _currentWeightController;
+  late final TextEditingController _goalWeightController;
   
   bool _isLoading = false;
 
@@ -24,6 +25,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final profile = context.read<ProfileProvider>().profile;
     
     _nameController = TextEditingController(text: profile?.name ?? '');
+    _bioController = TextEditingController(text: profile?.bio ?? '');
     _ageController = TextEditingController(text: profile?.age?.toString() ?? '');
     _heightController = TextEditingController(text: profile?.height?.toString() ?? '');
     _currentWeightController = TextEditingController(text: profile?.currentWeight?.toString() ?? '');
@@ -33,6 +35,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _bioController.dispose();
     _ageController.dispose();
     _heightController.dispose();
     _currentWeightController.dispose();
@@ -49,7 +52,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final currentWeight = _currentWeightController.text.isNotEmpty ? double.parse(_currentWeightController.text) : null;
       final goalWeight = _goalWeightController.text.isNotEmpty ? double.parse(_goalWeightController.text) : null;
 
-      print('🔄 Updating profile...');
       final provider = context.read<ProfileProvider>();
       
       // Get current initialWeight to preserve it during edit
@@ -57,6 +59,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       
       await provider.updateProfile(
         name: _nameController.text.isEmpty ? null : _nameController.text,
+        bio: _bioController.text.isEmpty ? null : _bioController.text,
         age: age,
         height: height,
         currentWeight: currentWeight,
@@ -64,7 +67,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         weightGoal: goalWeight,
       );
 
-      print('✅ Profile updated, reloading from Supabase...');
       
       // Reload profile to ensure it shows the updated data
       await Future.delayed(const Duration(milliseconds: 500));
@@ -155,6 +157,38 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Enter your name',
+                hintStyle: TextStyle(color: Colors.grey[600]),
+                filled: true,
+                fillColor: Colors.grey[900],
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Bio Field
+            Text(
+              'Bio',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[400],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _bioController,
+              style: const TextStyle(color: Colors.white),
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Tell us about yourself',
                 hintStyle: TextStyle(color: Colors.grey[600]),
                 filled: true,
                 fillColor: Colors.grey[900],

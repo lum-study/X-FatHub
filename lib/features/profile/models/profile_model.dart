@@ -43,7 +43,7 @@ class ProfileModel {
       initialWeight: (map['initial_weight'] as num?)?.toDouble(),
       weightGoal: (map['weight_goal'] as num?)?.toDouble() ?? (map['goal_weight'] as num?)?.toDouble(),
       height: (map['height'] as num?)?.toDouble(),
-      stepsGoal: map['steps_goal'] as int? ?? map['step_goal'] as int?,
+      stepsGoal: map['step_goal'] as int? ?? map['steps_goal'] as int?, // step_goal is primary (DB column)
       hydrationGoal: (map['hydration_goal'] as num?)?.toDouble(),
       profileCompleted: map['profile_completed'] as bool? ?? false,
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at'] as String) : null,
@@ -62,7 +62,7 @@ class ProfileModel {
       'initial_weight': initialWeight,
       'weight_goal': weightGoal,
       'height': height,
-      'steps_goal': stepsGoal,
+      'step_goal': stepsGoal, // Match Supabase column name
       'hydration_goal': hydrationGoal,
       'profile_completed': profileCompleted,
       'created_at': createdAt?.toIso8601String(),

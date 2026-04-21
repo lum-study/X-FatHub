@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
+import '../../activity_health/repositories/step_tracker_repository.dart';
+import '../../activity_health/repositories/hydration_repository.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final ProfileRepository _repository;
@@ -28,23 +30,18 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> init() async {
     final user = _repository.currentUser;
     if (user != null) {
-      print('ProfileProvider init - loading profile for user: ${user.id}');
       await loadProfile(user.id);
       await loadWeightHistory(user.id);
-      print('Profile loaded: profileCompleted=${_profile?.profileCompleted}');
     }
   }
 
   Future<void> loadProfile(String userId) async {
     _setLoading(true);
     try {
-      print('Loading profile for user: $userId');
       _profile = await _repository.getProfile(userId);
-      print('Profile loaded: ${_profile?.name}, completed=${_profile?.profileCompleted}');
       _error = null;
       notifyListeners();
     } catch (e) {
-      print('Error loading profile: $e');
       _error = e.toString();
     } finally {
       _setLoading(false);
@@ -56,7 +53,6 @@ class ProfileProvider extends ChangeNotifier {
       _weightHistory = await _repository.getWeightHistory(userId);
       notifyListeners();
     } catch (e) {
-      print('Error loading weight history: $e');
     }
   }
 
@@ -98,6 +94,20 @@ class ProfileProvider extends ChangeNotifier {
       _profile = updatedProfile;
       _error = null;
       notifyListeners(); // Notify listeners of the change
+
+      // Sync goals to local tracker repositories (non-blocking for UI).
+      try {
+        if (updatedProfile.stepsGoal != null) {
+          await StepTrackerRepository().setGoalSteps(updatedProfile.stepsGoal!);
+        }
+
+        if (updatedProfile.hydrationGoal != null) {
+          final ml = (updatedProfile.hydrationGoal! * 1000).round();
+          await HydrationRepository().setGoalMl(ml);
+        }
+      } catch (_) {
+        // Swallow tracker sync errors to avoid breaking profile save flow
+      }
     } catch (e) {
       _error = e.toString();
     } finally {
