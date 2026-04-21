@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
+import '../models/gym_model.dart';
 
 class BookingRepository {
   final _supabase = Supabase.instance.client;
@@ -53,6 +54,33 @@ class BookingRepository {
     }
   }
 
+  Future<List<GymModel>> fetchPackageGyms(String packageId) async {
+    try {
+      final response = await _supabase
+          .from('package_gyms')
+          .select('is_active, gyms(id, name, venue, address, status)')
+          .eq('package_id', packageId)
+          .eq('is_active', true);
+
+      final rows = (response as List)
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList();
+
+      final gyms = <GymModel>[];
+      for (final row in rows) {
+        final gymRaw = row['gyms'];
+        if (gymRaw is Map) {
+          gyms.add(GymModel.fromMap(Map<String, dynamic>.from(gymRaw)));
+        }
+      }
+
+      gyms.sort((a, b) => a.name.compareTo(b.name));
+      return gyms;
+    } catch (e) {
+      throw Exception('Failed to fetch package gyms: $e');
+    }
+  }
+
   Stream<List<SlotModel>> streamSlotsByDate(DateTime date) {
     return _supabase
         .from('gym_slots')
@@ -81,7 +109,11 @@ class BookingRepository {
           .lt('start_time', endUtc)
           .order('start_time', ascending: true);
 
-      return (response as List).map((data) => SlotModel.fromMap(data)).toList();
+      final slots = (response as List)
+          .map((data) => SlotModel.fromMap(data))
+          .toList();
+      
+      return slots;
     } catch (e) {
       throw Exception('Failed to fetch slots: $e');
     }
@@ -245,9 +277,21 @@ class BookingRepository {
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
-      return (response as List)
-          .map((data) => BookingModel.fromMap(data))
-          .toList();
+      return (response as List).map((data) {
+        final booking = BookingModel.fromMap(data);
+        return BookingModel(
+          id: booking.id,
+          userId: booking.userId,
+          packageId: booking.packageId,
+          slotId: booking.slotId,
+          bookingDate: booking.bookingDate.toLocal(),
+          status: booking.status,
+          totalPaid: booking.totalPaid,
+          receiptUrl: booking.receiptUrl,
+          qrCodeData: booking.qrCodeData,
+          sessionNumber: booking.sessionNumber,
+        );
+      }).toList();
     } catch (e) {
       throw Exception('Failed to fetch user bookings: $e');
     }

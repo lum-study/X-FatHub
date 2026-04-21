@@ -51,3 +51,4 @@ app.*.map.json
 .env
 **/generated*
 /.github
+opencode.json

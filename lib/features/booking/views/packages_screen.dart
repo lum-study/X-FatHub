@@ -3,10 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
-import 'package:xfathub/features/booking/models/slot_model.dart';
-import 'package:xfathub/features/booking/views/my_bookings_screen.dart';
 import 'package:xfathub/features/booking/views/package_detail_screen.dart';
 import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
+import 'package:xfathub/features/booking/views/booking_history_screen.dart';
 
 class PackagesScreen extends StatefulWidget {
   const PackagesScreen({super.key});
@@ -172,34 +171,6 @@ class _PackagesScreenState extends State<PackagesScreen> {
                           );
                         },
                       ),
-
-                    const SizedBox(height: 14),
-                    _buildSectionTitle(
-                      Icons.calendar_today,
-                      "Today's Gym Slots",
-                    ),
-                    const SizedBox(height: 8),
-
-                    if (provider.todaySlots.isEmpty && !provider.isLoading)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text(
-                          "No slots available for today.",
-                          style: TextStyle(color: Colors.white54),
-                        ),
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.todaySlots.length,
-                        separatorBuilder: (context, _) =>
-                            const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final slot = provider.todaySlots[index];
-                          return _buildSlotCard(slot: slot);
-                        },
-                      ),
                   ],
                 ),
               ),
@@ -212,30 +183,27 @@ class _PackagesScreenState extends State<PackagesScreen> {
 
   Widget _buildHeader() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.card_giftcard, color: Color(0xFFFFA500), size: 28),
-            const SizedBox(width: 8),
-            const Text(
-              "Packages",
-              style: TextStyle(
-                color: Color(0xFFFFA500),
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+        const Icon(Icons.card_giftcard, color: Color(0xFFFFA500), size: 28),
+        const SizedBox(width: 8),
+        const Text(
+          "Packages",
+          style: TextStyle(
+            color: Color(0xFFFFA500),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        GestureDetector(
-          onTap: () {
+        const Spacer(),
+        IconButton(
+          onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const MyBookingsScreen()),
+              MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
             );
           },
-          child: const Icon(Icons.history, color: Color(0xFFFFA500), size: 28),
+          icon: const Icon(Icons.history, color: Color(0xFFFFA500), size: 24),
+          tooltip: 'Booking History',
         ),
       ],
     );
@@ -566,113 +534,6 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSlotCard({required SlotModel slot}) {
-    Color spotsColor = const Color(0xFFAAAAAA);
-    Color spotsBg = const Color(0xFF1E1E1E);
-
-    if (slot.isLow) {
-      spotsColor = const Color(0xFFFF6B35);
-      spotsBg = const Color(0xFF1E1208);
-    } else if (slot.isFull) {
-      spotsColor = const Color(0xFF555555);
-      spotsBg = const Color(0xFF1A1A1A);
-    }
-
-    final timeStr = DateFormat('hh:mm').format(slot.startTime);
-    final ampmStr = DateFormat('a').format(slot.startTime);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  timeStr,
-                  style: const TextStyle(
-                    color: Color(0xFFFFA500),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  ampmStr,
-                  style: const TextStyle(
-                    color: Color(0xFF666666),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  slot.className,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.person,
-                      color: Color(0xFFFFA500),
-                      size: 12,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      "${slot.coachName} · ${slot.location}",
-                      style: const TextStyle(
-                        color: Color(0xFF666666),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: spotsBg,
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: Text(
-              slot.isFull ? "Full" : "${slot.spotsLeft} spots",
-              style: TextStyle(
-                color: spotsColor,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ),
         ],
       ),

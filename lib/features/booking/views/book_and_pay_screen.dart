@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
+import 'package:xfathub/features/booking/views/checkout_screen.dart';
+import 'package:xfathub/features/booking/views/booking_success_screen.dart';
 
 class BookAndPayScreen extends StatefulWidget {
   const BookAndPayScreen({super.key});
@@ -109,21 +108,26 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
       }
 
       if (result.success && result.booking != null) {
-        final qrData = _buildSafeQrData(
-          result.booking!.qrCodeData,
-          bookingId: result.booking!.id,
-        );
-
-        try {
-          await _showBookingSuccessDialog(qrData);
-        } catch (_) {
-          if (!mounted) {
-            return;
-          }
+        final package = provider.selectedPackage;
+        if (package == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Booking confirmed successfully.')),
           );
+          return;
         }
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BookingSuccessScreen(
+              booking: result.booking!,
+              package: package,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        provider.refreshPackagesPage();
+        Navigator.popUntil(context, (route) => route.isFirst);
         return;
       }
 
@@ -139,23 +143,13 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     }
   }
 
-  String _buildSafeQrData(String? rawQrData, {required String bookingId}) {
-    final raw = rawQrData?.trim();
-    if (raw != null && raw.isNotEmpty) {
-      return raw;
-    }
-
-    return jsonEncode({
-      'booking_id': bookingId,
-      'type': 'booking_confirmation',
-      'source': 'mobile_fallback',
-    });
-  }
-
   String _friendlyBookingError(String raw) {
     final msg = raw.toLowerCase();
     if (msg.contains('already booked this slot')) {
       return 'You already have a booking for this slot.';
+    }
+    if (msg.contains('package is not available for the selected gym')) {
+      return 'This slot is not available for your package. Please choose another slot.';
     }
     return raw;
   }
@@ -196,71 +190,14 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
       return;
     }
 
-    try {
-      final checkoutUrl = await provider.createCheckoutForSelectedPackage();
-      final launched = await launchUrl(
-        Uri.parse(checkoutUrl),
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Checkout URL: $checkoutUrl')));
-      }
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to start checkout: $e')));
+    final package = provider.selectedPackage;
+    if (package == null) {
+      return;
     }
-  }
 
-  Future<void> _showBookingSuccessDialog(String qrData) async {
-    final safeQrData = qrData.trim().isEmpty
-        ? _buildSafeQrData(null, bookingId: 'unknown')
-        : qrData;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
-        title: const Text(
-          'Booking Confirmed',
-          style: TextStyle(color: Color(0xFFFFA500)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              color: Colors.white,
-              child: QrImageView(
-                data: safeQrData,
-                size: 180,
-                backgroundColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              safeQrData,
-              style: const TextStyle(color: Color(0xFF888888), fontSize: 10),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFA500),
-            ),
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Done', style: TextStyle(color: Colors.black)),
-          ),
-        ],
-      ),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CheckoutScreen(package: package)),
     );
   }
 
@@ -569,7 +506,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
                   child: Text(
                     isAlreadyBooked
                         ? 'Booked'
-                        : DateFormat('hh:mm a').format(slot.startTime),
+                        : DateFormat('hh:mm a').format(slot.startTime.toLocal()),
                     style: TextStyle(
                       color: isSelected
                           ? Colors.black
@@ -621,7 +558,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     }
 
     final timeRange =
-        '${DateFormat('hh:mm a').format(slot.startTime)} - ${DateFormat('hh:mm a').format(slot.endTime)}';
+        '${DateFormat('hh:mm a').format(slot.startTime.toLocal())} - ${DateFormat('hh:mm a').format(slot.endTime.toLocal())}';
 
     return Container(
       width: double.infinity,
@@ -684,7 +621,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     final dateText = DateFormat('EEE, d MMM y').format(provider.selectedDate);
     final timeText = provider.selectedSlot == null
         ? '-'
-        : DateFormat('hh:mm a').format(provider.selectedSlot!.startTime);
+        : DateFormat('hh:mm a').format(provider.selectedSlot!.startTime.toLocal());
 
     return Container(
       padding: const EdgeInsets.all(14),

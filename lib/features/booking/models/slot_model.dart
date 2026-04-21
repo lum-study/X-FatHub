@@ -1,5 +1,6 @@
 class SlotModel {
   final String id;
+  final String gymId;
   final DateTime startTime;
   final DateTime endTime;
   final String className;
@@ -10,6 +11,7 @@ class SlotModel {
 
   SlotModel({
     required this.id,
+    required this.gymId,
     required this.startTime,
     required this.endTime,
     required this.className,
@@ -26,19 +28,26 @@ class SlotModel {
   factory SlotModel.fromMap(Map<String, dynamic> map) {
     return SlotModel(
       id: map['id']?.toString() ?? '',
-      startTime: DateTime.tryParse(map['start_time']?.toString() ?? '') ?? DateTime.now(),
-      endTime: DateTime.tryParse(map['end_time']?.toString() ?? '') ?? DateTime.now().add(const Duration(hours: 1)),
+      gymId: map['gym_id']?.toString() ?? '',
+      startTime:
+          DateTime.tryParse(map['start_time']?.toString() ?? '') ??
+          DateTime.now(),
+      endTime:
+          DateTime.tryParse(map['end_time']?.toString() ?? '') ??
+          DateTime.now().add(const Duration(hours: 1)),
       className: map['class_name']?.toString() ?? '',
       coachName: map['coach_name']?.toString() ?? '',
       location: map['location']?.toString() ?? '',
       totalSpots: int.tryParse(map['total_spots']?.toString() ?? '20') ?? 20,
-      occupiedSpots: int.tryParse(map['occupied_spots']?.toString() ?? '0') ?? 0,
+      occupiedSpots:
+          int.tryParse(map['occupied_spots']?.toString() ?? '0') ?? 0,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'gym_id': gymId,
       'start_time': startTime.toIso8601String(),
       'end_time': endTime.toIso8601String(),
       'class_name': className,
