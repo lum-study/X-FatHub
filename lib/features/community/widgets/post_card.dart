@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../activity_health/repositories/activity_repository.dart';
+import '../../activity_health/views/activity_summary_screen.dart';
 import '../views/comments_screen.dart';
+import '../views/new_post_screen.dart';
 import '../models/post_model.dart';
 import '../providers/community_provider.dart';
 import 'custom_video_player.dart';
@@ -207,10 +210,27 @@ class _PostCardState extends State<PostCard> {
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
                       color: const Color(0xFF1E1E1E),
-                      onSelected: (value) {
-                        if (value == 'delete') _deletePost();
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NewPostScreen(editingPost: widget.post),
+                            ),
+                          );
+                          // Refresh the post list when returning
+                          if (widget.onCommentExit != null) {
+                            widget.onCommentExit!();
+                          }
+                        } else if (value == 'delete') {
+                          _deletePost();
+                        }
                       },
                       itemBuilder: (BuildContext context) => [
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Text('Edit Post', style: TextStyle(color: Colors.white)),
+                        ),
                         const PopupMenuItem<String>(
                           value: 'delete',
                           child: Text('Delete Post', style: TextStyle(color: Colors.red)),
@@ -237,56 +257,79 @@ class _PostCardState extends State<PostCard> {
 
             // Optional Activity Tag
             if (widget.post.activityType != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.orange.withOpacity(0.15), Colors.transparent],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                  border: Border(left: BorderSide(color: Colors.orange, width: 4)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.fitness_center, color: Colors.orange, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.post.activityTitle ?? '${widget.post.activityType![0].toUpperCase()}${widget.post.activityType!.substring(1)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+              GestureDetector(
+                onTap: () async {
+                  if (widget.post.activityId != null) {
+                    final activity = await ActivityRepository().getActivityById(widget.post.activityId!);
+                    if (activity != null && mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ActivitySummaryScreen(
+                            activity: activity,
+                            routePoints: activity.routePoints,
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Text(
-                                '${(widget.post.activityDistance ?? 0.0).toStringAsFixed(2)} km',
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      );
+                    } else if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Activity details not found')),
+                      );
+                    }
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange.withOpacity(0.15), Colors.transparent],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    border: Border(left: BorderSide(color: Colors.orange, width: 4)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.fitness_center, color: Colors.orange, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.post.activityTitle ?? '${widget.post.activityType![0].toUpperCase()}${widget.post.activityType!.substring(1)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
-                              if (widget.post.activityDurationSeconds != null) ...[
-                                const Text(' • ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
                                 Text(
-                                  '${(widget.post.activityDurationSeconds! ~/ 3600).toString().padLeft(2, '0')}:${((widget.post.activityDurationSeconds! % 3600) ~/ 60).toString().padLeft(2, '0')}:${(widget.post.activityDurationSeconds! % 60).toString().padLeft(2, '0')}',
+                                  '${(widget.post.activityDistance ?? 0.0).toStringAsFixed(2)} km',
                                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                                 ),
+                                if (widget.post.activityDurationSeconds != null) ...[
+                                  const Text(' • ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                  Text(
+                                    '${(widget.post.activityDurationSeconds! ~/ 3600).toString().padLeft(2, '0')}:${((widget.post.activityDurationSeconds! % 3600) ~/ 60).toString().padLeft(2, '0')}:${(widget.post.activityDurationSeconds! % 60).toString().padLeft(2, '0')}',
+                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                                ],
                               ],
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const Icon(Icons.chevron_right, color: Colors.orange, size: 20),
+                    ],
+                  ),
                 ),
               ),
 

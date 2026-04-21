@@ -7,6 +7,7 @@ class PostModel {
   final String? mediaUrl;
   final String category;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final String? locationName;
   final double? locationLat;
   final double? locationLng;
@@ -45,6 +46,7 @@ class PostModel {
     this.mediaUrl,
     this.category = 'All Posts',
     required this.createdAt,
+    this.updatedAt,
     this.locationName,
     this.locationLat,
     this.locationLng,
@@ -84,6 +86,9 @@ class PostModel {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : DateTime.now(),
+      updatedAt: map['updated_at'] != null
+          ? DateTime.parse(map['updated_at'])
+          : null,
       locationName: map['location_name'] as String?,
       locationLat: (map['location_lat'] as num?)?.toDouble(),
       locationLng: (map['location_lng'] as num?)?.toDouble(),
@@ -126,6 +131,7 @@ class PostModel {
     String? mediaUrl,
     String? category,
     DateTime? createdAt,
+    DateTime? updatedAt,
     String? locationName,
     double? locationLat,
     double? locationLng,
@@ -147,6 +153,7 @@ class PostModel {
       mediaUrl: mediaUrl ?? this.mediaUrl,
       category: category ?? this.category,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       locationName: locationName ?? this.locationName,
       locationLat: locationLat ?? this.locationLat,
       locationLng: locationLng ?? this.locationLng,

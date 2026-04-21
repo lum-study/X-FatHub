@@ -64,6 +64,11 @@ class CommunityProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updatePost(PostModel post) async {
+    await _repository.updatePost(post);
+    notifyListeners();
+  }
+
   Future<bool> isFollowing(String targetUserId) async {
     return await _repository.isFollowing(targetUserId);
   }

@@ -227,9 +227,25 @@ class CommunityRepository {
     final response = await _supabase.from('post_comments').insert({
       'post_id': postId,
       'user_id': userId,
-      'content': content,
-    }).select('*, profiles(name)').single();
-    
-    return CommentModel.fromJson(response);
+        'content': content,
+      }).select('*, profiles(name)').single();
+      
+      return CommentModel.fromJson(response);
+    }
+
+    Future<void> updatePost(PostModel post) async {
+      await _supabase.from('posts').update({
+        'content': post.content,
+        'media_url': post.mediaUrl,
+        'location_name': post.locationName,
+        'location_lat': post.locationLat,
+        'location_lng': post.locationLng,
+        'activity_id': post.activityId,
+        'activity_type': post.activityType,
+        'activity_title': post.activityTitle,
+        'activity_duration_seconds': post.activityDurationSeconds,
+        'activity_distance': post.activityDistance,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', post.id);
+    }
   }
-}

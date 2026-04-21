@@ -9,9 +9,12 @@ import '../widgets/custom_video_player.dart';
 import 'map_picker_screen.dart';
 import 'activity_picker_screen.dart';
 import '../../activity_health/models/activity_model.dart';
+import '../models/post_model.dart';
 
 class NewPostScreen extends StatefulWidget {
-  const NewPostScreen({super.key});
+  final PostModel? editingPost;
+
+  const NewPostScreen({super.key, this.editingPost});
 
   @override
   State<NewPostScreen> createState() => _NewPostScreenState();
@@ -21,7 +24,12 @@ class _NewPostScreenState extends State<NewPostScreen> {
   final TextEditingController _contentController = TextEditingController();
   bool _isPublishing = false;
   final ImagePicker _picker = ImagePicker();
+  
+  // Local files selected by the user
   final List<File> _selectedFiles = [];
+
+  // URLs of media that were already in the post before editing
+  List<String> _existingMediaUrls = [];
 
   // Location variables
   String? _selectedLocationName;
@@ -30,6 +38,33 @@ class _NewPostScreenState extends State<NewPostScreen> {
 
   // Selected Activity variable
   ActivityModel? _selectedActivity;
+  // If the post already had an activity attached, we might not have the full ActivityModel,
+  // but we can preserve its metadata. Default to the existing one if no new one is picked.
+  String? _existingActivityId;
+  String? _existingActivityType;
+  String? _existingActivityTitle;
+  int? _existingActivityDuration;
+  double? _existingActivityDistance;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editingPost != null) {
+      final post = widget.editingPost!;
+      _contentController.text = post.content;
+      _existingMediaUrls = post.mediaUrls;
+      
+      _selectedLocationName = post.locationName;
+      _selectedLat = post.locationLat;
+      _selectedLng = post.locationLng;
+
+      _existingActivityId = post.activityId;
+      _existingActivityType = post.activityType;
+      _existingActivityTitle = post.activityTitle;
+      _existingActivityDuration = post.activityDurationSeconds;
+      _existingActivityDistance = post.activityDistance;
+    }
+  }
 
   @override
   void dispose() {
@@ -87,15 +122,19 @@ class _NewPostScreenState extends State<NewPostScreen> {
     setState(() => _selectedFiles.removeAt(index));
   }
 
+  void _removeExistingMedia(int index) {
+    setState(() => _existingMediaUrls.removeAt(index));
+  }
+
   void _publishPost() async {
     final content = _contentController.text.trim();
-    if (content.isEmpty && _selectedFiles.isEmpty) return;
+    if (content.isEmpty && _selectedFiles.isEmpty && _existingMediaUrls.isEmpty) return;
 
     setState(() => _isPublishing = true);
 
     try {
       final supa = Supabase.instance.client;
-      List<String> uploadedUrls = [];
+      List<String> uploadedUrls = List.from(_existingMediaUrls);
 
       // Upload media if any
       if (_selectedFiles.isNotEmpty) {
@@ -112,29 +151,45 @@ class _NewPostScreenState extends State<NewPostScreen> {
         }
       }
 
-      await context.read<CommunityProvider>().createPost(
-        content,
-        mediaUrls: uploadedUrls,
-        locationName: _selectedLocationName,
-        locationLat: _selectedLat,
-        locationLng: _selectedLng,
-        activityId: _selectedActivity?.id,
-        activityType: _selectedActivity?.activityType,
-        activityTitle: _selectedActivity?.title,
-        activityDurationSeconds: _selectedActivity?.totalDuration?.inSeconds,
-        activityDistance: _selectedActivity?.distanceTraveled,
-      );
+      if (widget.editingPost != null) {
+        final updatedPost = widget.editingPost!.copyWith(
+          content: content,
+          mediaUrl: uploadedUrls.isNotEmpty ? uploadedUrls.join(',') : '',
+          locationName: _selectedLocationName,
+          locationLat: _selectedLat,
+          locationLng: _selectedLng,
+          activityId: _selectedActivity != null ? _selectedActivity!.id : _existingActivityId,
+          activityType: _selectedActivity != null ? _selectedActivity!.activityType : _existingActivityType,
+          activityTitle: _selectedActivity != null ? _selectedActivity!.title : _existingActivityTitle,
+          activityDurationSeconds: _selectedActivity != null ? _selectedActivity!.totalDuration?.inSeconds : _existingActivityDuration,
+          activityDistance: _selectedActivity != null ? _selectedActivity!.distanceTraveled : _existingActivityDistance,
+        );
+        await context.read<CommunityProvider>().updatePost(updatedPost);
+      } else {
+        await context.read<CommunityProvider>().createPost(
+          content,
+          mediaUrls: uploadedUrls,
+          locationName: _selectedLocationName,
+          locationLat: _selectedLat,
+          locationLng: _selectedLng,
+          activityId: _selectedActivity?.id,
+          activityType: _selectedActivity?.activityType,
+          activityTitle: _selectedActivity?.title,
+          activityDurationSeconds: _selectedActivity?.totalDuration?.inSeconds,
+          activityDistance: _selectedActivity?.distanceTraveled,
+        );
+      }
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post published successfully!')),
+          SnackBar(content: Text(widget.editingPost != null ? 'Post updated successfully!' : 'Post published successfully!')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error publishing post: $e\n(Make sure "community_media" bucket exists in Supabase!)')),
+          SnackBar(content: Text(widget.editingPost != null ? 'Error updating post: $e' : 'Error publishing post: $e\n(Make sure "community_media" bucket exists in Supabase!)')),
         );
       }
     } finally {
@@ -192,9 +247,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
                         color: Colors.orange,
                       ),
                     )
-                  : const Text(
-                      'Publish',
-                      style: TextStyle(
+                  : Text(
+                      widget.editingPost != null ? 'Save' : 'Publish',
+                      style: const TextStyle(
                         color: Colors.orange,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -230,9 +285,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Posting to All Members',
-                      style: TextStyle(
-                        color: const Color(0xFF777777),
+                      widget.editingPost != null ? 'Updating your post' : 'Posting to All Members',
+                      style: const TextStyle(
+                        color: Color(0xFF777777),
                         fontSize: 11,
                       ),
                     ),
@@ -264,6 +319,64 @@ class _NewPostScreenState extends State<NewPostScreen> {
               ),
             ),
             const SizedBox(height: 14),
+
+            // Existing Media Section
+            if (_existingMediaUrls.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _existingMediaUrls.length,
+                  itemBuilder: (context, index) {
+                    final url = _existingMediaUrls[index];
+                    final isVideo = widget.editingPost?.isVideo(url) ?? false;
+
+                    return Stack(
+                      children: [
+                        Container(
+                          width: 120,
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            image: isVideo ? null : DecorationImage(
+                              image: NetworkImage(url),
+                              fit: BoxFit.cover,
+                            ),
+                            color: const Color(0xFF1E1E1E),
+                          ),
+                          clipBehavior: Clip.hardEdge,
+                          child: isVideo 
+                              ? CustomVideoPlayer(
+                                  videoUrl: url, 
+                                  isFile: false, 
+                                  autoPlay: false, 
+                                  showControls: false,
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          top: 6,
+                          right: 18,
+                          child: GestureDetector(
+                            onTap: () => _removeExistingMedia(index),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
 
             // Add Tools Section
             if (_selectedFiles.isNotEmpty) ...[
@@ -348,43 +461,94 @@ class _NewPostScreenState extends State<NewPostScreen> {
               child: _buildToolRow(Icons.camera_alt, 'Photo / Video'),
             ),
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () async {
-                final selected = await Navigator.push<ActivityModel>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ActivityPickerScreen()),
-                );
-                if (selected != null) {
-                  setState(() {
-                    _selectedActivity = selected;
-                  });
-                }
-              },
-              child: _buildToolRow(
-                Icons.fitness_center,
-                _selectedActivity != null ? (_selectedActivity!.title ?? '${_selectedActivity!.activityType[0].toUpperCase()}${_selectedActivity!.activityType.substring(1)}') : 'Tag a Workout',
-                iconColor: Colors.orange,
-                textColor: _selectedActivity != null ? Colors.orange : const Color(0xFFAAAAAA),
-              ),
+
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final selected = await Navigator.push<ActivityModel>(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ActivityPickerScreen()),
+                      );
+                      if (selected != null) {
+                        setState(() {
+                          _selectedActivity = selected;
+                          _existingActivityId = null;
+                          _existingActivityType = null;
+                          _existingActivityTitle = null;
+                          _existingActivityDuration = null;
+                          _existingActivityDistance = null;
+                        });
+                      }
+                    },
+                    child: _buildToolRow(
+                      Icons.fitness_center,
+                      _selectedActivity != null 
+                          ? (_selectedActivity!.title ?? '${_selectedActivity!.activityType[0].toUpperCase()}${_selectedActivity!.activityType.substring(1)}') 
+                          : (_existingActivityType != null 
+                              ? (_existingActivityTitle ?? '${_existingActivityType![0].toUpperCase()}${_existingActivityType!.substring(1)}') 
+                              : 'Tag a Workout'),
+                      iconColor: Colors.orange,
+                      textColor: (_selectedActivity != null || _existingActivityType != null) ? Colors.orange : const Color(0xFFAAAAAA),
+                    ),
+                  ),
+                ),
+                if (_selectedActivity != null || _existingActivityType != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedActivity = null;
+                        _existingActivityId = null;
+                        _existingActivityType = null;
+                        _existingActivityTitle = null;
+                        _existingActivityDuration = null;
+                        _existingActivityDistance = null;
+                      });
+                    },
+                    icon: const Icon(Icons.close, color: Colors.orange),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () async {
-                final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPickerScreen()));
-                if (result != null) {
-                  setState(() {
-                    _selectedLocationName = result['name'];
-                    _selectedLat = result['lat'];
-                    _selectedLng = result['lng'];
-                  });
-                }
-              },
-              child: _buildToolRow(
-                Icons.location_on, 
-                _selectedLocationName ?? 'Add a location',
-                iconColor: Colors.orange,
-                textColor: _selectedLocationName != null ? Colors.orange : const Color(0xFFAAAAAA),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPickerScreen()));
+                      if (result != null) {
+                        setState(() {
+                          _selectedLocationName = result['name'];
+                          _selectedLat = result['lat'];
+                          _selectedLng = result['lng'];
+                        });
+                      }
+                    },
+                    child: _buildToolRow(
+                      Icons.location_on, 
+                      _selectedLocationName ?? 'Add a location',
+                      iconColor: Colors.orange,
+                      textColor: _selectedLocationName != null ? Colors.orange : const Color(0xFFAAAAAA),
+                    ),
+                  ),
+                ),
+                if (_selectedLocationName != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedLocationName = null;
+                        _selectedLat = null;
+                        _selectedLng = null;
+                      });
+                    },
+                    icon: const Icon(Icons.close, color: Colors.orange),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

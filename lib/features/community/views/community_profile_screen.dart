@@ -151,11 +151,21 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                 itemBuilder: (context, index) {
                   final post = _userPosts[index];
                   final diff = DateTime.now().difference(post.createdAt);
-                  final timeStr = diff.inDays > 0
+                  String timeStr = diff.inDays > 0
                       ? '${diff.inDays} ${diff.inDays == 1 ? "day" : "days"} ago'
                       : diff.inHours > 0
                           ? '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago'
                           : '${diff.inMinutes} ${diff.inMinutes == 1 ? "min" : "mins"} ago';
+
+                  if (post.updatedAt != null) {
+                    final updatedDiff = DateTime.now().difference(post.updatedAt!);
+                    final updatedTimeStr = updatedDiff.inDays > 0
+                        ? '${updatedDiff.inDays} ${updatedDiff.inDays == 1 ? "day" : "days"} ago'
+                        : updatedDiff.inHours > 0
+                            ? '${updatedDiff.inHours} ${updatedDiff.inHours == 1 ? "hour" : "hours"} ago'
+                            : '${updatedDiff.inMinutes} ${updatedDiff.inMinutes == 1 ? "min" : "mins"} ago';
+                    timeStr += ' (updated $updatedTimeStr)';
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
