@@ -97,11 +97,20 @@ class CommunityRepository {
           .count(CountOption.exact);
       final likesCount = likesCountResponse.count ?? 0;
 
+      // Count followers
+      final followersCountResponse = await _supabase
+          .from('user_followers')
+          .select('follower_id')
+          .eq('following_id', targetUserId)
+          .count(CountOption.exact);
+      final followersCount = followersCountResponse.count ?? 0;
+
       return {
         'name': name,
         'joinedDate': joinedDate,
         'totalPosts': postsCount,
         'totalLikes': likesCount,
+        'totalFollowers': followersCount,
       };
     } catch (e) {
       print('Error fetching user profile stats: $e');

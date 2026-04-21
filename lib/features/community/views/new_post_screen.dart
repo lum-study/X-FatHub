@@ -491,25 +491,19 @@ class _NewPostScreenState extends State<NewPostScreen> {
                               : 'Tag a Workout'),
                       iconColor: Colors.orange,
                       textColor: (_selectedActivity != null || _existingActivityType != null) ? Colors.orange : const Color(0xFFAAAAAA),
+                      onClear: (_selectedActivity != null || _existingActivityType != null) ? () {
+                        setState(() {
+                          _selectedActivity = null;
+                          _existingActivityId = null;
+                          _existingActivityType = null;
+                          _existingActivityTitle = null;
+                          _existingActivityDuration = null;
+                          _existingActivityDistance = null;
+                        });
+                      } : null,
                     ),
                   ),
                 ),
-                if (_selectedActivity != null || _existingActivityType != null) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedActivity = null;
-                        _existingActivityId = null;
-                        _existingActivityType = null;
-                        _existingActivityTitle = null;
-                        _existingActivityDuration = null;
-                        _existingActivityDistance = null;
-                      });
-                    },
-                    icon: const Icon(Icons.close, color: Colors.orange),
-                  ),
-                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -532,22 +526,16 @@ class _NewPostScreenState extends State<NewPostScreen> {
                       _selectedLocationName ?? 'Add a location',
                       iconColor: Colors.orange,
                       textColor: _selectedLocationName != null ? Colors.orange : const Color(0xFFAAAAAA),
+                      onClear: _selectedLocationName != null ? () {
+                        setState(() {
+                          _selectedLocationName = null;
+                          _selectedLat = null;
+                          _selectedLng = null;
+                        });
+                      } : null,
                     ),
                   ),
                 ),
-                if (_selectedLocationName != null) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedLocationName = null;
-                        _selectedLat = null;
-                        _selectedLng = null;
-                      });
-                    },
-                    icon: const Icon(Icons.close, color: Colors.orange),
-                  ),
-                ],
               ],
             ),
           ],
@@ -556,9 +544,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
     );
   }
 
-  Widget _buildToolRow(IconData icon, String text, {Color iconColor = Colors.orange, Color textColor = const Color(0xFFAAAAAA)}) {
+  Widget _buildToolRow(IconData icon, String text, {Color iconColor = Colors.orange, Color textColor = const Color(0xFFAAAAAA), VoidCallback? onClear}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: onClear != null ? 0 : 12),
       decoration: BoxDecoration(
         color: const Color(0xFF111111),
         border: Border.all(color: const Color(0xFF2A2A2A)),
@@ -569,13 +557,23 @@ class _NewPostScreenState extends State<NewPostScreen> {
           Icon(icon, color: iconColor, size: 18),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(color: textColor, fontSize: 13),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: onClear != null ? 12 : 0),
+              child: Text(
+                text,
+                style: TextStyle(color: textColor, fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
+          if (onClear != null)
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.orange, size: 18),
+              onPressed: onClear,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
         ],
       ),
     );

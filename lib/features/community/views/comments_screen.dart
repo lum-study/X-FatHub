@@ -9,6 +9,7 @@ import '../models/post_model.dart';
 import '../providers/community_provider.dart';
 import '../widgets/custom_video_player.dart';
 import 'community_profile_screen.dart';
+import 'new_post_screen.dart';
 
 class CommentsScreen extends StatefulWidget {
   final PostModel post;
@@ -226,11 +227,21 @@ class _CommentsScreenState extends State<CommentsScreen> {
   Widget build(BuildContext context) {
     final post = widget.post;
     final diff = DateTime.now().difference(post.createdAt);
-    final timeStr = diff.inDays > 0
+    String timeStr = diff.inDays > 0
         ? '${diff.inDays} days ago'
         : diff.inHours > 0
             ? '${diff.inHours} hours ago'
             : '${diff.inMinutes} mins ago';
+
+    if (post.updatedAt != null && post.updatedAt!.difference(post.createdAt).inSeconds > 5) {
+      final updatedDiff = DateTime.now().difference(post.updatedAt!);
+      final updatedTimeStr = updatedDiff.inDays > 0
+          ? '${updatedDiff.inDays} days ago'
+          : updatedDiff.inHours > 0
+              ? '${updatedDiff.inHours} hours ago'
+              : '${updatedDiff.inMinutes} mins ago';
+      timeStr += ' (updated $updatedTimeStr)';
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -310,10 +321,23 @@ class _CommentsScreenState extends State<CommentsScreen> {
                                 padding: EdgeInsets.zero,
                                 icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 18),
                                 color: const Color(0xFF1E1E1E),
-                                onSelected: (value) {
-                                  if (value == 'delete') _deletePost();
+                                onSelected: (value) async {
+                                  if (value == 'edit') {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => NewPostScreen(editingPost: post),
+                                      ),
+                                    );
+                                  } else if (value == 'delete') {
+                                    _deletePost();
+                                  }
                                 },
                                 itemBuilder: (BuildContext context) => [
+                                  const PopupMenuItem<String>(
+                                    value: 'edit',
+                                    child: Text('Edit Post', style: TextStyle(color: Colors.white)),
+                                  ),
                                   const PopupMenuItem<String>(
                                     value: 'delete',
                                     child: Text('Delete Post', style: TextStyle(color: Colors.red)),

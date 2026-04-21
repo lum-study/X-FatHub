@@ -219,7 +219,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
                   ? '${diff.inHours} hours ago'
                   : '${diff.inMinutes} mins ago';
 
-          if (post.updatedAt != null) {
+          if (post.updatedAt != null && post.updatedAt!.difference(post.createdAt).inSeconds > 5) {
             final updatedDiff = DateTime.now().difference(post.updatedAt!);
             final updatedTimeStr = updatedDiff.inDays > 0
                 ? '${updatedDiff.inDays} days ago'

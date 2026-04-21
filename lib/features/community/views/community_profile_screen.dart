@@ -110,6 +110,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
     final joinedDate = _userStats!['joinedDate'] as DateTime;
     final totalLikes = _userStats!['totalLikes'] as int;
     final totalPosts = _userStats!['totalPosts'] as int;
+    final totalFollowers = _userStats!['totalFollowers'] ?? 0;
     final formattedDate = DateFormat.yMMMMd().format(joinedDate);
 
     return Scaffold(
@@ -130,7 +131,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            _buildProfileHeader(name, formattedDate, totalLikes, totalPosts),
+            _buildProfileHeader(name, formattedDate, totalLikes, totalPosts, totalFollowers),
             const Divider(color: Color(0xFF333333), height: 1),
             if (_userPosts.isEmpty)
               const Padding(
@@ -157,7 +158,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                           ? '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago'
                           : '${diff.inMinutes} ${diff.inMinutes == 1 ? "min" : "mins"} ago';
 
-                  if (post.updatedAt != null) {
+                  if (post.updatedAt != null && post.updatedAt!.difference(post.createdAt).inSeconds > 5) {
                     final updatedDiff = DateTime.now().difference(post.updatedAt!);
                     final updatedTimeStr = updatedDiff.inDays > 0
                         ? '${updatedDiff.inDays} ${updatedDiff.inDays == 1 ? "day" : "days"} ago'
@@ -202,7 +203,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
   }
 
   Widget _buildProfileHeader(
-      String name, String formattedDate, int totalLikes, int totalPosts) {
+      String name, String formattedDate, int totalLikes, int totalPosts, int totalFollowers) {
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Column(
@@ -251,7 +252,8 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-               _buildStatItem('Likes', totalLikes.toString()),
+              _buildStatItem('Followers', totalFollowers.toString()),
+              _buildStatItem('Likes', totalLikes.toString()),
               _buildStatItem('Posts', totalPosts.toString()),
             ],
           ),
