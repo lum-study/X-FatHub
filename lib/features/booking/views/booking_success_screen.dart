@@ -15,8 +15,8 @@ class BookingSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = DateFormat('EEE, d MMM yyyy').format(booking.bookingDate);
-    final timeLabel = DateFormat('hh:mm a').format(booking.bookingDate);
+    final dateLabel = DateFormat('EEE, d MMM yyyy').format(booking.bookingDate.toLocal());
+    final timeLabel = DateFormat('hh:mm a').format(booking.bookingDate.toLocal());
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -74,7 +74,7 @@ class BookingSuccessScreen extends StatelessWidget {
                     foregroundColor: Colors.black,
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.popUntil(context, (route) => route.isFirst);
                   },
                   child: const Text(
                     'Done',

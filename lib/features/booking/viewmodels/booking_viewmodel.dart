@@ -296,7 +296,13 @@ class BookingViewModel extends ChangeNotifier {
     }
     try {
       final fetchedSlots = await _repository.fetchSlotsByDate(date);
-      _slots = _filterSlotsForSelectedPackage(fetchedSlots);
+      var filteredSlots = _filterSlotsForSelectedPackage(fetchedSlots);
+      
+      if (_isToday(date)) {
+        filteredSlots = _filterPastSlots(filteredSlots);
+      }
+      
+      _slots = filteredSlots;
       _errorMessage = null;
       _syncSelectedSlotWithAvailableSlots();
     } catch (e) {
@@ -306,6 +312,18 @@ class BookingViewModel extends ChangeNotifier {
         _setLoading(false);
       }
     }
+  }
+
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year && date.month == now.month && date.day == now.day;
+  }
+
+  List<SlotModel> _filterPastSlots(List<SlotModel> slots) {
+    final now = DateTime.now();
+    return slots.where((slot) {
+      return slot.startTime.isAfter(now);
+    }).toList();
   }
 
   void _syncSelectedSlotWithAvailableSlots() {

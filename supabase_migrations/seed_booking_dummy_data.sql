@@ -175,8 +175,8 @@ generated_slots AS (
     st.class_name,
     st.coach_name,
     st.location,
-    ((CURRENT_DATE + d.day_offset)::timestamp + st.start_time_local) AT TIME ZONE 'Asia/Kuala_Lumpur' AS start_time,
-    (((CURRENT_DATE + d.day_offset)::timestamp + st.start_time_local) AT TIME ZONE 'Asia/Kuala_Lumpur') + INTERVAL '1 hour' AS end_time,
+    ((CURRENT_DATE + d.day_offset)::timestamp + st.start_time_local)::timestamptz AS start_time,
+    (((CURRENT_DATE + d.day_offset)::timestamp + st.start_time_local) + INTERVAL '1 hour')::timestamptz AS end_time,
     st.total_spots,
     LEAST(st.total_spots - 1, GREATEST(0, st.base_occupied + ((d.day_offset % 4) - 1))) AS occupied_spots
   FROM slot_templates st

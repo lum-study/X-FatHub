@@ -5,6 +5,7 @@ import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/views/package_detail_screen.dart';
 import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
+import 'package:xfathub/features/booking/views/booking_history_screen.dart';
 
 class PackagesScreen extends StatefulWidget {
   const PackagesScreen({super.key});
@@ -192,6 +193,17 @@ class _PackagesScreenState extends State<PackagesScreen> {
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
+        ),
+        const Spacer(),
+        IconButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
+            );
+          },
+          icon: const Icon(Icons.history, color: Color(0xFFFFA500), size: 24),
+          tooltip: 'Booking History',
         ),
       ],
     );

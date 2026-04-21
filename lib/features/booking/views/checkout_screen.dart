@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
+import 'package:xfathub/features/booking/views/payment_success_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final PackageModel package;
@@ -13,8 +14,35 @@ class CheckoutScreen extends StatefulWidget {
   State<CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
-class _CheckoutScreenState extends State<CheckoutScreen> {
+class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObserver {
   bool _isProcessing = false;
+  bool _isWaitingForPayment = false;
+
+  String get _deepLinkScheme => 'xfathub';
+  String get _successUrl => '$_deepLinkScheme://payment/success';
+  String get _cancelUrl => '$_deepLinkScheme://payment/cancel';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isWaitingForPayment) {
+      _isWaitingForPayment = false;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const PaymentSuccessScreen()),
+      );
+    }
+  }
 
   Future<void> _payWithCard() async {
     if (_isProcessing) return;
@@ -30,8 +58,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final checkoutUrl = await provider.createCheckoutForPackage(
         widget.package.id,
       );
+
+      final uri = Uri.parse(checkoutUrl);
+      final withSuccessParams = uri.replace(
+        queryParameters: {
+          ...uri.queryParameters,
+          'success_url': _successUrl,
+          'cancel_url': _cancelUrl,
+        },
+      );
+
       final launched = await launchUrl(
-        Uri.parse(checkoutUrl),
+        withSuccessParams,
         mode: LaunchMode.externalApplication,
       );
 
@@ -41,18 +79,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Unable to open checkout: $checkoutUrl')),
         );
+        setState(() => _isProcessing = false);
+        return;
       }
+
+      setState(() {
+        _isProcessing = false;
+        _isWaitingForPayment = true;
+      });
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const PaymentSuccessScreen()),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Checkout failed: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Checkout failed: $e')),
+      );
+      setState(() => _isProcessing = false);
     }
   }
 

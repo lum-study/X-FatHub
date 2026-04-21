@@ -290,9 +290,10 @@ AS $$
     FOR UPDATE
   ),
   slot_state AS (
-    SELECT gs.id, gs.gym_id, gs.total_spots, gs.occupied_spots, gs.class_name
+    SELECT gs.id, gs.gym_id, gs.start_time, gs.total_spots, gs.occupied_spots, gs.class_name
     FROM public.gym_slots gs
     WHERE gs.id = p_slot_id
+      AND gs.start_time > NOW() AT TIME ZONE 'Asia/Kuala_Lumpur'
     FOR UPDATE
   ),
   duplicate_booking AS (
@@ -319,7 +320,7 @@ AS $$
       p_package_id,
       p_slot_id,
       'upcoming',
-      now(),
+      (SELECT start_time FROM slot_state),
       0,
       1,
       ''

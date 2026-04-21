@@ -109,7 +109,11 @@ class BookingRepository {
           .lt('start_time', endUtc)
           .order('start_time', ascending: true);
 
-      return (response as List).map((data) => SlotModel.fromMap(data)).toList();
+      final slots = (response as List)
+          .map((data) => SlotModel.fromMap(data))
+          .toList();
+      
+      return slots;
     } catch (e) {
       throw Exception('Failed to fetch slots: $e');
     }
@@ -273,9 +277,21 @@ class BookingRepository {
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
-      return (response as List)
-          .map((data) => BookingModel.fromMap(data))
-          .toList();
+      return (response as List).map((data) {
+        final booking = BookingModel.fromMap(data);
+        return BookingModel(
+          id: booking.id,
+          userId: booking.userId,
+          packageId: booking.packageId,
+          slotId: booking.slotId,
+          bookingDate: booking.bookingDate.toLocal(),
+          status: booking.status,
+          totalPaid: booking.totalPaid,
+          receiptUrl: booking.receiptUrl,
+          qrCodeData: booking.qrCodeData,
+          sessionNumber: booking.sessionNumber,
+        );
+      }).toList();
     } catch (e) {
       throw Exception('Failed to fetch user bookings: $e');
     }

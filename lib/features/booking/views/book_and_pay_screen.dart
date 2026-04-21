@@ -125,6 +125,9 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
             ),
           ),
         );
+        if (!mounted) return;
+        provider.refreshPackagesPage();
+        Navigator.popUntil(context, (route) => route.isFirst);
         return;
       }
 
@@ -503,7 +506,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
                   child: Text(
                     isAlreadyBooked
                         ? 'Booked'
-                        : DateFormat('hh:mm a').format(slot.startTime),
+                        : DateFormat('hh:mm a').format(slot.startTime.toLocal()),
                     style: TextStyle(
                       color: isSelected
                           ? Colors.black
@@ -555,7 +558,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     }
 
     final timeRange =
-        '${DateFormat('hh:mm a').format(slot.startTime)} - ${DateFormat('hh:mm a').format(slot.endTime)}';
+        '${DateFormat('hh:mm a').format(slot.startTime.toLocal())} - ${DateFormat('hh:mm a').format(slot.endTime.toLocal())}';
 
     return Container(
       width: double.infinity,
@@ -618,7 +621,7 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
     final dateText = DateFormat('EEE, d MMM y').format(provider.selectedDate);
     final timeText = provider.selectedSlot == null
         ? '-'
-        : DateFormat('hh:mm a').format(provider.selectedSlot!.startTime);
+        : DateFormat('hh:mm a').format(provider.selectedSlot!.startTime.toLocal());
 
     return Container(
       padding: const EdgeInsets.all(14),
