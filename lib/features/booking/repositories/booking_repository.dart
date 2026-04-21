@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
+import '../models/gym_model.dart';
 
 class BookingRepository {
   final _supabase = Supabase.instance.client;
@@ -50,6 +51,33 @@ class BookingRepository {
           .toList();
     } catch (e) {
       throw Exception('Failed to fetch packages: $e');
+    }
+  }
+
+  Future<List<GymModel>> fetchPackageGyms(String packageId) async {
+    try {
+      final response = await _supabase
+          .from('package_gyms')
+          .select('is_active, gyms(id, name, venue, address, status)')
+          .eq('package_id', packageId)
+          .eq('is_active', true);
+
+      final rows = (response as List)
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList();
+
+      final gyms = <GymModel>[];
+      for (final row in rows) {
+        final gymRaw = row['gyms'];
+        if (gymRaw is Map) {
+          gyms.add(GymModel.fromMap(Map<String, dynamic>.from(gymRaw)));
+        }
+      }
+
+      gyms.sort((a, b) => a.name.compareTo(b.name));
+      return gyms;
+    } catch (e) {
+      throw Exception('Failed to fetch package gyms: $e');
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
+import '../models/gym_model.dart';
 import '../repositories/booking_repository.dart';
 import 'dart:async';
 
@@ -26,7 +27,7 @@ class BookingViewModel extends ChangeNotifier {
 
   List<PackageModel> _packages = [];
   List<SlotModel> _slots = [];
-  List<SlotModel> _todaySlots = [];
+  List<GymModel> _selectedPackageGyms = [];
   List<BookingModel> _userBookings = [];
 
   bool _isLoading = false;
@@ -50,11 +51,11 @@ class BookingViewModel extends ChangeNotifier {
 
   StreamSubscription<List<PackageModel>>? _packagesSubscription;
   StreamSubscription<List<SlotModel>>? _slotsSubscription;
-  StreamSubscription<List<SlotModel>>? _todaySlotsSubscription;
 
   List<PackageModel> get packages => _packages;
   List<SlotModel> get slots => _slots;
-  List<SlotModel> get todaySlots => _todaySlots;
+  List<GymModel> get selectedPackageGyms =>
+      List<GymModel>.unmodifiable(_selectedPackageGyms);
   List<BookingModel> get userBookings => _userBookings;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -117,6 +118,20 @@ class BookingViewModel extends ChangeNotifier {
   }
 
   bool _isSlotAllowedForPackage(PackageModel package, SlotModel slot) {
+    final allowedGymIds = _selectedPackageGyms
+        .map((gym) => gym.id)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    // Package-to-gym mapping is mandatory for booking availability.
+    if (allowedGymIds.isEmpty) {
+      return false;
+    }
+
+    if (!allowedGymIds.contains(slot.gymId)) {
+      return false;
+    }
+
     if (package.allowedClassNames.isEmpty) {
       return true;
     }
@@ -163,8 +178,36 @@ class BookingViewModel extends ChangeNotifier {
   void selectPackage(PackageModel package) {
     _selectedPackage = package;
     _selectedSlot = null;
+    _selectedPackageGyms = [];
     _errorMessage = null;
     notifyListeners();
+  }
+
+  Future<void> loadSelectedPackageDetails({bool setLoading = false}) async {
+    final package = _selectedPackage;
+    if (package == null) {
+      _selectedPackageGyms = [];
+      notifyListeners();
+      return;
+    }
+
+    if (setLoading) {
+      _setLoading(true);
+    }
+
+    try {
+      _selectedPackageGyms = await _repository.fetchPackageGyms(package.id);
+      _errorMessage = null;
+    } catch (e) {
+      _selectedPackageGyms = [];
+      _errorMessage = e.toString();
+    } finally {
+      if (setLoading) {
+        _setLoading(false);
+      } else {
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> selectDate(DateTime date) async {
@@ -204,7 +247,6 @@ class BookingViewModel extends ChangeNotifier {
 
   Future<void> initializePackagesPage() async {
     await fetchPackages();
-    await fetchTodaySlots();
     await refreshCurrentUserBookingData();
   }
 
@@ -215,6 +257,7 @@ class BookingViewModel extends ChangeNotifier {
       return;
     }
 
+    await loadSelectedPackageDetails(setLoading: false);
     await fetchSlotsForDate(_selectedDate);
     await refreshCurrentUserBookingData();
   }
@@ -225,24 +268,7 @@ class BookingViewModel extends ChangeNotifier {
 
   Future<void> refreshPackagesPage() async {
     await fetchPackages();
-    await fetchTodaySlots();
     await refreshCurrentUserBookingData();
-  }
-
-  Future<void> fetchTodaySlots({bool setLoading = true}) async {
-    if (setLoading) {
-      _setLoading(true);
-    }
-    try {
-      _todaySlots = await _repository.fetchSlotsByDate(_bookingWindowStartDate);
-      _errorMessage = null;
-    } catch (e) {
-      _errorMessage = e.toString();
-    } finally {
-      if (setLoading) {
-        _setLoading(false);
-      }
-    }
   }
 
   Future<void> fetchPackages({bool setLoading = true}) async {
@@ -555,7 +581,6 @@ class BookingViewModel extends ChangeNotifier {
   void dispose() {
     _packagesSubscription?.cancel();
     _slotsSubscription?.cancel();
-    _todaySlotsSubscription?.cancel();
     super.dispose();
   }
 }

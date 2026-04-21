@@ -4,7 +4,66 @@
 ALTER TABLE IF EXISTS public.packages
   ADD COLUMN IF NOT EXISTS stripe_price_id TEXT,
   ADD COLUMN IF NOT EXISTS validity_days INTEGER NOT NULL DEFAULT 30,
-  ADD COLUMN IF NOT EXISTS allowed_class_names TEXT[] NOT NULL DEFAULT '{}';
+  ADD COLUMN IF NOT EXISTS allowed_class_names TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS benefits TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS rules TEXT[] NOT NULL DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS public.gyms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  venue TEXT,
+  address TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT gyms_status_check CHECK (status = ANY (ARRAY['active', 'inactive']))
+);
+
+CREATE TABLE IF NOT EXISTS public.package_gyms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  package_id UUID NOT NULL REFERENCES public.packages(id) ON DELETE CASCADE,
+  gym_id UUID NOT NULL REFERENCES public.gyms(id) ON DELETE CASCADE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT package_gyms_unique_package_gym UNIQUE (package_id, gym_id)
+);
+
+ALTER TABLE IF EXISTS public.gym_slots
+  ADD COLUMN IF NOT EXISTS gym_id UUID,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'gym_slots'
+      AND column_name = 'gym_id'
+      AND is_nullable = 'YES'
+  ) THEN
+    ALTER TABLE public.gym_slots ALTER COLUMN gym_id SET NOT NULL;
+  END IF;
+EXCEPTION
+  WHEN not_null_violation THEN
+    -- Existing data may need backfill before enforcing NOT NULL.
+    NULL;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'gym_slots_gym_id_fkey'
+  ) THEN
+    ALTER TABLE public.gym_slots
+      ADD CONSTRAINT gym_slots_gym_id_fkey
+      FOREIGN KEY (gym_id) REFERENCES public.gyms(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Ensure booking payload columns used by Flutter model exist.
 ALTER TABLE IF EXISTS public.bookings
@@ -46,6 +105,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS bookings_user_slot_active_idx
   ON public.bookings(user_id, slot_id)
   WHERE slot_id IS NOT NULL AND status <> 'cancelled';
 
+CREATE INDEX IF NOT EXISTS package_gyms_package_idx
+  ON public.package_gyms(package_id)
+  WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS package_gyms_gym_idx
+  ON public.package_gyms(gym_id)
+  WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS gyms_status_idx
+  ON public.gyms(status);
+
 CREATE INDEX IF NOT EXISTS user_subscriptions_user_expiry_idx
   ON public.user_subscriptions(user_id, expiry_date DESC);
 
@@ -54,6 +124,9 @@ CREATE INDEX IF NOT EXISTS bookings_user_status_idx
 
 CREATE INDEX IF NOT EXISTS gym_slots_time_idx
   ON public.gym_slots(start_time);
+
+CREATE INDEX IF NOT EXISTS gym_slots_gym_time_idx
+  ON public.gym_slots(gym_id, start_time);
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger AS $$
@@ -69,8 +142,30 @@ BEFORE UPDATE ON public.user_subscriptions
 FOR EACH ROW
 EXECUTE FUNCTION public.set_updated_at();
 
+DROP TRIGGER IF EXISTS set_gyms_updated_at ON public.gyms;
+CREATE TRIGGER set_gyms_updated_at
+BEFORE UPDATE ON public.gyms
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_package_gyms_updated_at ON public.package_gyms;
+CREATE TRIGGER set_package_gyms_updated_at
+BEFORE UPDATE ON public.package_gyms
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_gym_slots_updated_at ON public.gym_slots;
+CREATE TRIGGER set_gym_slots_updated_at
+BEFORE UPDATE ON public.gym_slots
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+
 ALTER TABLE public.user_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.packages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gyms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.package_gyms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gym_slots ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own subscriptions" ON public.user_subscriptions;
 CREATE POLICY "Users can view their own subscriptions"
@@ -83,6 +178,34 @@ CREATE POLICY "Users can view their own bookings"
   ON public.bookings
   FOR SELECT
   USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Authenticated can view packages" ON public.packages;
+CREATE POLICY "Authenticated can view packages"
+  ON public.packages
+  FOR SELECT
+  TO authenticated
+  USING (TRUE);
+
+DROP POLICY IF EXISTS "Authenticated can view gyms" ON public.gyms;
+CREATE POLICY "Authenticated can view gyms"
+  ON public.gyms
+  FOR SELECT
+  TO authenticated
+  USING (status = 'active');
+
+DROP POLICY IF EXISTS "Authenticated can view package gyms" ON public.package_gyms;
+CREATE POLICY "Authenticated can view package gyms"
+  ON public.package_gyms
+  FOR SELECT
+  TO authenticated
+  USING (is_active = TRUE);
+
+DROP POLICY IF EXISTS "Authenticated can view gym slots" ON public.gym_slots;
+CREATE POLICY "Authenticated can view gym slots"
+  ON public.gym_slots
+  FOR SELECT
+  TO authenticated
+  USING (TRUE);
 
 DROP FUNCTION IF EXISTS public.get_user_credit_balance(UUID, UUID);
 CREATE OR REPLACE FUNCTION public.get_user_credit_balance(
@@ -167,7 +290,7 @@ AS $$
     FOR UPDATE
   ),
   slot_state AS (
-    SELECT gs.id, gs.total_spots, gs.occupied_spots, gs.class_name
+    SELECT gs.id, gs.gym_id, gs.total_spots, gs.occupied_spots, gs.class_name
     FROM public.gym_slots gs
     WHERE gs.id = p_slot_id
     FOR UPDATE
@@ -204,6 +327,15 @@ AS $$
     WHERE a.ok
       AND EXISTS (SELECT 1 FROM subscription)
       AND EXISTS (SELECT 1 FROM slot_state WHERE occupied_spots < total_spots)
+      AND EXISTS (
+        SELECT 1
+        FROM subscription s
+        JOIN slot_state ss ON TRUE
+        JOIN public.package_gyms pg
+          ON pg.package_id = s.package_id
+         AND pg.gym_id = ss.gym_id
+         AND pg.is_active = TRUE
+      )
       AND (
         EXISTS (
           SELECT 1
@@ -259,6 +391,16 @@ AS $$
         AND ss.class_name <> ALL(s.allowed_class_names)
     ) THEN
       jsonb_build_object('success', false, 'error', 'This slot is not available for the selected package.')
+    WHEN NOT EXISTS (
+      SELECT 1
+      FROM subscription s
+      JOIN slot_state ss ON TRUE
+      JOIN public.package_gyms pg
+        ON pg.package_id = s.package_id
+       AND pg.gym_id = ss.gym_id
+       AND pg.is_active = TRUE
+    ) THEN
+      jsonb_build_object('success', false, 'error', 'This package is not available for the selected gym.')
     WHEN EXISTS (SELECT 1 FROM duplicate_booking) THEN
       jsonb_build_object('success', false, 'error', 'You already booked this slot.')
     WHEN NOT EXISTS (SELECT 1 FROM inserted) THEN
@@ -347,14 +489,14 @@ AS $$
     SELECT auth.uid() IS NOT NULL AND auth.uid() = p_user_id AS ok
   ),
   booking_row AS (
-    SELECT b.id, b.slot_id, b.status
+    SELECT b.id, b.package_id, b.slot_id, b.status
     FROM public.bookings b
     WHERE b.id = p_booking_id
       AND b.user_id = p_user_id
     FOR UPDATE
   ),
   new_slot AS (
-    SELECT gs.id, gs.total_spots, gs.occupied_spots
+    SELECT gs.id, gs.gym_id, gs.total_spots, gs.occupied_spots, gs.class_name
     FROM public.gym_slots gs
     WHERE gs.id = p_new_slot_id
     FOR UPDATE
@@ -366,6 +508,18 @@ AS $$
       AND EXISTS (SELECT 1 FROM auth_check WHERE ok)
       AND EXISTS (SELECT 1 FROM booking_row WHERE status = 'upcoming')
       AND EXISTS (SELECT 1 FROM new_slot WHERE occupied_spots < total_spots)
+      AND EXISTS (
+        SELECT 1
+        FROM booking_row br
+        JOIN public.packages p ON p.id = br.package_id
+        JOIN new_slot ns ON TRUE
+        JOIN public.package_gyms pg
+          ON pg.package_id = br.package_id
+         AND pg.gym_id = ns.gym_id
+         AND pg.is_active = TRUE
+        WHERE COALESCE(array_length(p.allowed_class_names, 1), 0) = 0
+           OR ns.class_name = ANY(p.allowed_class_names)
+      )
       AND EXISTS (SELECT 1 FROM booking_row WHERE slot_id IS DISTINCT FROM p_new_slot_id)
     RETURNING 1
   ),
@@ -397,6 +551,13 @@ AS $$
       jsonb_build_object('success', false, 'error', 'New slot not found.')
     WHEN EXISTS (SELECT 1 FROM new_slot WHERE occupied_spots >= total_spots) THEN
       jsonb_build_object('success', false, 'error', 'New slot is already full.')
+    WHEN NOT EXISTS (
+      SELECT 1
+      FROM booking_row br
+      JOIN public.package_gyms pg ON pg.package_id = br.package_id AND pg.is_active = TRUE
+      JOIN new_slot ns ON ns.gym_id = pg.gym_id
+    ) THEN
+      jsonb_build_object('success', false, 'error', 'This package is not available for the selected gym.')
     WHEN NOT EXISTS (SELECT 1 FROM updated_booking) THEN
       jsonb_build_object('success', false, 'error', 'Unable to reschedule booking.')
     ELSE
@@ -408,3 +569,7 @@ GRANT EXECUTE ON FUNCTION public.get_user_credit_balance(UUID, UUID) TO authenti
 GRANT EXECUTE ON FUNCTION public.create_booking_with_credit(UUID, UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_booking_with_refund(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reschedule_booking(UUID, UUID, UUID) TO authenticated;
+GRANT SELECT ON public.packages TO authenticated;
+GRANT SELECT ON public.gyms TO authenticated;
+GRANT SELECT ON public.package_gyms TO authenticated;
+GRANT SELECT ON public.gym_slots TO authenticated;
