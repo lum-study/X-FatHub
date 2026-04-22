@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../features/home/views/home_screen.dart';
-import '../features/home/views/profile_dashboard_screen.dart';
+import '../features/profile/views/home_screen.dart';
+import '../features/profile/views/profile_dashboard_screen.dart';
 import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
-import '../features/home/providers/profile_provider.dart';
+import '../features/profile/viewmodels/profile_viewmodel.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -26,8 +26,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
-    final isAuthenticated = profileProvider.isAuthenticated;
+    final profileViewModel = context.watch<ProfileViewModel>();
+    final isAuthenticated = profileViewModel.isAuthenticated;
 
     // If not authenticated, show only the Home (Login) screen without navigation
     if (!isAuthenticated) {
@@ -53,13 +53,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           child: SizedBox(
             height: 60,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildNavItem(0, Icons.grid_view_rounded, "Community"),
-                _buildNavItem(1, Icons.card_giftcard, "Packages"),
-                _buildHomeNavItem(),
-                _buildNavItem(3, Icons.fitness_center, "Tracker"),
-                _buildNavItem(4, Icons.person_outline, "Profile"),
+                Expanded(child: _buildNavItem(0, Icons.grid_view_rounded, "Community")),
+                Expanded(child: _buildNavItem(1, Icons.card_giftcard, "Packages")),
+                Expanded(child: _buildHomeNavItem()),
+                Expanded(child: _buildNavItem(3, Icons.fitness_center, "Tracker")),
+                Expanded(child: _buildNavItem(4, Icons.person_outline, "Profile")),
               ],
             ),
           ),
@@ -73,24 +73,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
+      child: Container(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
               color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              size: 24,
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? const Color(0xFFFFA500) : const Color(0xFF555555),
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -100,23 +104,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return GestureDetector(
       onTap: () => _onTabTapped(2),
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFA500),
-              shape: BoxShape.circle,
+      child: Container(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFA500),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.home,
+                size: 20,
+                color: isSelected ? Colors.black : Colors.black.withValues(alpha: 0.7),
+              ),
             ),
-            child: Icon(
-              Icons.home,
-              size: 20,
-              color: isSelected ? Colors.black : Colors.black.withOpacity(0.7),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

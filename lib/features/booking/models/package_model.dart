@@ -8,6 +8,9 @@ class PackageModel {
   final bool isFeatured;
   final String iconName;
   final List<String> allowedClassNames;
+  final List<String> benefits;
+  final List<String> rules;
+  final List<String> gymNames;
 
   PackageModel({
     required this.id,
@@ -19,6 +22,9 @@ class PackageModel {
     this.isFeatured = false,
     this.iconName = 'fitness_center',
     this.allowedClassNames = const [],
+    this.benefits = const [],
+    this.rules = const [],
+    this.gymNames = const [],
   });
 
   factory PackageModel.fromMap(Map<String, dynamic> map) {
@@ -33,10 +39,13 @@ class PackageModel {
       isFeatured: map['is_featured'] == true,
       iconName: map['icon_name']?.toString() ?? 'fitness_center',
       allowedClassNames: _parseAllowedClassNames(map['allowed_class_names']),
+      benefits: _parseStringList(map['benefits']),
+      rules: _parseStringList(map['rules']),
+      gymNames: _parseStringList(map['gym_names']),
     );
   }
 
-  static List<String> _parseAllowedClassNames(dynamic value) {
+  static List<String> _parseStringList(dynamic value) {
     if (value is List) {
       return value
           .map((item) => item.toString())
@@ -56,6 +65,10 @@ class PackageModel {
     return const [];
   }
 
+  static List<String> _parseAllowedClassNames(dynamic value) {
+    return _parseStringList(value);
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -67,6 +80,9 @@ class PackageModel {
       'is_featured': isFeatured,
       'icon_name': iconName,
       'allowed_class_names': allowedClassNames,
+      'benefits': benefits,
+      'rules': rules,
+      'gym_names': gymNames,
     };
   }
 }

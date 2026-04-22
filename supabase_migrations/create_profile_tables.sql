@@ -5,7 +5,13 @@ CREATE TABLE IF NOT EXISTS profiles (
   name TEXT,
   bio TEXT,
   profile_picture_url TEXT,
+  age INT,
+  current_weight DOUBLE PRECISION,
+  initial_weight DOUBLE PRECISION,
   weight_goal DOUBLE PRECISION,
+  height DOUBLE PRECISION,
+  step_goal INT,
+  hydration_goal DOUBLE PRECISION,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
