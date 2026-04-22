@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/profile_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -147,28 +146,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _isChangingPassword = true);
 
                       try {
-                        final user = Supabase.instance.client.auth.currentUser;
-                        if (user?.email != null) {
-                          // First, verify current password by attempting to sign in
-                          await Supabase.instance.client.auth.signInWithPassword(
-                            email: user!.email!,
-                            password: currentPasswordController.text,
-                          );
+                        final provider = context.read<ProfileProvider>();
+                        await provider.changePassword(
+                          currentPassword: currentPasswordController.text,
+                          newPassword: newPasswordController.text,
+                        );
 
-                          // If successful, update password
-                          await Supabase.instance.client.auth.updateUser(
-                            UserAttributes(password: newPasswordController.text),
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Password changed successfully!'),
+                              backgroundColor: Colors.green,
+                            ),
                           );
-
-                          if (mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Password changed successfully!'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          }
                         }
                       } catch (e) {
                         if (mounted) {
