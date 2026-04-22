@@ -5,6 +5,7 @@ import '../features/profile/views/profile_dashboard_screen.dart';
 import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
+import '../features/community/providers/community_provider.dart';
 import '../features/profile/viewmodels/profile_viewmodel.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -142,6 +143,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _selectedIndex = index;
     });
+
+    if (index == 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<CommunityProvider>().requestScrollToTop();
+      });
+    }
   }
 
   Future<bool> _handleBackPress() async {

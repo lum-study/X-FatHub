@@ -11,7 +11,14 @@ CREATE TABLE IF NOT EXISTS posts (
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   media_url TEXT,
-  category TEXT DEFAULT 'All Posts',
+  location_name TEXT,
+  location_lat DOUBLE PRECISION,
+  location_lng DOUBLE PRECISION,
+  activity_id TEXT,
+  activity_type TEXT,
+  activity_title TEXT,
+  activity_duration_seconds INTEGER,
+  activity_distance DOUBLE PRECISION,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
@@ -55,7 +62,6 @@ CREATE TABLE IF NOT EXISTS user_followers (
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS posts_user_id_idx ON posts(user_id);
-CREATE INDEX IF NOT EXISTS posts_category_idx ON posts(category);
 CREATE INDEX IF NOT EXISTS post_comments_post_id_idx ON post_comments(post_id);
 CREATE INDEX IF NOT EXISTS post_likes_post_id_idx ON post_likes(post_id);
 CREATE INDEX IF NOT EXISTS post_favourites_post_id_idx ON post_favourites(post_id);
@@ -78,8 +84,6 @@ CREATE POLICY "Users can delete their own posts" ON posts FOR DELETE USING (auth
 -- Policies for post_comments
 CREATE POLICY "Anyone can view comments" ON post_comments FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own comments" ON post_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own comments" ON post_comments FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own comments" ON post_comments FOR DELETE USING (auth.uid() = user_id);
 
 -- Policies for post_likes
 CREATE POLICY "Anyone can view likes" ON post_likes FOR SELECT USING (true);
