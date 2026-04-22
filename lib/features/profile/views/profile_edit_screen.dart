@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/profile_provider.dart';
+import '../viewmodels/profile_viewmodel.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -22,7 +22,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   void initState() {
     super.initState();
-    final profile = context.read<ProfileProvider>().profile;
+    final profile = context.read<ProfileViewModel>().profile;
     
     _nameController = TextEditingController(text: profile?.name ?? '');
     _bioController = TextEditingController(text: profile?.bio ?? '');
@@ -52,7 +52,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final initialWeight = _initialWeightController.text.isNotEmpty ? double.parse(_initialWeightController.text) : null;
       final goalWeight = _goalWeightController.text.isNotEmpty ? double.parse(_goalWeightController.text) : null;
 
-      final provider = context.read<ProfileProvider>();
+      final provider = context.read<ProfileViewModel>();
       
       await provider.updateProfile(
         name: _nameController.text.isEmpty ? null : _nameController.text,
@@ -94,8 +94,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
-    final profile = profileProvider.profile;
+    final profileViewModel = context.watch<ProfileViewModel>();
+    final profile = profileViewModel.profile;
 
     return Scaffold(
       backgroundColor: Colors.black87,

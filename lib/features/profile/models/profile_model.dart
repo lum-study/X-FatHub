@@ -64,7 +64,6 @@ class ProfileModel {
       'height': height,
       'step_goal': stepsGoal, // Match Supabase column name
       'hydration_goal': hydrationGoal,
-      'profile_completed': profileCompleted,
       'created_at': createdAt?.toIso8601String(),
     };
   }

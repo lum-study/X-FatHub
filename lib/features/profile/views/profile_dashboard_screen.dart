@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/profile_provider.dart';
+import 'package:image_picker/image_picker.dart';
+import '../viewmodels/profile_viewmodel.dart';
 import 'settings_screen.dart';
 import 'profile_edit_screen.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
@@ -19,20 +20,18 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final profileProvider = context.read<ProfileProvider>();
-      await profileProvider.init();
+      final profileViewModel = context.read<ProfileViewModel>();
+      await profileViewModel.init();
       context.read<BookingViewModel>().refreshCurrentUserBookingData();
       
-      // Wait a bit to ensure profile is fully loaded
       await Future.delayed(const Duration(milliseconds: 300));
-      // Profile initialization complete. No first-time setup popup.
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
-    final profile = profileProvider.profile;
+    final profileViewModel = context.watch<ProfileViewModel>();
+    final profile = profileViewModel.profile;
 
     return Scaffold(
       backgroundColor: Colors.black87,
@@ -55,25 +54,15 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           ),
         ],
       ),
-      body: profileProvider.isLoading
+      body: profileViewModel.isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Header - Clickable for editing
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfileEditScreen(),
-                        ),
-                      );
-                    },
-                    child: _buildProfileHeader(profile),
-                  ),
+                  // Profile Header
+                  _buildProfileHeader(profile),
                   const SizedBox(height: 24),
 
                   // Weight Progress Section - Always show
@@ -237,73 +226,247 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
   Widget _buildProfileHeader(profile) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.orange.withOpacity(0.3)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Profile Picture
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.orange.withOpacity(0.2),
-              border: Border.all(color: Colors.orange, width: 2),
-              image:
-                  (profile?.profilePictureUrl != null &&
-                      profile!.profilePictureUrl!.isNotEmpty)
-                  ? DecorationImage(
-                      image: NetworkImage(profile.profilePictureUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child:
-                (profile?.profilePictureUrl == null ||
-                    profile!.profilePictureUrl!.isEmpty)
-                ? const Icon(Icons.person, size: 35, color: Colors.orange)
-                : null,
-          ),
-          const SizedBox(width: 16),
-
-          // Profile Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Profile Picture with edit button
+          GestureDetector(
+            onTap: () => _showImagePicker(context),
+            child: Stack(
               children: [
-                Text(
-                  profile?.name ?? 'Guest User',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.orange.withOpacity(0.2),
+                    border: Border.all(color: Colors.orange, width: 3),
+                    image: (profile?.profilePictureUrl != null &&
+                            profile!.profilePictureUrl!.isNotEmpty)
+                        ? DecorationImage(
+                            image: NetworkImage(profile.profilePictureUrl!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: (profile?.profilePictureUrl == null ||
+                          profile!.profilePictureUrl!.isEmpty)
+                      ? const Icon(Icons.person, size: 50, color: Colors.orange)
+                      : null,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  profile?.email ?? 'No email',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                ),
-                if (profile?.age != null) ...[
-                  const SizedBox(height: 4),
-
-                  Text(
-                    profile.bio!,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[300]),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Name
+          Text(
+            profile?.name ?? 'Guest User',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          
+          // Email
+          Text(
+            profile?.email ?? 'No email',
+            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+          ),
+          
+          // Bio
+          if (profile?.bio != null && profile!.bio!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              profile.bio!,
+              style: TextStyle(fontSize: 14, color: Colors.grey[300]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          
+          const SizedBox(height: 20),
+          const Divider(color: Colors.grey),
+          const SizedBox(height: 16),
+          
+          // Personal Info Section
+          _buildInfoSection('Personal Information', [
+            _buildInfoRow(Icons.cake, 'Age', profile?.age != null ? '${profile.age} years old' : 'Not set'),
+            _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : 'Not set'),
+          ]),
+          
+          const SizedBox(height: 16),
+          
+          // Weight Info Section
+          _buildInfoSection('Weight Information', [
+            _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : 'Not set'),
+            _buildInfoRow(Icons.monitor_weight, 'Current Weight', profile?.currentWeight != null ? '${profile.currentWeight} kg' : 'Not set'),
+            _buildInfoRow(Icons.flag_circle, 'Goal Weight', profile?.weightGoal != null ? '${profile.weightGoal} kg' : 'Not set'),
+          ]),
+          
+          const SizedBox(height: 16),
+          
+          // Goals Section
+          _buildInfoSection('Goals', [
+            _buildInfoRow(Icons.directions_walk, 'Steps Goal', profile?.stepsGoal != null ? '${profile.stepsGoal} steps/day' : 'Not set'),
+            _buildInfoRow(Icons.water_drop, 'Hydration Goal', profile?.hydrationGoal != null ? '${profile.hydrationGoal} L/day' : 'Not set'),
+          ]),
+          
+          const SizedBox(height: 20),
+          
+          // Edit Profile Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
+                );
+              },
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit Profile'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildInfoSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[400],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[850],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.orange),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey[300], fontSize: 14),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImagePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Change Profile Picture',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.orange),
+              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.orange),
+              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: source, imageQuality: 80);
+    if (image != null && mounted) {
+      final viewModel = context.read<ProfileViewModel>();
+      await viewModel.uploadProfilePicture(image.path);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildWeightProgressSection(profile) {
@@ -629,7 +792,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              context.read<ProfileProvider>().signOut();
+              context.read<ProfileViewModel>().signOut();
             },
             child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
           ),
@@ -644,7 +807,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
 
     // Store everything we need BEFORE showing dialog
-    final provider = context.read<ProfileProvider>();
+    final provider = context.read<ProfileViewModel>();
     final profileCopy = provider.profile;
     final initialWeight = profileCopy?.initialWeight ?? 0.0;
     final weightGoal = profileCopy?.weightGoal ?? 0.0;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/profile_provider.dart';
+import '../viewmodels/profile_viewmodel.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -146,7 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _isChangingPassword = true);
 
                       try {
-                        final provider = context.read<ProfileProvider>();
+                        final provider = context.read<ProfileViewModel>();
                         await provider.changePassword(
                           currentPassword: currentPasswordController.text,
                           newPassword: newPasswordController.text,
@@ -294,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _deleteAccount() async {
-    final provider = context.read<ProfileProvider>();
+    final provider = context.read<ProfileViewModel>();
     try {
       await provider.deleteAccount();
       if (mounted) {

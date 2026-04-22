@@ -5,7 +5,7 @@ import '../features/profile/views/profile_dashboard_screen.dart';
 import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
-import '../features/profile/providers/profile_provider.dart';
+import '../features/profile/viewmodels/profile_viewmodel.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -26,8 +26,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
-    final isAuthenticated = profileProvider.isAuthenticated;
+    final profileViewModel = context.watch<ProfileViewModel>();
+    final isAuthenticated = profileViewModel.isAuthenticated;
 
     // If not authenticated, show only the Home (Login) screen without navigation
     if (!isAuthenticated) {
