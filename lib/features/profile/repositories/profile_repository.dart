@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
 import '../models/profile_model.dart';
 
 class ProfileRepository {
@@ -103,6 +104,25 @@ class ProfileRepository {
       });
     } catch (e) {
       // ignore
+    }
+  }
+
+  Future<String?> uploadProfilePicture(String userId, String imagePath) async {
+    try {
+      final file = File(imagePath);
+      final fileName = '$userId/profile_picture_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      await _supabase.storage.from('avatars').upload(fileName, file);
+      final url = _supabase.storage.from('avatars').getPublicUrl(fileName);
+      
+      // Update profile with URL
+      await _supabase.from('profiles').update({
+        'profile_picture_url': url
+      }).eq('id', userId);
+      
+      return url;
+    } catch (e) {
+      return null;
     }
   }
 }

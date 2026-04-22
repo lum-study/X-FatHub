@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/profile_provider.dart';
+import '../viewmodels/profile_viewmodel.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,14 +29,14 @@ class _LoginScreenState extends State<LoginScreen> {
       _emailController.clear();
       _passwordController.clear();
       _showPassword = false;
-      context.read<ProfileProvider>().clearError();
+      context.read<ProfileViewModel>().clearError();
     });
   }
 
   Future<void> _handleAuth() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final provider = context.read<ProfileProvider>();
+    final provider = context.read<ProfileViewModel>();
     try {
       if (_isLoginMode) {
         await provider.signIn(_emailController.text, _passwordController.text);
@@ -66,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
+    final profileProvider = context.watch<ProfileViewModel>();
 
     return Scaffold(
       body: Container(
