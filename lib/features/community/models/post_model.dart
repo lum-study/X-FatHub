@@ -5,7 +5,6 @@ class PostModel {
   final String userId;
   final String content;
   final String? mediaUrl;
-  final String category;
   final DateTime createdAt;
   final DateTime? updatedAt;
   final String? locationName;
@@ -44,7 +43,6 @@ class PostModel {
     required this.userId,
     required this.content,
     this.mediaUrl,
-    this.category = 'All Posts',
     required this.createdAt,
     this.updatedAt,
     this.locationName,
@@ -82,7 +80,6 @@ class PostModel {
       userId: map['user_id'] as String,
       content: map['content'] as String,
       mediaUrl: map['media_url'] as String?,
-      category: map['category'] as String? ?? 'All Posts',
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : DateTime.now(),
@@ -112,7 +109,6 @@ class PostModel {
       'user_id': userId,
       'content': content,
       'media_url': mediaUrl,
-      'category': category,
       'location_name': locationName,
       'location_lat': locationLat,
       'location_lng': locationLng,
@@ -129,7 +125,6 @@ class PostModel {
     String? userId,
     String? content,
     String? mediaUrl,
-    String? category,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? locationName,
@@ -151,7 +146,6 @@ class PostModel {
       userId: userId ?? this.userId,
       content: content ?? this.content,
       mediaUrl: mediaUrl ?? this.mediaUrl,
-      category: category ?? this.category,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       locationName: locationName ?? this.locationName,

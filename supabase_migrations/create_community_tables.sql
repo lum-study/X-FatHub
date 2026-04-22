@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS posts (
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   media_url TEXT,
-  category TEXT DEFAULT 'All Posts',
   location_name TEXT,
   location_lat DOUBLE PRECISION,
   location_lng DOUBLE PRECISION,
@@ -63,7 +62,6 @@ CREATE TABLE IF NOT EXISTS user_followers (
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS posts_user_id_idx ON posts(user_id);
-CREATE INDEX IF NOT EXISTS posts_category_idx ON posts(category);
 CREATE INDEX IF NOT EXISTS post_comments_post_id_idx ON post_comments(post_id);
 CREATE INDEX IF NOT EXISTS post_likes_post_id_idx ON post_likes(post_id);
 CREATE INDEX IF NOT EXISTS post_favourites_post_id_idx ON post_favourites(post_id);

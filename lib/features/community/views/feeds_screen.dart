@@ -57,9 +57,9 @@ class _FeedsScreenState extends State<FeedsScreen> {
 
   Future<void> _loadPosts() async {
     setState(() => _isLoading = true);
-    final String category = _pills[_selectedPillIndex];
+    final String selectedFilter = _pills[_selectedPillIndex];
     final provider = context.read<CommunityProvider>();
-    final fetchedPosts = await provider.fetchPosts(category);
+    final fetchedPosts = await provider.fetchPosts(selectedFilter);
     setState(() {
       _posts = fetchedPosts;
       _displayedCount = 10;
@@ -131,7 +131,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
                     setState(() {
                       _selectedPillIndex = index;
                     });
-                    _loadPosts(); // Fetch new category
+                    _loadPosts(); // Fetch posts for selected filter
                   },
                   child: Container(
                     margin: const EdgeInsets.only(right: 8),

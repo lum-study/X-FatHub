@@ -33,7 +33,6 @@ class CommunityProvider extends ChangeNotifier {
 
   Future<void> createPost(String content, {
     List<String>? mediaUrls, 
-    String? category, 
     String? locationName, 
     double? locationLat, 
     double? locationLng,
@@ -46,7 +45,6 @@ class CommunityProvider extends ChangeNotifier {
     await _repository.createPost(
       content,
       mediaUrls: mediaUrls,
-      category: category,
       locationName: locationName,
       locationLat: locationLat,
       locationLng: locationLng,

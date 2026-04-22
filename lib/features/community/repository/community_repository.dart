@@ -38,8 +38,6 @@ class CommunityRepository {
       posts = posts.where((p) => p.isLikedByMe).toList();
     } else if (selectedFilter == 'Favourited') {
       posts = posts.where((p) => p.isFavouritedByMe).toList();
-    } else if (selectedFilter != 'All Posts') {
-      posts = posts.where((p) => p.category == selectedFilter).toList();
     }
 
     return posts;
@@ -144,7 +142,6 @@ class CommunityRepository {
 
   Future<void> createPost(String content, {
     List<String>? mediaUrls, 
-    String? category, 
     String? locationName, 
     double? locationLat, 
     double? locationLng,
@@ -166,7 +163,6 @@ class CommunityRepository {
       'user_id': userId,
       'content': content,
       'media_url': joinedMediaUrls,
-      'category': category ?? 'All Posts',
       if (locationName != null) 'location_name': locationName,
       if (locationLat != null) 'location_lat': locationLat,
       if (locationLng != null) 'location_lng': locationLng,
