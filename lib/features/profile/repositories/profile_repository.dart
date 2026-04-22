@@ -41,6 +41,7 @@ class ProfileRepository {
   Future<void> updateProfile(ProfileModel profile) async {
     try {
       final data = profile.toMap();
+      data['updated_at'] = DateTime.now().toIso8601String();
       await _supabase
           .from('profiles')
           .upsert(data, onConflict: 'id');
