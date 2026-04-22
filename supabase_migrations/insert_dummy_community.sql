@@ -23,12 +23,12 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 3. Insert Dummy Posts
 -- Using predefined UUIDs for posts so we can reference them in likes/comments.
-INSERT INTO public.posts (id, user_id, content, category, media_url, created_at)
+INSERT INTO public.posts (id, user_id, content, media_url, created_at)
 VALUES 
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Just smashed my PR on deadlifts! 120kg feeling incredibly light today. Massive thanks to @CoachRafi for fixing my form.', 'Workouts', NULL, NOW() - INTERVAL '2 hours'),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Morning yoga session complete. Finding my center before the busy week starts! #Mindfulness', 'All Posts', 'placeholder_image', NOW() - INTERVAL '5 hours'),
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 'Any tips on reducing carb intake without feeling starved? Need to stick to my diet plan.', 'Diet', NULL, NOW() - INTERVAL '1 day'),
-  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'Second workout of the day done ✕ Consistency is key!', 'Workouts', NULL, NOW() - INTERVAL '2 days')
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Just smashed my PR on deadlifts! 120kg feeling incredibly light today. Massive thanks to @CoachRafi for fixing my form.', NULL, NOW() - INTERVAL '2 hours'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Morning yoga session complete. Finding my center before the busy week starts! #Mindfulness', NULL, NOW() - INTERVAL '5 hours'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 'Any tips on reducing carb intake without feeling starved? Need to stick to my diet plan.', NULL, NOW() - INTERVAL '1 day'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'Second workout of the day done ✕ Consistency is key!', NULL, NOW() - INTERVAL '2 days')
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. Insert Dummy Comments
