@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../features/home/views/home_screen.dart';
-import '../features/home/views/profile_dashboard_screen.dart';
+import '../features/profile/views/home_screen.dart';
+import '../features/profile/views/profile_dashboard_screen.dart';
 import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
-import '../features/home/providers/profile_provider.dart';
+import '../features/profile/providers/profile_provider.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});

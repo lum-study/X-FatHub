@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
+import '../../activity_health/repositories/step_tracker_repository.dart';
+import '../../activity_health/repositories/hydration_repository.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final ProfileRepository _repository;
@@ -21,6 +23,9 @@ class ProfileProvider extends ChangeNotifier {
   
   // Custom getter to check if user is truly logged in via session
   bool get isAuthenticated => Supabase.instance.client.auth.currentSession != null;
+  
+  /// Check if the user needs to complete their profile setup
+  bool get needsProfileSetup => _profile != null && !_profile!.profileCompleted;
 
   Future<void> init() async {
     final user = _repository.currentUser;
@@ -35,6 +40,7 @@ class ProfileProvider extends ChangeNotifier {
     try {
       _profile = await _repository.getProfile(userId);
       _error = null;
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -47,7 +53,6 @@ class ProfileProvider extends ChangeNotifier {
       _weightHistory = await _repository.getWeightHistory(userId);
       notifyListeners();
     } catch (e) {
-      print('Error loading weight history: $e');
     }
   }
 
@@ -56,11 +61,13 @@ class ProfileProvider extends ChangeNotifier {
     String? bio,
     int? age,
     double? currentWeight,
-    double? goalWeight,
+    double? initialWeight,
+    double? weightGoal,
     double? height,
-    int? stepGoal,
+    int? stepsGoal,
     double? hydrationGoal,
     String? profilePictureUrl,
+    bool? profileCompleted,
   }) async {
     final user = _repository.currentUser;
     if (user == null) return;
@@ -72,11 +79,13 @@ class ProfileProvider extends ChangeNotifier {
       bio: bio ?? currentProfile.bio,
       age: age ?? currentProfile.age,
       currentWeight: currentWeight ?? currentProfile.currentWeight,
-      goalWeight: goalWeight ?? currentProfile.goalWeight,
+      initialWeight: initialWeight ?? currentProfile.initialWeight ?? currentWeight, // Use current weight if initial weight not set
+      weightGoal: weightGoal ?? currentProfile.weightGoal,
       height: height ?? currentProfile.height,
-      stepGoal: stepGoal ?? currentProfile.stepGoal,
+      stepsGoal: stepsGoal ?? currentProfile.stepsGoal,
       hydrationGoal: hydrationGoal ?? currentProfile.hydrationGoal,
       profilePictureUrl: profilePictureUrl ?? currentProfile.profilePictureUrl,
+      profileCompleted: profileCompleted ?? currentProfile.profileCompleted,
     );
 
     _setLoading(true);
@@ -84,6 +93,21 @@ class ProfileProvider extends ChangeNotifier {
       await _repository.updateProfile(updatedProfile);
       _profile = updatedProfile;
       _error = null;
+      notifyListeners(); // Notify listeners of the change
+
+      // Sync goals to local tracker repositories (non-blocking for UI).
+      try {
+        if (updatedProfile.stepsGoal != null) {
+          await StepTrackerRepository().setGoalSteps(updatedProfile.stepsGoal!);
+        }
+
+        if (updatedProfile.hydrationGoal != null) {
+          final ml = (updatedProfile.hydrationGoal! * 1000).round();
+          await HydrationRepository().setGoalMl(ml);
+        }
+      } catch (_) {
+        // Swallow tracker sync errors to avoid breaking profile save flow
+      }
     } catch (e) {
       _error = e.toString();
     } finally {

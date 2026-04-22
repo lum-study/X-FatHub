@@ -6,10 +6,12 @@ class ProfileModel {
   final String? profilePictureUrl;
   final int? age;
   final double? currentWeight; // in kg
-  final double? goalWeight; // in kg
+  final double? initialWeight; // in kg - starting weight for progress calculation
+  final double? weightGoal; // in kg - renamed from goalWeight for consistency
   final double? height; // in cm
-  final int? stepGoal; // steps per day
+  final int? stepsGoal; // steps per day - renamed from stepGoal for consistency
   final double? hydrationGoal; // in liters
+  final bool profileCompleted; // flag to track if user completed initial setup
   final DateTime? createdAt;
 
   ProfileModel({
@@ -20,10 +22,12 @@ class ProfileModel {
     this.profilePictureUrl,
     this.age,
     this.currentWeight,
-    this.goalWeight,
+    this.initialWeight,
+    this.weightGoal,
     this.height,
-    this.stepGoal,
+    this.stepsGoal,
     this.hydrationGoal,
+    this.profileCompleted = false,
     this.createdAt,
   });
 
@@ -36,10 +40,12 @@ class ProfileModel {
       profilePictureUrl: map['profile_picture_url'] as String?,
       age: map['age'] as int?,
       currentWeight: (map['current_weight'] as num?)?.toDouble(),
-      goalWeight: (map['goal_weight'] as num?)?.toDouble(),
+      initialWeight: (map['initial_weight'] as num?)?.toDouble(),
+      weightGoal: (map['weight_goal'] as num?)?.toDouble() ?? (map['goal_weight'] as num?)?.toDouble(),
       height: (map['height'] as num?)?.toDouble(),
-      stepGoal: map['step_goal'] as int?,
+      stepsGoal: map['step_goal'] as int? ?? map['steps_goal'] as int?, // step_goal is primary (DB column)
       hydrationGoal: (map['hydration_goal'] as num?)?.toDouble(),
+      profileCompleted: map['profile_completed'] as bool? ?? false,
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at'] as String) : null,
     );
   }
@@ -53,10 +59,12 @@ class ProfileModel {
       'profile_picture_url': profilePictureUrl,
       'age': age,
       'current_weight': currentWeight,
-      'goal_weight': goalWeight,
+      'initial_weight': initialWeight,
+      'weight_goal': weightGoal,
       'height': height,
-      'step_goal': stepGoal,
+      'step_goal': stepsGoal, // Match Supabase column name
       'hydration_goal': hydrationGoal,
+      'profile_completed': profileCompleted,
       'created_at': createdAt?.toIso8601String(),
     };
   }
@@ -69,10 +77,12 @@ class ProfileModel {
     String? profilePictureUrl,
     int? age,
     double? currentWeight,
-    double? goalWeight,
+    double? initialWeight,
+    double? weightGoal,
     double? height,
-    int? stepGoal,
+    int? stepsGoal,
     double? hydrationGoal,
+    bool? profileCompleted,
     DateTime? createdAt,
   }) {
     return ProfileModel(
@@ -83,10 +93,12 @@ class ProfileModel {
       profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
       age: age ?? this.age,
       currentWeight: currentWeight ?? this.currentWeight,
-      goalWeight: goalWeight ?? this.goalWeight,
+      initialWeight: initialWeight ?? this.initialWeight,
+      weightGoal: weightGoal ?? this.weightGoal,
       height: height ?? this.height,
-      stepGoal: stepGoal ?? this.stepGoal,
+      stepsGoal: stepsGoal ?? this.stepsGoal,
       hydrationGoal: hydrationGoal ?? this.hydrationGoal,
+      profileCompleted: profileCompleted ?? this.profileCompleted,
       createdAt: createdAt ?? this.createdAt,
     );
   }
