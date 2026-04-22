@@ -21,6 +21,9 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
   List<PostModel> _userPosts = [];
   bool _isFollowing = false;
   bool _isCurrentUser = false;
+  CommunitySortMode _sortMode = CommunitySortMode.time;
+  CommunitySortOrder _sortOrder = CommunitySortOrder.descending;
+  bool _isSortDrawerOpen = false;
   final ScrollController _scrollController = ScrollController();
   int _lastScrollToTopToken = 0;
 
@@ -56,6 +59,64 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOut,
     );
+  }
+
+  List<PostModel> get _sortedUserPosts {
+    final posts = List<PostModel>.from(_userPosts);
+    posts.sort((a, b) {
+      final compareDirection = _sortOrder == CommunitySortOrder.descending ? -1 : 1;
+
+      if (_sortMode == CommunitySortMode.likes) {
+        final likesComparison = a.likesCount.compareTo(b.likesCount) * compareDirection;
+        if (likesComparison != 0) return likesComparison;
+        return a.createdAt.compareTo(b.createdAt) * compareDirection;
+      }
+
+      final timeA = a.updatedAt ?? a.createdAt;
+      final timeB = b.updatedAt ?? b.createdAt;
+      final timeComparison = timeA.compareTo(timeB) * compareDirection;
+      if (timeComparison != 0) return timeComparison;
+      return a.likesCount.compareTo(b.likesCount) * compareDirection;
+    });
+    return posts;
+  }
+
+  Future<void> _refreshForSort() async {
+    await _loadProfileData(showLoading: false, preservePosition: false);
+
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
+  }
+
+  Future<void> _setSortMode(CommunitySortMode sortMode) async {
+    if (_sortMode != sortMode) {
+      setState(() {
+        _sortMode = sortMode;
+      });
+    }
+
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    setState(() => _isSortDrawerOpen = false);
+    await _refreshForSort();
+  }
+
+  Future<void> _setSortOrder(CommunitySortOrder sortOrder) async {
+    if (_sortOrder != sortOrder) {
+      setState(() {
+        _sortOrder = sortOrder;
+      });
+    }
+
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    setState(() => _isSortDrawerOpen = false);
+    await _refreshForSort();
   }
 
   Future<void> _loadProfileData({
@@ -158,6 +219,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
     final totalPosts = _userStats!['totalPosts'] as int;
     final totalFollowers = _userStats!['totalFollowers'] ?? 0;
     final formattedDate = DateFormat.yMMMMd().format(joinedDate);
+    final sortedUserPosts = _sortedUserPosts;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -179,6 +241,84 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             _buildProfileHeader(name, formattedDate, totalLikes, totalPosts, totalFollowers),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Row(
+                children: [
+                  const Text(
+                    'Sort',
+                    style: TextStyle(
+                      color: Color(0xFF888888),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _isSortDrawerOpen = !_isSortDrawerOpen;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      backgroundColor: const Color(0xFF0D0D0D),
+                      side: const BorderSide(color: Color(0xFF333333)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                    ),
+                    icon: Icon(
+                      _isSortDrawerOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Options',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Sort by',
+                        style: TextStyle(
+                          color: Color(0xFF888888),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _buildSortChip('Time', CommunitySortMode.time),
+                      const SizedBox(width: 8),
+                      _buildSortChip('Likes', CommunitySortMode.likes),
+                      const SizedBox(width: 14),
+                      const Text(
+                        'Order',
+                        style: TextStyle(
+                          color: Color(0xFF888888),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _buildOrderChip('Desc', CommunitySortOrder.descending),
+                      const SizedBox(width: 8),
+                      _buildOrderChip('Asc', CommunitySortOrder.ascending),
+                    ],
+                  ),
+                ),
+              ),
+              crossFadeState: _isSortDrawerOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 180),
+            ),
             const Divider(color: Color(0xFF333333), height: 1),
             if (_userPosts.isEmpty)
               const Padding(
@@ -195,9 +335,9 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                itemCount: _userPosts.length,
+                itemCount: sortedUserPosts.length,
                 itemBuilder: (context, index) {
-                  final post = _userPosts[index];
+                  final post = sortedUserPosts[index];
                   final diff = DateTime.now().difference(post.createdAt);
                   String timeStr = diff.inDays > 0
                       ? '${diff.inDays} ${diff.inDays == 1 ? "day" : "days"} ago'
@@ -245,6 +385,58 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                 },
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortChip(String label, CommunitySortMode sortMode) {
+    final isSelected = _sortMode == sortMode;
+    return GestureDetector(
+      onTap: () => _setSortMode(sortMode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.orange : const Color(0xFF0D0D0D),
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: isSelected ? Colors.orange : const Color(0xFF333333),
+            width: 1.2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : const Color(0xFFAAAAAA),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderChip(String label, CommunitySortOrder sortOrder) {
+    final isSelected = _sortOrder == sortOrder;
+    return GestureDetector(
+      onTap: () => _setSortOrder(sortOrder),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.orange : const Color(0xFF0D0D0D),
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: isSelected ? Colors.orange : const Color(0xFF333333),
+            width: 1.2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : const Color(0xFFAAAAAA),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

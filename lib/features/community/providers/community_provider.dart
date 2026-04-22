@@ -3,6 +3,16 @@ import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import '../repository/community_repository.dart';
 
+enum CommunitySortMode {
+  time,
+  likes,
+}
+
+enum CommunitySortOrder {
+  descending,
+  ascending,
+}
+
 class CommunityProvider extends ChangeNotifier {
   final CommunityRepository _repository = CommunityRepository();
   int _scrollToTopToken = 0;

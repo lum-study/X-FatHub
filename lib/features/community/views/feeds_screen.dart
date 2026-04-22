@@ -16,6 +16,9 @@ class FeedsScreen extends StatefulWidget {
 class _FeedsScreenState extends State<FeedsScreen> {
   late final CommunityProvider _communityProvider;
   int _selectedPillIndex = 0;
+  CommunitySortMode _sortMode = CommunitySortMode.time;
+  CommunitySortOrder _sortOrder = CommunitySortOrder.descending;
+  bool _isSortDrawerOpen = false;
   final List<String> _pills = [
     'All Posts',
     'Following',
@@ -40,6 +43,26 @@ class _FeedsScreenState extends State<FeedsScreen> {
     });
   }
 
+  List<PostModel> get _sortedPosts {
+    final posts = List<PostModel>.from(_posts);
+    posts.sort((a, b) {
+      final compareDirection = _sortOrder == CommunitySortOrder.descending ? -1 : 1;
+
+      if (_sortMode == CommunitySortMode.likes) {
+        final likesComparison = a.likesCount.compareTo(b.likesCount) * compareDirection;
+        if (likesComparison != 0) return likesComparison;
+        return a.createdAt.compareTo(b.createdAt) * compareDirection;
+      }
+
+      final timeA = a.updatedAt ?? a.createdAt;
+      final timeB = b.updatedAt ?? b.createdAt;
+      final timeComparison = timeA.compareTo(timeB) * compareDirection;
+      if (timeComparison != 0) return timeComparison;
+      return a.likesCount.compareTo(b.likesCount) * compareDirection;
+    });
+    return posts;
+  }
+
   @override
   void dispose() {
     _communityProvider.removeListener(_handleCommunityProviderUpdate);
@@ -58,6 +81,46 @@ class _FeedsScreenState extends State<FeedsScreen> {
     if (_scrollController.offset <= 0) return;
 
     _scrollController.jumpTo(0);
+  }
+
+  Future<void> _refreshForSort() async {
+    await _loadPosts(showLoading: false, preservePosition: false);
+
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
+  }
+
+  Future<void> _setSortMode(CommunitySortMode sortMode) async {
+    if (_sortMode != sortMode) {
+      setState(() {
+        _sortMode = sortMode;
+        _displayedCount = 10;
+      });
+    }
+
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    setState(() => _isSortDrawerOpen = false);
+    await _refreshForSort();
+  }
+
+  Future<void> _setSortOrder(CommunitySortOrder sortOrder) async {
+    if (_sortOrder != sortOrder) {
+      setState(() {
+        _sortOrder = sortOrder;
+        _displayedCount = 10;
+      });
+    }
+
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    setState(() => _isSortDrawerOpen = false);
+    await _refreshForSort();
   }
 
   void _onScroll() {
@@ -158,6 +221,86 @@ class _FeedsScreenState extends State<FeedsScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+            child: Row(
+              children: [
+                const Text(
+                  'Sort',
+                  style: TextStyle(
+                    color: Color(0xFF888888),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isSortDrawerOpen = !_isSortDrawerOpen;
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    backgroundColor: const Color(0xFF0D0D0D),
+                    side: const BorderSide(color: Color(0xFF333333)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                  ),
+                  icon: Icon(
+                    _isSortDrawerOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 18,
+                  ),
+                  label: const Text(
+                    'Options',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    const Text(
+                      'Sort by',
+                      style: TextStyle(
+                        color: Color(0xFF888888),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _buildSortChip('Time', CommunitySortMode.time),
+                    const SizedBox(width: 8),
+                    _buildSortChip('Likes', CommunitySortMode.likes),
+                    const SizedBox(width: 14),
+                    const Text(
+                      'Order',
+                      style: TextStyle(
+                        color: Color(0xFF888888),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _buildOrderChip('Desc', CommunitySortOrder.descending),
+                    const SizedBox(width: 8),
+                    _buildOrderChip('Asc', CommunitySortOrder.ascending),
+                  ],
+                ),
+              ),
+            ),
+            crossFadeState: _isSortDrawerOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 180),
+          ),
+
           // Pills
           Container(
             height: 40,
@@ -251,7 +394,61 @@ class _FeedsScreenState extends State<FeedsScreen> {
     );
   }
 
+  Widget _buildSortChip(String label, CommunitySortMode sortMode) {
+    final isSelected = _sortMode == sortMode;
+    return GestureDetector(
+      onTap: () => _setSortMode(sortMode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.orange : const Color(0xFF0D0D0D),
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: isSelected ? Colors.orange : const Color(0xFF333333),
+            width: 1.2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : const Color(0xFFAAAAAA),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderChip(String label, CommunitySortOrder sortOrder) {
+    final isSelected = _sortOrder == sortOrder;
+    return GestureDetector(
+      onTap: () => _setSortOrder(sortOrder),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.orange : const Color(0xFF0D0D0D),
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: isSelected ? Colors.orange : const Color(0xFF333333),
+            width: 1.2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : const Color(0xFFAAAAAA),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget configExpandedList() {
+    final visiblePosts = _sortedPosts;
+
     if (_posts.isEmpty) {
       return ListView(
         controller: _scrollController,
@@ -272,12 +469,13 @@ class _FeedsScreenState extends State<FeedsScreen> {
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),       
-      itemCount: _displayedCount + 1, // +1 for the bottom padding
+      itemCount: (_displayedCount < visiblePosts.length ? _displayedCount : visiblePosts.length) + 1,
       itemBuilder: (context, index) {
-          if (index == _displayedCount) {
+          final displayCount = _displayedCount < visiblePosts.length ? _displayedCount : visiblePosts.length;
+          if (index == displayCount) {
             return const SizedBox(height: 80); // Padding for FAB
           }
-          final post = _posts[index];
+          final post = visiblePosts[index];
           // Determine time formatted string, mocked here
           final diff = DateTime.now().difference(post.createdAt);
           String timeStr = diff.inDays > 0
