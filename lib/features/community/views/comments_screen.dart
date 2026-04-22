@@ -71,6 +71,20 @@ class _CommentsScreenState extends State<CommentsScreen> {
     _checkFollowing();
   }
 
+  Future<void> _navigateToUserProfile(String userId) async {
+    await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            CommunityProfileScreen(userId: userId),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
+  }
+
   Future<void> _deletePost() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -607,6 +621,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         time: commentTime,
                         text: comment.content,
                         icon: Icons.person,
+                        userId: comment.userId,
                       ),
                     );
                   }),
@@ -685,14 +700,18 @@ class _CommentsScreenState extends State<CommentsScreen> {
     required String time,
     required String text,
     required IconData icon,
+    required String userId,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 15,
-          backgroundColor: const Color(0xFF1E1E1E),
-          child: Icon(icon, color: const Color(0xFFAAAAAA), size: 16),
+        GestureDetector(
+          onTap: () => _navigateToUserProfile(userId),
+          child: CircleAvatar(
+            radius: 15,
+            backgroundColor: const Color(0xFF1E1E1E),
+            child: Icon(icon, color: const Color(0xFFAAAAAA), size: 16),
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(

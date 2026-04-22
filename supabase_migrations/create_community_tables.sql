@@ -86,8 +86,6 @@ CREATE POLICY "Users can delete their own posts" ON posts FOR DELETE USING (auth
 -- Policies for post_comments
 CREATE POLICY "Anyone can view comments" ON post_comments FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own comments" ON post_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own comments" ON post_comments FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own comments" ON post_comments FOR DELETE USING (auth.uid() = user_id);
 
 -- Policies for post_likes
 CREATE POLICY "Anyone can view likes" ON post_likes FOR SELECT USING (true);

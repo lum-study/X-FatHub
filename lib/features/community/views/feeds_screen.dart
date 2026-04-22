@@ -23,13 +23,36 @@ class _FeedsScreenState extends State<FeedsScreen> {
   ];
   List<PostModel> _posts = [];
   bool _isLoading = true;
+  int _displayedCount = 10;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPosts();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (_displayedCount < _posts.length) {
+        setState(() {
+          _displayedCount += 10;
+          if (_displayedCount > _posts.length) {
+            _displayedCount = _posts.length;
+          }
+        });
+      }
+    }
   }
 
   Future<void> _loadPosts() async {
@@ -39,6 +62,10 @@ class _FeedsScreenState extends State<FeedsScreen> {
     final fetchedPosts = await provider.fetchPosts(category);
     setState(() {
       _posts = fetchedPosts;
+      _displayedCount = 10;
+      if (_displayedCount > _posts.length) {
+        _displayedCount = _posts.length;
+      }
       _isLoading = false;
     });
   }
@@ -84,10 +111,6 @@ class _FeedsScreenState extends State<FeedsScreen> {
                 _loadPosts();
               }
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.orange),
-            onPressed: () {},
           ),
         ],
       ),
@@ -189,6 +212,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
   Widget configExpandedList() {
     if (_posts.isEmpty) {
       return ListView(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
           SizedBox(height: 100),
@@ -203,11 +227,12 @@ class _FeedsScreenState extends State<FeedsScreen> {
     }
 
     return ListView.builder(
+      controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),       
-      itemCount: _posts.length + 1, // +1 for the bottom padding
+      itemCount: _displayedCount + 1, // +1 for the bottom padding
       itemBuilder: (context, index) {
-          if (index == _posts.length) {
+          if (index == _displayedCount) {
             return const SizedBox(height: 80); // Padding for FAB
           }
           final post = _posts[index];
