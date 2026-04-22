@@ -5,8 +5,15 @@ import '../repository/community_repository.dart';
 
 class CommunityProvider extends ChangeNotifier {
   final CommunityRepository _repository = CommunityRepository();
+  int _scrollToTopToken = 0;
 
   String? get currentUserId => _repository.currentUserId;
+  int get scrollToTopToken => _scrollToTopToken;
+
+  void requestScrollToTop() {
+    _scrollToTopToken++;
+    notifyListeners();
+  }
 
   Future<List<PostModel>> fetchPosts(String selectedFilter) async {
     return await _repository.fetchPosts(selectedFilter);

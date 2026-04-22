@@ -15,22 +15,59 @@ class CommunityProfileScreen extends StatefulWidget {
 }
 
 class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
+  late final CommunityProvider _communityProvider;
   bool _isLoading = true;
   Map<String, dynamic>? _userStats;
   List<PostModel> _userPosts = [];
   bool _isFollowing = false;
   bool _isCurrentUser = false;
+  final ScrollController _scrollController = ScrollController();
+  int _lastScrollToTopToken = 0;
 
   @override
   void initState() {
     super.initState();
+    _communityProvider = context.read<CommunityProvider>();
+    _lastScrollToTopToken = _communityProvider.scrollToTopToken;
+    _communityProvider.addListener(_handleCommunityProviderUpdate);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadProfileData();
     });
   }
 
-  Future<void> _loadProfileData() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _communityProvider.removeListener(_handleCommunityProviderUpdate);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleCommunityProviderUpdate() {
+    if (_lastScrollToTopToken == _communityProvider.scrollToTopToken) {
+      return;
+    }
+    _lastScrollToTopToken = _communityProvider.scrollToTopToken;
+
+    if (!mounted || !_scrollController.hasClients) return;
+    if (_scrollController.offset <= 0) return;
+
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _loadProfileData({
+    bool showLoading = true,
+    bool preservePosition = false,
+  }) async {
+    final previousOffset =
+        preservePosition && _scrollController.hasClients ? _scrollController.offset : 0.0;
+
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    }
     
     final provider = context.read<CommunityProvider>();
     _isCurrentUser = provider.currentUserId == widget.userId;
@@ -42,12 +79,21 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
       if (!_isCurrentUser) provider.isFollowing(widget.userId) else Future.value(false),
     ]);
 
-    if (mounted) {
-      setState(() {
-        _userStats = results[0] as Map<String, dynamic>?;
-        _userPosts = results[1] as List<PostModel>;
-        _isFollowing = results.length > 2 ? results[2] as bool : false;
-        _isLoading = false;
+    if (!mounted) return;
+
+    setState(() {
+      _userStats = results[0] as Map<String, dynamic>?;
+      _userPosts = results[1] as List<PostModel>;
+      _isFollowing = results.length > 2 ? results[2] as bool : false;
+      _isLoading = false;
+    });
+
+    if (preservePosition) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final targetOffset = previousOffset > maxScroll ? maxScroll : previousOffset;
+        _scrollController.jumpTo(targetOffset);
       });
     }
   }
@@ -129,6 +175,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
         backgroundColor: const Color(0xFF1E1E1E),
         onRefresh: _loadProfileData,
         child: ListView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             _buildProfileHeader(name, formattedDate, totalLikes, totalPosts, totalFollowers),
@@ -187,10 +234,11 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                       onStarToggle: () {
                         context.read<CommunityProvider>().toggleFavourite(post.id, !post.isFavouritedByMe);
                       },
-                      onCommentExit: _loadProfileData,
+                      onCommentExit: () =>
+                          _loadProfileData(showLoading: false, preservePosition: true),
                       onDelete: () async {
                         await context.read<CommunityProvider>().deletePost(post.id);
-                        _loadProfileData(); // refresh after deletion
+                        _loadProfileData(showLoading: false, preservePosition: true); // refresh after deletion
                       },
                     ),
                   );

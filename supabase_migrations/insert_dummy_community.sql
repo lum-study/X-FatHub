@@ -23,18 +23,18 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 3. Insert Dummy Posts
 -- Using predefined UUIDs for posts so we can reference them in likes/comments.
-INSERT INTO public.posts (id, user_id, content, media_url, created_at)
+INSERT INTO public.posts (id, user_id, content, media_url, created_at, updated_at)
 VALUES 
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Just smashed my PR on deadlifts! 120kg feeling incredibly light today. Massive thanks to @CoachRafi for fixing my form.', NULL, NOW() - INTERVAL '2 hours'),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Morning yoga session complete. Finding my center before the busy week starts! #Mindfulness', NULL, NOW() - INTERVAL '5 hours'),
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 'Any tips on reducing carb intake without feeling starved? Need to stick to my diet plan.', NULL, NOW() - INTERVAL '1 day'),
-  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'Second workout of the day done ✕ Consistency is key!', NULL, NOW() - INTERVAL '2 days'),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222', 'Quick 20-minute stretch session before bed. Sleep quality has improved a lot lately.', NULL, NOW() - INTERVAL '3 hours'),
-  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-3333-333333333333', 'Meal prep done for three days. Keeping portions simple and clean this week.', NULL, NOW() - INTERVAL '7 hours'),
-  ('12121212-1212-1212-1212-121212121212', '11111111-1111-1111-1111-111111111111', 'Leg day checklist complete: squats, lunges, calf raises. Feeling strong!', NULL, NOW() - INTERVAL '10 hours'),
-  ('34343434-3434-3434-3434-343434343434', '22222222-2222-2222-2222-222222222222', 'Hydration reminder: finished 3 liters today and energy levels stayed stable.', NULL, NOW() - INTERVAL '14 hours'),
-  ('56565656-5656-5656-5656-565656565656', '33333333-3333-3333-3333-333333333333', 'Tried replacing late-night snacks with greek yogurt and fruit. So far so good.', NULL, NOW() - INTERVAL '26 hours'),
-  ('78787878-7878-7878-7878-787878787878', '11111111-1111-1111-1111-111111111111', 'Recovery day today: light walk, foam rolling, and early bedtime.', NULL, NOW() - INTERVAL '40 hours')
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Just smashed my PR on deadlifts! 120kg feeling incredibly light today. Massive thanks to @CoachRafi for fixing my form.', NULL, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Morning yoga session complete. Finding my center before the busy week starts! #Mindfulness', NULL, NOW() - INTERVAL '5 hours', NOW() - INTERVAL '5 hours'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 'Any tips on reducing carb intake without feeling starved? Need to stick to my diet plan.', NULL, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'Second workout of the day done ✕ Consistency is key!', NULL, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222', 'Quick 20-minute stretch session before bed. Sleep quality has improved a lot lately.', NULL, NOW() - INTERVAL '3 hours', NOW() - INTERVAL '3 hours'),
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-3333-333333333333', 'Meal prep done for three days. Keeping portions simple and clean this week.', NULL, NOW() - INTERVAL '7 hours', NOW() - INTERVAL '7 hours'),
+  ('12121212-1212-1212-1212-121212121212', '11111111-1111-1111-1111-111111111111', 'Leg day checklist complete: squats, lunges, calf raises. Feeling strong!', NULL, NOW() - INTERVAL '10 hours', NOW() - INTERVAL '10 hours'),
+  ('34343434-3434-3434-3434-343434343434', '22222222-2222-2222-2222-222222222222', 'Hydration reminder: finished 3 liters today and energy levels stayed stable.', NULL, NOW() - INTERVAL '14 hours', NOW() - INTERVAL '14 hours'),
+  ('56565656-5656-5656-5656-565656565656', '33333333-3333-3333-3333-333333333333', 'Tried replacing late-night snacks with greek yogurt and fruit. So far so good.', NULL, NOW() - INTERVAL '26 hours', NOW() - INTERVAL '26 hours'),
+  ('78787878-7878-7878-7878-787878787878', '11111111-1111-1111-1111-111111111111', 'Recovery day today: light walk, foam rolling, and early bedtime.', NULL, NOW() - INTERVAL '40 hours', NOW() - INTERVAL '40 hours')
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. Insert Dummy Comments

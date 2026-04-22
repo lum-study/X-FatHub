@@ -14,6 +14,7 @@ class FeedsScreen extends StatefulWidget {
 }
 
 class _FeedsScreenState extends State<FeedsScreen> {
+  late final CommunityProvider _communityProvider;
   int _selectedPillIndex = 0;
   final List<String> _pills = [
     'All Posts',
@@ -25,11 +26,15 @@ class _FeedsScreenState extends State<FeedsScreen> {
   bool _isLoading = true;
   int _displayedCount = 10;
   final ScrollController _scrollController = ScrollController();
+  int _lastScrollToTopToken = 0;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _communityProvider = context.read<CommunityProvider>();
+    _lastScrollToTopToken = _communityProvider.scrollToTopToken;
+    _communityProvider.addListener(_handleCommunityProviderUpdate);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPosts();
     });
@@ -37,9 +42,22 @@ class _FeedsScreenState extends State<FeedsScreen> {
 
   @override
   void dispose() {
+    _communityProvider.removeListener(_handleCommunityProviderUpdate);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleCommunityProviderUpdate() {
+    if (_lastScrollToTopToken == _communityProvider.scrollToTopToken) {
+      return;
+    }
+    _lastScrollToTopToken = _communityProvider.scrollToTopToken;
+
+    if (!mounted || !_scrollController.hasClients) return;
+    if (_scrollController.offset <= 0) return;
+
+    _scrollController.jumpTo(0);
   }
 
   void _onScroll() {
@@ -55,19 +73,43 @@ class _FeedsScreenState extends State<FeedsScreen> {
     }
   }
 
-  Future<void> _loadPosts() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadPosts({
+    bool showLoading = true,
+    bool preservePosition = false,
+  }) async {
+    final previousOffset =
+        preservePosition && _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final previousDisplayedCount = _displayedCount;
+
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    }
+
     final String selectedFilter = _pills[_selectedPillIndex];
     final provider = context.read<CommunityProvider>();
     final fetchedPosts = await provider.fetchPosts(selectedFilter);
+
+    final nextDisplayedCount = preservePosition
+        ? (previousDisplayedCount > fetchedPosts.length
+            ? fetchedPosts.length
+            : previousDisplayedCount)
+        : (fetchedPosts.length < 10 ? fetchedPosts.length : 10);
+
+    if (!mounted) return;
     setState(() {
       _posts = fetchedPosts;
-      _displayedCount = 10;
-      if (_displayedCount > _posts.length) {
-        _displayedCount = _posts.length;
-      }
+      _displayedCount = nextDisplayedCount;
       _isLoading = false;
     });
+
+    if (preservePosition) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final targetOffset = previousOffset > maxScroll ? maxScroll : previousOffset;
+        _scrollController.jumpTo(targetOffset);
+      });
+    }
   }
 
   @override
@@ -108,7 +150,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
                     transitionDuration: const Duration(milliseconds: 200),
                   ),
                 );
-                _loadPosts();
+                _loadPosts(showLoading: false, preservePosition: true);
               }
             },
           ),
@@ -266,16 +308,17 @@ class _FeedsScreenState extends State<FeedsScreen> {
               likes: post.likesCount,
               comments: post.commentsCount,
               isLiked: post.isLikedByMe,
-              isStarred: post.isFavouritedByMe,                onLikeToggle: () {
+              isStarred: post.isFavouritedByMe,
+              onLikeToggle: () {
                   context.read<CommunityProvider>().toggleLike(post.id, !post.isLikedByMe);
                 },
                 onStarToggle: () {
                   context.read<CommunityProvider>().toggleFavourite(post.id, !post.isFavouritedByMe);
                 },
-                onCommentExit: _loadPosts,
+                onCommentExit: () => _loadPosts(showLoading: false, preservePosition: true),
                 onDelete: () async {
                   await context.read<CommunityProvider>().deletePost(post.id);
-                  _loadPosts(); // refresh after deletion
+                  _loadPosts(showLoading: false, preservePosition: true); // refresh after deletion
                 },
                 onProfileTap: () async {
                 await Navigator.push(
@@ -289,7 +332,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
                     transitionDuration: const Duration(milliseconds: 200),
                   ),
                 );
-                _loadPosts();
+                _loadPosts(showLoading: false, preservePosition: true);
               },
             ),
           );
