@@ -5,6 +5,8 @@ import '../repositories/profile_repository.dart';
 import '../../activity_health/repositories/step_tracker_repository.dart';
 import '../../activity_health/repositories/hydration_repository.dart';
 
+final _supabase = Supabase.instance.client;
+
 class ProfileProvider extends ChangeNotifier {
   final ProfileRepository _repository;
   
@@ -79,7 +81,9 @@ class ProfileProvider extends ChangeNotifier {
       bio: bio ?? currentProfile.bio,
       age: age ?? currentProfile.age,
       currentWeight: currentWeight ?? currentProfile.currentWeight,
-      initialWeight: initialWeight ?? currentProfile.initialWeight ?? currentWeight, // Use current weight if initial weight not set
+      initialWeight: initialWeight ?? (currentProfile.initialWeight != null 
+          ? currentProfile.initialWeight 
+          : currentWeight),
       weightGoal: weightGoal ?? currentProfile.weightGoal,
       height: height ?? currentProfile.height,
       stepsGoal: stepsGoal ?? currentProfile.stepsGoal,
@@ -158,6 +162,35 @@ class ProfileProvider extends ChangeNotifier {
     _profile = null;
     _weightHistory = [];
     notifyListeners();
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _setLoading(true);
+    try {
+      final user = _repository.currentUser;
+      if (user?.email == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _repository.signIn(
+        email: user!.email!,
+        password: currentPassword,
+      );
+
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+
+      _error = null;
+    } catch (e) {
+      _error = _getReadableErrorMessage(e);
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
   }
 
   Future<void> deleteAccount() async {

@@ -14,7 +14,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _bioController;
   late final TextEditingController _ageController;
   late final TextEditingController _heightController;
-  late final TextEditingController _currentWeightController;
+  late final TextEditingController _initialWeightController;
   late final TextEditingController _goalWeightController;
   
   bool _isLoading = false;
@@ -28,7 +28,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _bioController = TextEditingController(text: profile?.bio ?? '');
     _ageController = TextEditingController(text: profile?.age?.toString() ?? '');
     _heightController = TextEditingController(text: profile?.height?.toString() ?? '');
-    _currentWeightController = TextEditingController(text: profile?.currentWeight?.toString() ?? '');
+    _initialWeightController = TextEditingController(text: profile?.initialWeight?.toString() ?? '');
     _goalWeightController = TextEditingController(text: profile?.weightGoal?.toString() ?? '');
   }
 
@@ -38,7 +38,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _bioController.dispose();
     _ageController.dispose();
     _heightController.dispose();
-    _currentWeightController.dispose();
+    _initialWeightController.dispose();
     _goalWeightController.dispose();
     super.dispose();
   }
@@ -49,21 +49,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     try {
       final age = _ageController.text.isNotEmpty ? int.parse(_ageController.text) : null;
       final height = _heightController.text.isNotEmpty ? double.parse(_heightController.text) : null;
-      final currentWeight = _currentWeightController.text.isNotEmpty ? double.parse(_currentWeightController.text) : null;
+      final initialWeight = _initialWeightController.text.isNotEmpty ? double.parse(_initialWeightController.text) : null;
       final goalWeight = _goalWeightController.text.isNotEmpty ? double.parse(_goalWeightController.text) : null;
 
       final provider = context.read<ProfileProvider>();
-      
-      // Get current initialWeight to preserve it during edit
-      final preservedInitialWeight = provider.profile?.initialWeight ?? currentWeight;
       
       await provider.updateProfile(
         name: _nameController.text.isEmpty ? null : _nameController.text,
         bio: _bioController.text.isEmpty ? null : _bioController.text,
         age: age,
         height: height,
-        currentWeight: currentWeight,
-        initialWeight: preservedInitialWeight, // Preserve initial weight during edits
+        initialWeight: initialWeight,
+        currentWeight: initialWeight, // Same as initial when setting in profile
         weightGoal: goalWeight,
       );
 
@@ -269,9 +266,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Current Weight Field
+            // Initial Weight Field
             Text(
-              'Current Weight (kg)',
+              'Initial Weight (kg)',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[400],
@@ -280,11 +277,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: _currentWeightController,
+              controller: _initialWeightController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Enter your current weight in kg',
+                hintText: 'Enter your initial weight in kg',
                 hintStyle: TextStyle(color: Colors.grey[600]),
                 filled: true,
                 fillColor: Colors.grey[900],

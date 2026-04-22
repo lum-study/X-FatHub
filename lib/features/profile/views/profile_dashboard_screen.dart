@@ -308,25 +308,25 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
   Widget _buildWeightProgressSection(profile) {
     final currentWeight = profile?.currentWeight ?? 0.0;
-    final initialWeight = profile?.initialWeight ?? currentWeight;
+    final initialWeight = profile?.initialWeight ?? 0.0;
     final weightGoal = profile?.weightGoal ?? 0.0;
 
     // Calculate progress percentage (0-100)
     double progressPercent = 0.0;
     String progressText = 'Add weight and goal to start tracking';
-    bool hasWeightData = currentWeight > 0 && weightGoal > 0;
+    bool hasWeightData = currentWeight > 0 && weightGoal > 0 && initialWeight > 0;
 
-    if (hasWeightData && initialWeight > 0) {
-      final totalToLose = (initialWeight - weightGoal).abs();
-      final alreadyLost = (initialWeight - currentWeight).abs();
+    if (hasWeightData) {
+      final totalChange = (initialWeight - weightGoal).abs();
+      final achieved = (initialWeight - currentWeight).abs();
       
-      if (totalToLose > 0) {
-        progressPercent = (alreadyLost / totalToLose) * 100;
+      if (totalChange > 0) {
+        progressPercent = (achieved / totalChange) * 100;
         progressPercent = progressPercent.clamp(0.0, 100.0);
         progressText = '${progressPercent.toStringAsFixed(1)}% progress to goal';
         
         if (progressPercent >= 100) {
-          progressText = 'Goal achieved! 🎉';
+          progressText = 'Goal achieved! ';
         }
       }
     }
@@ -355,37 +355,64 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
               Icon(Icons.monitor_weight_outlined, color: Colors.orange),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
-          // Weight display
+          // All three weights display
           if (hasWeightData)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Initial Weight
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Initial',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${initialWeight.toStringAsFixed(1)} kg',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Icon(Icons.arrow_downward, size: 16, color: Colors.blue.withOpacity(0.7)),
+                  ],
+                ),
+                // Current Weight (center, highlighted)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       'Current',
                       style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       '${currentWeight.toStringAsFixed(1)} kg',
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.orange,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Icon(Icons.arrow_forward, size: 16, color: Colors.orange.withOpacity(0.7)),
                   ],
                 ),
+                // Goal Weight
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       'Goal',
                       style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       '${weightGoal.toStringAsFixed(1)} kg',
                       style: const TextStyle(
@@ -394,6 +421,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         color: Colors.green,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Icon(Icons.flag, size: 16, color: Colors.green.withOpacity(0.7)),
                   ],
                 ),
               ],
@@ -610,81 +639,99 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   }
 
   void _showWeightUpdateDialog(BuildContext context, profile) {
+    final weightController = TextEditingController(
+      text: profile?.currentWeight?.toString() ?? '',
+    );
+
+    // Store everything we need BEFORE showing dialog
+    final provider = context.read<ProfileProvider>();
+    final profileCopy = provider.profile;
+    final initialWeight = profileCopy?.initialWeight ?? 0.0;
+    final weightGoal = profileCopy?.weightGoal ?? 0.0;
+    final userId = profileCopy?.id ?? '';
+
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          final weightController = TextEditingController(
-            text: profile?.currentWeight?.toString() ?? '',
-          );
-
-          return AlertDialog(
-            backgroundColor: Colors.grey[900],
-            title: const Text(
-              'Update Current Weight',
-              style: TextStyle(color: Colors.white),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Update Current Weight',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: weightController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Enter weight in kg',
+            hintStyle: TextStyle(color: Colors.grey[600]),
+            filled: true,
+            fillColor: Colors.grey[800],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
             ),
-            content: TextField(
-              controller: weightController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Enter weight in kg',
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                filled: true,
-                fillColor: Colors.grey[800],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  weightController.dispose();
-                  Navigator.pop(context);
-                },
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-              ),
-              TextButton(
-                onPressed: () async {
-                  if (weightController.text.isNotEmpty) {
-                    final newWeight = double.tryParse(weightController.text);
-                    if (newWeight != null && newWeight > 0) {
-                      final provider = context.read<ProfileProvider>();
-                      await provider.updateProfile(
-                        currentWeight: newWeight,
-                      );
-
-                      if (mounted) {
-                        await Future.delayed(const Duration(milliseconds: 500));
-                        await provider.loadProfile(provider.profile?.id ?? '');
-                        weightController.dispose();
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Weight updated successfully!'),
-                            backgroundColor: Colors.green,
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter a valid weight'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              weightController.dispose();
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (weightController.text.isNotEmpty) {
+                final newWeight = double.tryParse(weightController.text);
+                
+                // Validation using stored values (not context)
+                if (initialWeight > 0 && weightGoal > 0) {
+                  final minWeight = initialWeight < weightGoal ? initialWeight : weightGoal;
+                  final maxWeight = initialWeight > weightGoal ? initialWeight : weightGoal;
+                  
+                  if (newWeight == null || newWeight < minWeight || newWeight > maxWeight) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Weight must be between ${minWeight.toStringAsFixed(1)} kg and ${maxWeight.toStringAsFixed(1)} kg'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
                   }
-                },
-                child: const Text('Update', style: TextStyle(color: Colors.orange)),
-              ),
-            ],
-          );
-        },
+                }
+                
+                if (newWeight != null && newWeight > 0) {
+                  // Use stored provider reference
+                  await provider.updateProfile(currentWeight: newWeight);
+                  await provider.loadWeightHistory(userId);
+                  
+                  // Close dialog first
+                  Navigator.of(dialogContext).pop();
+                  weightController.dispose();
+                  
+                  // Then show success using original context
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Weight updated successfully!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid weight'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Update', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
       ),
     );
   }
