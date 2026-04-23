@@ -103,9 +103,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     status = ANY (
       ARRAY[
         'upcoming'::TEXT,
-        'completed'::TEXT,
-        'cancelled'::TEXT,
-        'pendingRefund'::TEXT
+        'missed'::TEXT,
+        'completed'::TEXT
       ]
     )
   )
@@ -440,7 +439,7 @@ CREATE INDEX IF NOT EXISTS gym_slots_time_idx ON gym_slots(start_time);
 CREATE INDEX IF NOT EXISTS gym_slots_gym_time_idx ON gym_slots(gym_id, start_time);
 CREATE INDEX IF NOT EXISTS bookings_user_slot_active_idx
   ON bookings(user_id, slot_id)
-  WHERE slot_id IS NOT NULL AND status <> 'cancelled';
+  WHERE slot_id IS NOT NULL AND status = 'upcoming';
 CREATE INDEX IF NOT EXISTS bookings_user_booking_date_idx ON bookings(user_id, booking_date DESC);
 CREATE INDEX IF NOT EXISTS bookings_user_status_idx ON bookings(user_id, status);
 CREATE INDEX IF NOT EXISTS user_subscriptions_user_expiry_idx ON user_subscriptions(user_id, expiry_date DESC);
@@ -598,7 +597,7 @@ AS $$
     FROM bookings b
     WHERE b.user_id = p_user_id
       AND b.slot_id = p_slot_id
-      AND b.status <> 'cancelled'
+      AND b.status = 'upcoming'
     LIMIT 1
   ),
   inserted AS (
@@ -727,7 +726,7 @@ AS $$
   ),
   updated_booking AS (
     UPDATE bookings b
-    SET status = 'cancelled'
+    SET status = 'missed'
     WHERE b.id = p_booking_id
       AND EXISTS (SELECT 1 FROM auth_check WHERE ok)
       AND EXISTS (SELECT 1 FROM booking_row WHERE status = 'upcoming')
@@ -760,8 +759,6 @@ AS $$
       jsonb_build_object('success', false, 'error', 'unauthorized')
     WHEN NOT EXISTS (SELECT 1 FROM booking_row) THEN
       jsonb_build_object('success', false, 'error', 'Booking not found.')
-    WHEN EXISTS (SELECT 1 FROM booking_row WHERE status = 'cancelled') THEN
-      jsonb_build_object('success', false, 'error', 'Booking already cancelled.')
     WHEN EXISTS (SELECT 1 FROM booking_row WHERE status <> 'upcoming') THEN
       jsonb_build_object('success', false, 'error', 'Only upcoming bookings can be cancelled.')
     WHEN NOT EXISTS (SELECT 1 FROM updated_booking) THEN

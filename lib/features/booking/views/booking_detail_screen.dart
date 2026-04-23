@@ -27,8 +27,11 @@ class BookingDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bookingTime = booking.bookingDate;
+    final now = DateTime.now();
     final isUpcoming =
-        booking.status == BookingStatus.upcoming && !bookingTime.isBefore(DateTime.now());
+        booking.status == BookingStatus.upcoming && !bookingTime.isBefore(now);
+    final isMissed = 
+        booking.status == BookingStatus.upcoming && bookingTime.isBefore(now);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -92,13 +95,19 @@ class BookingDetailScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isUpcoming
                             ? const Color(0xFFFFA500)
-                            : const Color(0xFF333333),
+                            : isMissed
+                                ? Colors.red.withValues(alpha: 0.8)
+                                : const Color(0xFF333333),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        isUpcoming ? 'UPCOMING' : booking.status.name.toUpperCase(),
+                        isUpcoming 
+                            ? 'UPCOMING' 
+                            : isMissed 
+                                ? 'MISSED' 
+                                : booking.status.name.toUpperCase(),
                         style: TextStyle(
-                          color: isUpcoming ? Colors.black : Colors.white70,
+                          color: isUpcoming ? Colors.black : Colors.white,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
