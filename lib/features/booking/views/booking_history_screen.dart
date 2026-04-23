@@ -169,6 +169,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     return RefreshIndicator(
       onRefresh: () => provider.refreshCurrentUserBookingData(),
       color: const Color(0xFFFFA500),
+      backgroundColor: const Color(0xFF1A1A1A),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: bookings.length,

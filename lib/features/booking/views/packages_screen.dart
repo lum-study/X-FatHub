@@ -192,6 +192,8 @@ class _PackagesScreenState extends State<PackagesScreen> {
             }
             return RefreshIndicator(
               onRefresh: () async => provider.refreshPackagesPage(),
+              color: const Color(0xFFFFA500),
+              backgroundColor: const Color(0xFF1A1A1A),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -662,7 +664,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '$credits credits left · valid until $expiryLabel',
+            '$credits sessions left · valid until $expiryLabel',
             style: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 11),
           ),
           const SizedBox(height: 10),

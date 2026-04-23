@@ -31,7 +31,8 @@ class BookingDetailScreen extends StatelessWidget {
     final isUpcoming =
         booking.status == BookingStatus.upcoming && !bookingTime.isBefore(now);
     final isMissed = 
-        booking.status == BookingStatus.upcoming && bookingTime.isBefore(now);
+        booking.status == BookingStatus.missed || 
+        (booking.status == BookingStatus.upcoming && bookingTime.isBefore(now));
 
     return Scaffold(
       backgroundColor: Colors.black,

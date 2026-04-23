@@ -167,31 +167,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Widget _buildHomeNavItem() {
     final isSelected = _selectedIndex == 2;
-    return GestureDetector(
-      onTap: () => _onTabTapped(2),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        color: Colors.transparent,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFA500),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.home,
-                size: 20,
-                color: isSelected ? Colors.black : Colors.black.withValues(alpha: 0.7),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _BouncyHomeButton(
+      isSelected: isSelected,
+      onTap: () {
+        if (isSelected) {
+          // If already selected, trigger refresh via event or direct call
+          // For now, we can use the switchToTab to reset the stack
+          MainNavigationScreen.switchToTab(2);
+        } else {
+          _onTabTapped(2);
+        }
+      },
     );
   }
 
@@ -215,5 +201,86 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         context.read<CommunityProvider>().requestScrollToTop();
       });
     }
+  }
+}
+
+class _BouncyHomeButton extends StatefulWidget {
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _BouncyHomeButton({
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  State<_BouncyHomeButton> createState() => _BouncyHomeButtonState();
+}
+
+class _BouncyHomeButtonState extends State<_BouncyHomeButton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+      lowerBound: 0.0,
+      upperBound: 0.1,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _controller.reverse(),
+      behavior: HitTestBehavior.opaque,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Container(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFA500),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFFA500).withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.home,
+                  size: 24,
+                  color: widget.isSelected ? Colors.black : Colors.black.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
