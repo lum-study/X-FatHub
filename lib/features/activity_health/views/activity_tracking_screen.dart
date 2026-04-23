@@ -307,47 +307,6 @@ class _ActivityTrackingScreenState extends State<ActivityTrackingScreen> {
                                 fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // Refresh button
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    print('🔄 Retrying location acquisition...');
-                                    viewModel.retryLocationTracking(widget.userId);
-                                  },
-                                  icon: const Icon(Icons.refresh, size: 18),
-                                  label: const Text('Retry'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.red,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                // Open location settings button
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    print('📍 Opening location settings...');
-                                    await Geolocator.openLocationSettings();
-                                  },
-                                  icon: const Icon(Icons.location_on, size: 18),
-                                  label: const Text('Open Settings'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.red,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ],
                         ),
                       ),

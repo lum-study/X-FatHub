@@ -1,20 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../providers/community_provider.dart';
-import '../widgets/custom_video_player.dart';
-import 'map_picker_screen.dart';
-import 'activity_picker_screen.dart';
-import '../../activity_health/models/activity_model.dart';
-import '../models/post_model.dart';
 
 class NewPostScreen extends StatefulWidget {
-  final PostModel? editingPost;
-
-  const NewPostScreen({super.key, this.editingPost});
+  const NewPostScreen({super.key});
 
   @override
   State<NewPostScreen> createState() => _NewPostScreenState();
@@ -23,48 +12,6 @@ class NewPostScreen extends StatefulWidget {
 class _NewPostScreenState extends State<NewPostScreen> {
   final TextEditingController _contentController = TextEditingController();
   bool _isPublishing = false;
-  final ImagePicker _picker = ImagePicker();
-  
-  // Local files selected by the user
-  final List<File> _selectedFiles = [];
-
-  // URLs of media that were already in the post before editing
-  List<String> _existingMediaUrls = [];
-
-  // Location variables
-  String? _selectedLocationName;
-  double? _selectedLat;
-  double? _selectedLng;
-
-  // Selected Activity variable
-  ActivityModel? _selectedActivity;
-  // If the post already had an activity attached, we might not have the full ActivityModel,
-  // but we can preserve its metadata. Default to the existing one if no new one is picked.
-  String? _existingActivityId;
-  String? _existingActivityType;
-  String? _existingActivityTitle;
-  int? _existingActivityDuration;
-  double? _existingActivityDistance;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.editingPost != null) {
-      final post = widget.editingPost!;
-      _contentController.text = post.content;
-      _existingMediaUrls = post.mediaUrls;
-      
-      _selectedLocationName = post.locationName;
-      _selectedLat = post.locationLat;
-      _selectedLng = post.locationLng;
-
-      _existingActivityId = post.activityId;
-      _existingActivityType = post.activityType;
-      _existingActivityTitle = post.activityTitle;
-      _existingActivityDuration = post.activityDurationSeconds;
-      _existingActivityDistance = post.activityDistance;
-    }
-  }
 
   @override
   void dispose() {
@@ -72,129 +19,33 @@ class _NewPostScreenState extends State<NewPostScreen> {
     super.dispose();
   }
 
-  Future<void> _pickMedia() async {
-    try {
-      final List<XFile> pickedFiles = await _picker.pickMultipleMedia();
-      if (pickedFiles.isNotEmpty) {
-        
-        final allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv'];
-        List<File> validFiles = [];
-
-        for (var f in pickedFiles) {
-          final ext = f.path.split('.').last.toLowerCase();
-          if (allowedExtensions.contains(ext)) {
-            validFiles.add(File(f.path));
-          } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('File format .$ext is not supported')),
-              );
-            }
-          }
-        }
-
-        if (validFiles.isNotEmpty) {
-          final needed = 10 - _selectedFiles.length;
-          
-          setState(() {
-            if (needed > 0) {
-              _selectedFiles.addAll(validFiles.take(needed));
-            }
-          });
-
-          if (mounted && validFiles.length > needed) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('You can only upload up to 10 media files. Exceeding files were discarded.')),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Failed to pick media: $e')),
-        );
-      }
-    }
-  }
-
-  void _removeMedia(int index) {
-    setState(() => _selectedFiles.removeAt(index));
-  }
-
-  void _removeExistingMedia(int index) {
-    setState(() => _existingMediaUrls.removeAt(index));
-  }
-
   void _publishPost() async {
     final content = _contentController.text.trim();
-    if (content.isEmpty && _selectedFiles.isEmpty && _existingMediaUrls.isEmpty) return;
+    if (content.isEmpty) return;
 
-    setState(() => _isPublishing = true);
+    setState(() {
+      _isPublishing = true;
+    });
 
     try {
-      final supa = Supabase.instance.client;
-      List<String> uploadedUrls = List.from(_existingMediaUrls);
-
-      // Upload media if any
-      if (_selectedFiles.isNotEmpty) {
-        // Try uploading to a bucket named 'community_media'
-        for (int i = 0; i < _selectedFiles.length; i++) {
-          final file = _selectedFiles[i];
-          final extension = file.path.split('.').last.toLowerCase();
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.$extension';
-          final path = '${supa.auth.currentUser?.id ?? 'public'}/$fileName';
-          
-          await supa.storage.from('community_media').upload(path, file);
-          final url = supa.storage.from('community_media').getPublicUrl(path);
-          uploadedUrls.add(url);
-        }
-      }
-
-      if (widget.editingPost != null) {
-        final updatedPost = widget.editingPost!.copyWith(
-          content: content,
-          mediaUrl: uploadedUrls.isNotEmpty ? uploadedUrls.join(',') : '',
-          locationName: _selectedLocationName,
-          locationLat: _selectedLat,
-          locationLng: _selectedLng,
-          activityId: _selectedActivity != null ? _selectedActivity!.id : _existingActivityId,
-          activityType: _selectedActivity != null ? _selectedActivity!.activityType : _existingActivityType,
-          activityTitle: _selectedActivity != null ? _selectedActivity!.title : _existingActivityTitle,
-          activityDurationSeconds: _selectedActivity != null ? _selectedActivity!.totalDuration?.inSeconds : _existingActivityDuration,
-          activityDistance: _selectedActivity != null ? _selectedActivity!.distanceTraveled : _existingActivityDistance,
-        );
-        await context.read<CommunityProvider>().updatePost(updatedPost);
-      } else {
-        await context.read<CommunityProvider>().createPost(
-          content,
-          mediaUrls: uploadedUrls,
-          locationName: _selectedLocationName,
-          locationLat: _selectedLat,
-          locationLng: _selectedLng,
-          activityId: _selectedActivity?.id,
-          activityType: _selectedActivity?.activityType,
-          activityTitle: _selectedActivity?.title,
-          activityDurationSeconds: _selectedActivity?.totalDuration?.inSeconds,
-          activityDistance: _selectedActivity?.distanceTraveled,
-        );
-      }
-
+      await context.read<CommunityProvider>().createPost(content);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.editingPost != null ? 'Post updated successfully!' : 'Post published successfully!')),
+          const SnackBar(content: Text('Post published successfully!')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.editingPost != null ? 'Error updating post: $e' : 'Error publishing post: $e\n(Make sure "community_media" bucket exists in Supabase!)')),
+          SnackBar(content: Text('Error publishing post: $e')),
         );
       }
     } finally {
       if (mounted) {
-        setState(() => _isPublishing = false);
+        setState(() {
+          _isPublishing = false;
+        });
       }
     }
   }
@@ -247,9 +98,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
                         color: Colors.orange,
                       ),
                     )
-                  : Text(
-                      widget.editingPost != null ? 'Save' : 'Publish',
-                      style: const TextStyle(
+                  : const Text(
+                      'Publish',
+                      style: TextStyle(
                         color: Colors.orange,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -285,9 +136,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      widget.editingPost != null ? 'Updating your post' : 'Posting to All Members',
-                      style: const TextStyle(
-                        color: Color(0xFF777777),
+                      'Posting to All Members',
+                      style: TextStyle(
+                        color: const Color(0xFF777777),
                         fontSize: 11,
                       ),
                     ),
@@ -320,124 +171,7 @@ class _NewPostScreenState extends State<NewPostScreen> {
             ),
             const SizedBox(height: 14),
 
-            // Existing Media Section
-            if (_existingMediaUrls.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 120,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _existingMediaUrls.length,
-                  itemBuilder: (context, index) {
-                    final url = _existingMediaUrls[index];
-                    final isVideo = widget.editingPost?.isVideo(url) ?? false;
-
-                    return Stack(
-                      children: [
-                        Container(
-                          width: 120,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            image: isVideo ? null : DecorationImage(
-                              image: NetworkImage(url),
-                              fit: BoxFit.cover,
-                            ),
-                            color: const Color(0xFF1E1E1E),
-                          ),
-                          clipBehavior: Clip.hardEdge,
-                          child: isVideo 
-                              ? CustomVideoPlayer(
-                                  videoUrl: url, 
-                                  isFile: false, 
-                                  autoPlay: false, 
-                                  showControls: false,
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        Positioned(
-                          top: 6,
-                          right: 18,
-                          child: GestureDetector(
-                            onTap: () => _removeExistingMedia(index),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close, color: Colors.white, size: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
-
             // Add Tools Section
-            if (_selectedFiles.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 120,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _selectedFiles.length,
-                  itemBuilder: (context, index) {
-                    final file = _selectedFiles[index];
-                    final ext = file.path.split('.').last.toLowerCase();
-                    final isVideo = ['mp4', 'mov', 'avi', 'mkv'].contains(ext);
-
-                    return Stack(
-                      children: [
-                        Container(
-                          width: 120,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            image: isVideo ? null : DecorationImage(
-                              image: FileImage(file),
-                              fit: BoxFit.cover,
-                            ),
-                            color: const Color(0xFF1E1E1E),
-                          ),
-                          clipBehavior: Clip.hardEdge,
-                          child: isVideo 
-                              ? CustomVideoPlayer(
-                                  videoUrl: file.path, 
-                                  isFile: true, 
-                                  autoPlay: false, 
-                                  showControls: false,
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 16,
-                          child: GestureDetector(
-                            onTap: () => _removeMedia(index),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close, color: Colors.white, size: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-
             Row(
               children: [
                 const Icon(Icons.attachment, color: Colors.orange, size: 14),
@@ -456,97 +190,20 @@ class _NewPostScreenState extends State<NewPostScreen> {
             const SizedBox(height: 8),
 
             // Tool Items
-            GestureDetector(
-              onTap: () => _pickMedia(),
-              child: _buildToolRow(Icons.camera_alt, 'Photo / Video'),
-            ),
+            _buildToolRow(Icons.camera_alt, 'Photo / Video'),
             const SizedBox(height: 8),
-
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      final selected = await Navigator.push<ActivityModel>(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ActivityPickerScreen()),
-                      );
-                      if (selected != null) {
-                        setState(() {
-                          _selectedActivity = selected;
-                          _existingActivityId = null;
-                          _existingActivityType = null;
-                          _existingActivityTitle = null;
-                          _existingActivityDuration = null;
-                          _existingActivityDistance = null;
-                        });
-                      }
-                    },
-                    child: _buildToolRow(
-                      Icons.fitness_center,
-                      _selectedActivity != null 
-                          ? (_selectedActivity!.title ?? '${_selectedActivity!.activityType[0].toUpperCase()}${_selectedActivity!.activityType.substring(1)}') 
-                          : (_existingActivityType != null 
-                              ? (_existingActivityTitle ?? '${_existingActivityType![0].toUpperCase()}${_existingActivityType!.substring(1)}') 
-                              : 'Tag a Workout'),
-                      iconColor: Colors.orange,
-                      textColor: (_selectedActivity != null || _existingActivityType != null) ? Colors.orange : const Color(0xFFAAAAAA),
-                      onClear: (_selectedActivity != null || _existingActivityType != null) ? () {
-                        setState(() {
-                          _selectedActivity = null;
-                          _existingActivityId = null;
-                          _existingActivityType = null;
-                          _existingActivityTitle = null;
-                          _existingActivityDuration = null;
-                          _existingActivityDistance = null;
-                        });
-                      } : null,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _buildToolRow(Icons.fitness_center, 'Tag a Workout'),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPickerScreen()));
-                      if (result != null) {
-                        setState(() {
-                          _selectedLocationName = result['name'];
-                          _selectedLat = result['lat'];
-                          _selectedLng = result['lng'];
-                        });
-                      }
-                    },
-                    child: _buildToolRow(
-                      Icons.location_on, 
-                      _selectedLocationName ?? 'Add a location',
-                      iconColor: Colors.orange,
-                      textColor: _selectedLocationName != null ? Colors.orange : const Color(0xFFAAAAAA),
-                      onClear: _selectedLocationName != null ? () {
-                        setState(() {
-                          _selectedLocationName = null;
-                          _selectedLat = null;
-                          _selectedLng = null;
-                        });
-                      } : null,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _buildToolRow(Icons.location_on, 'Check in to Gym Zone'),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildToolRow(IconData icon, String text, {Color iconColor = Colors.orange, Color textColor = const Color(0xFFAAAAAA), VoidCallback? onClear}) {
+  Widget _buildToolRow(IconData icon, String text) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: onClear != null ? 0 : 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF111111),
         border: Border.all(color: const Color(0xFF2A2A2A)),
@@ -554,26 +211,12 @@ class _NewPostScreenState extends State<NewPostScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, color: iconColor, size: 18),
+          Icon(icon, color: Colors.orange, size: 18),
           const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: onClear != null ? 12 : 0),
-              child: Text(
-                text,
-                style: TextStyle(color: textColor, fontSize: 13),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+          Text(
+            text,
+            style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 13),
           ),
-          if (onClear != null)
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.orange, size: 18),
-              onPressed: onClear,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
         ],
       ),
     );

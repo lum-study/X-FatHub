@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'dart:async';
 import '../models/hydration_model.dart';
 import '../repositories/hydration_repository.dart';
 
@@ -20,7 +19,6 @@ class HydrationViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get hasError => _errorMessage != null;
-  Completer<void>? _initCompleter;
   
   // Convenience getters for common values
   int get todayConsumption => _hydrationData.todayConsumption;
@@ -35,7 +33,7 @@ class HydrationViewModel extends ChangeNotifier {
       : _repository = repository ?? HydrationRepository(),
         _hydrationData = HydrationTrackerModel(
           todayConsumption: 0,
-          dailyGoal: 0,
+          dailyGoal: 2000,
           progress: 0.0,
           todayEntries: [],
           timestamp: DateTime.now(),
@@ -43,21 +41,9 @@ class HydrationViewModel extends ChangeNotifier {
 
   /// Initialize the ViewModel by loading initial data and syncing to remote
   Future<void> init() async {
-    // Guard against concurrent initialization - if already initializing, wait for completion
-    if (_initCompleter != null) {
-      return _initCompleter!.future;
-    }
-    _initCompleter = Completer<void>();
-    
-    try {
-      await loadHydrationData();
-      // Sync goal to remote on page load
-      await _repository.syncGoalToRemote();
-      _initCompleter?.complete();
-    } catch (e) {
-      _initCompleter?.completeError(e);
-      rethrow;
-    }
+    await loadHydrationData();
+    // Sync goal to remote on page load
+    await _repository.syncGoalToRemote();
   }
 
   /// Load hydration tracker data from repository
@@ -122,41 +108,28 @@ class HydrationViewModel extends ChangeNotifier {
     }
   }
 
-  /// Immediately remove entry from UI, then delete from server
-  /// This ensures the Dismissible widget is removed from the tree right away
+  /// Delete a hydration entry with undo capability
   /// Returns the deleted entry for undo functionality
   Future<HydrationEntry?> deleteEntry(int entryId) async {
     _clearError();
 
     try {
-      // Find and store the entry for undo
-      final entry = _hydrationData.todayEntries
-          .firstWhere((e) => e.id == entryId, orElse: () => null as dynamic);
-
-      if (entry == null) {
-        return null;
+      // Get the entry before deletion for undo
+      final entry = await _repository.getEntryById(entryId);
+      
+      if (entry != null) {
+        _deletedEntries.add(entry);
       }
 
-      // Immediately remove from UI (optimistic update)
-      _hydrationData = _hydrationData.copyWith(
-        todayEntries: _hydrationData.todayEntries
-            .where((e) => e.id != entryId)
-            .toList(),
-        todayConsumption:
-            (_hydrationData.todayConsumption - entry.amountMl).clamp(0, 999999),
-      );
-      _deletedEntries.add(entry as HydrationEntry);
-      notifyListeners(); // Notify immediately to remove from UI
-
-      // Delete from server in background
       await _repository.deleteEntry(entryId);
-
+      
+      // Reload data silently to update UI
+      await loadHydrationData(silent: true);
+      
       print('✓ Deleted entry $entryId');
-      return entry as HydrationEntry;
+      return entry;
     } catch (e) {
       _setError('Failed to delete entry: $e');
-      // Reload to restore the entry if deletion failed
-      await loadHydrationData(silent: true);
       return null;
     }
   }
@@ -214,7 +187,7 @@ class HydrationViewModel extends ChangeNotifier {
     }
   }
 
-  /// Sync unsynced entries to Supabase (called at 8:20 AM)
+  /// Sync unsynced entries to Supabase (called at 11:59 PM)
   Future<void> syncToSupabase() async {
     try {
       await _repository.syncToSupabase();
@@ -222,37 +195,6 @@ class HydrationViewModel extends ChangeNotifier {
     } catch (e) {
       print('Error syncing to Supabase: $e');
     }
-  }
-
-  /// Get today's total hydration consumption directly from remote database
-  /// Returns the sum of all entries for today in liters
-  Future<double> getTodayConsumptionFromRemote() async {
-    try {
-      final todayEntries = await _repository.getTodayEntries();
-      final totalMl = todayEntries.fold<int>(0, (sum, entry) => sum + entry.amountMl);
-      return totalMl / 1000.0; // Convert ml to liters
-    } catch (e) {
-      print('Error getting consumption from remote: $e');
-      return 0.0;
-    }
-  }
-
-  /// Clear all data in provider
-  /// Called on logout
-  void clearData() {
-    _hydrationData = HydrationTrackerModel(
-      todayConsumption: 0,
-      dailyGoal: 0,
-      progress: 0.0,
-      todayEntries: [],
-      timestamp: DateTime.now(),
-    );
-    _deletedEntries.clear();
-    _undoTimerIds.clear();
-    _initCompleter = null;
-    _errorMessage = null;
-    notifyListeners();
-    print('✓ HydrationViewModel data cleared');
   }
 
   // Private helper methods

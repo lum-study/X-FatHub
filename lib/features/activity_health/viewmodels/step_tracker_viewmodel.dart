@@ -4,6 +4,7 @@ import '../models/step_tracker_model.dart';
 import '../repositories/step_tracker_repository.dart';
 import '../../../core/service/permission_service.dart';
 import '../../../core/service/pedometer_service.dart';
+import '../../../core/database/local_step_db.dart';
 
 /// ViewModel for Step Tracker feature
 /// Handles business logic, state management, and data flow between Model and View
@@ -42,7 +43,7 @@ class StepTrackerViewModel extends ChangeNotifier {
       : _repository = repository ?? StepTrackerRepository(),
         _stepTrackerData = StepTrackerModel(
           steps: 0,
-          goalSteps: 0,
+          goalSteps: 10000,
           distance: 0.0,
           progress: 0.0,
           kcal: 0.0,
@@ -51,85 +52,40 @@ class StepTrackerViewModel extends ChangeNotifier {
 
   /// Initialize the ViewModel by requesting permissions and loading initial data
   /// This should be called once when the step tracker feature is first accessed
-  Completer<void>? _initCompleter;
-  
   Future<void> init() async {
-    // Guard against concurrent initialization - if already initializing, wait for completion
-    if (_initCompleter != null) {
-      return _initCompleter!.future;
-    }
-    _initCompleter = Completer<void>();
+    _setLoading(true);
+    _isFirstLoadComplete = false; // Mark as not complete until done
     
-    try {
-      // Guard against duplicate initialization
-      if (_isFirstLoadComplete) {
-        _initCompleter?.complete();
-        return;
-      }
-      
-      _setLoading(true);
-      _isFirstLoadComplete = false; // Mark as not complete until done
-      
-      // Request activity recognition permission first
-      final hasPermission = await PermissionService.requestStepTrackerPermissions();
-      if (!hasPermission) {
-        _setError('Activity recognition permission is required for step tracking');
-        _setLoading(false);
-        _initCompleter?.complete();
-        return;
-      }
-
-      // Initialize pedometer
-      final pedometerInitialized = await PedometerService.initPedometer();
-      
-      // Check if sensor is available
-      await _checkSensorAvailability();
-
-      // FETCH FROM SUPABASE AND INITIALIZE PEDOMETER
-      // This satisfies the requirement: "When user login, it auto initialize by adding the count from the supabase and the pedometer"
-      final supabaseSteps = await _repository.getTodayStepsFromRemote();
-      if (supabaseSteps > 0) {
-        await PedometerService.initializeTodaySteps(supabaseSteps);
-        print('✓ Initialized pedometer with $supabaseSteps steps from Supabase');
-      }
-
-      if (pedometerInitialized) {
-        // Give pedometer enough time to receive the first sensor event
-        await Future.delayed(const Duration(seconds: 2));
-        _setupStepCountListener();
-      }
-      
-      // Load step tracker data (pedometer should have data by now)
-      await loadStepTrackerData();
-      
-      // Sync goal to remote on page load
-      await _repository.syncGoalToRemote();
-      
-      // Sync current steps to remote on app launch
-      try {
-        final currentSteps = await PedometerService.getTodayStepsCalculated(
-          refreshFromSensor: true,
-        );
-        if (currentSteps > 0) {
-          await _repository.saveTodaySteps(currentSteps);
-          print('✓ Synced initial steps ($currentSteps) to Supabase on app launch');
-        }
-      } catch (e) {
-        print('⚠ Error syncing initial steps: $e');
-        // Non-critical, continue
-      }
-      
-      // Mark initial load as complete - UI can now be displayed
-      _isFirstLoadComplete = true;
+    // Request activity recognition permission first
+    final hasPermission = await PermissionService.requestStepTrackerPermissions();
+    if (!hasPermission) {
+      _setError('Activity recognition permission is required for step tracking');
       _setLoading(false);
-      notifyListeners();
-      _initCompleter?.complete();
-    } catch (e) {
-      _setError('Initialization error: $e');
-      _setLoading(false);
-      print('❌ Initialization error: $e');
-      _initCompleter?.completeError(e);
+      return;
     }
+
+    // Initialize pedometer and set up real-time listening
+    final pedometerInitialized = await PedometerService.initPedometer();
+    if (pedometerInitialized) {
+      // Give pedometer enough time to receive the first sensor event
+      // This ensures step count data is available when we load
+      await Future.delayed(const Duration(seconds: 2));
+      _setupStepCountListener();
+    }
+
+    // Check if sensor is available
+    await _checkSensorAvailability();
+    
+    // Load step tracker data (pedometer should have data by now)
+    await loadStepTrackerData();
+    
+    // Sync goal to remote on page load
+    await _repository.syncGoalToRemote();
+    
+    // Mark initial load as complete - UI can now be displayed
+    _isFirstLoadComplete = true;
+    _setLoading(false);
+    notifyListeners();
   }
 
   /// Set up listener for real-time step count updates
@@ -207,10 +163,10 @@ class StepTrackerViewModel extends ChangeNotifier {
   /// Refresh step tracker data from sensors and database
   /// Returns a Future that completes when refresh is done
   /// This will:
-  /// - Reset and reinitialize pedometer (fresh sensor read)
+  /// - Reset and reinitialize pedometer (like app startup)
   /// - Give pedometer time to read fresh sensor data
-  /// - Sync current steps to Supabase
-  /// - Fetch fresh data from Supabase
+  /// - Fetch fresh data from pedometer
+  /// - Save to local SQLite database
   /// - Update UI with new values
   Future<void> refreshData() async {
     try {
@@ -226,17 +182,11 @@ class StepTrackerViewModel extends ChangeNotifier {
         await Future.delayed(const Duration(seconds: 2));
         
         // Reset activity tracking for fresh data
-        _previousStepCount = await PedometerService.getTodayStepsCalculated(
-          refreshFromSensor: true,
-        );
+        _previousStepCount = await PedometerService.getTodaySteps();
         _lastActivityTime = DateTime.now();
-        
-        // Sync current steps to Supabase
-        await _repository.saveTodaySteps(_previousStepCount);
-        print('✓ Synced ${ _previousStepCount} steps to Supabase on refresh');
       }
       
-      // Load fresh data from pedometer and Supabase
+      // Load fresh data from pedometer and save to local DB
       await loadStepTrackerData(silent: false);
       
       _setLoading(false);
@@ -329,21 +279,15 @@ class StepTrackerViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reset all step tracker data - deletes ALL records from Supabase
-  /// This is a destructive operation that removes all historical step data
+  /// Reset all step tracker data in the local database
+  /// This clears all recorded steps
   Future<void> resetData() async {
     try {
       _setLoading(true);
-      _clearError();
+      // Clear all data from local database
+      await LocalStepDatabase.deleteOldRecords();
       
-      // Delete all step records from Supabase for current user
-      await _repository.deleteAllStepRecords();
-
-      // Reset local pedometer baseline and persist today's zero steps
-      await PedometerService.resetTodaySteps();
-      await _repository.saveTodaySteps(0);
-      
-      // Reset UI state to today with 0 steps
+      // Reset to today with 0 steps
       _stepTrackerData = _stepTrackerData.copyWith(
         steps: 0,
         distance: 0.0,
@@ -358,38 +302,11 @@ class StepTrackerViewModel extends ChangeNotifier {
       
       _setLoading(false);
       notifyListeners();
-      print('✓ All step tracker data reset successfully - remote records deleted');
+      print('✓ Step tracker data reset successfully');
     } catch (e) {
       _setError('Failed to reset data: $e');
       _setLoading(false);
-      rethrow;
     }
-  }
-
-  /// Clear all data in provider and reset pedometer baseline
-  /// Called on logout
-  Future<void> clearData() async {
-    _stepCountStreamSubscription?.cancel();
-    _stepCountStreamSubscription = null;
-    
-    // Reset local pedometer baseline
-    await PedometerService.resetTodaySteps();
-    
-    _stepTrackerData = StepTrackerModel(
-      steps: 0,
-      goalSteps: 0,
-      distance: 0.0,
-      progress: 0.0,
-      kcal: 0.0,
-      timestamp: DateTime.now(),
-      dailySteps: [0, 0, 0, 0, 0, 0, 0],
-    );
-    _previousStepCount = 0;
-    _isFirstLoadComplete = false;
-    _initCompleter = null;
-    _errorMessage = null;
-    notifyListeners();
-    print('✓ StepTrackerViewModel data cleared and pedometer reset');
   }
 
   /// Get dynamic day labels starting from 6 days ago to today
@@ -456,43 +373,6 @@ class StepTrackerViewModel extends ChangeNotifier {
     final day = getFullDayName(index);
     final date = getDateForIndex(index);
     return '$day, $date\n$steps steps';
-  }
-
-  /// Get today's steps from repository (Supabase first, then pedometer)
-  /// This is used by dashboard and works even before pedometer is initialized
-  Future<int> getTodayStepsFromRepository() async {
-    try {
-      return await _repository.getTodaySteps();
-    } catch (e) {
-      print('Error getting steps from repository: $e');
-      return 0;
-    }
-  }
-
-  /// Refresh step data and sync current pedometer reading to remote
-  /// Call this when entering the module or pulling down to refresh
-  Future<void> refreshAndSyncSteps() async {
-    try {
-      _setLoading(true);
-      _clearError();
-      
-      // Get current pedometer reading
-      final currentSteps = await PedometerService.getTodayStepsCalculated(
-        refreshFromSensor: true,
-      );
-      
-      // Sync to Supabase
-      await _repository.saveTodaySteps(currentSteps);
-      print('✓ Synced $currentSteps steps to Supabase');
-      
-      // Reload the full tracker data
-      await loadStepTrackerData(silent: true);
-      
-      _setLoading(false);
-    } catch (e) {
-      _setError('Failed to sync steps: $e');
-      _setLoading(false);
-    }
   }
 
   /// Clear all errors

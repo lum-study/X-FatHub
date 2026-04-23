@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:xfathub/features/booking/models/booking_model.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
-import 'package:xfathub/features/booking/views/booking_detail_screen.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -13,130 +12,74 @@ class BookingHistoryScreen extends StatefulWidget {
   State<BookingHistoryScreen> createState() => _BookingHistoryScreenState();
 }
 
-class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
-  String _selectedTab = 'upcoming';
+class _BookingHistoryScreenState extends State<BookingHistoryScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadDataIfNeeded();
-    });
+    _tabController = TabController(length: 3, vsync: this);
   }
 
-  Future<void> _loadDataIfNeeded() async {
-    final provider = Provider.of<BookingViewModel>(context, listen: false);
-    if (provider.userBookings.isEmpty) {
-      await provider.refreshCurrentUserBookingData();
-    }
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Consumer<BookingViewModel>(
-          builder: (context, provider, _) {
-            final upcoming = provider.userBookings
-                .where((b) => b.status == BookingStatus.upcoming && b.bookingDate.isAfter(DateTime.now()))
-                .toList()
-              ..sort((a, b) => a.bookingDate.compareTo(b.bookingDate));
-            
-            final now = DateTime.now();
-            final missed = provider.userBookings
-                .where((b) => b.status == BookingStatus.upcoming && b.bookingDate.isBefore(now))
-                .toList()
-              ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
-            
-            final completed = provider.userBookings
-                .where((b) => b.status == BookingStatus.completed || b.status == BookingStatus.cancelled)
-                .toList()
-              ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
-
-            final currentList = _selectedTab == 'upcoming'
-                ? upcoming
-                : _selectedTab == 'missed'
-                    ? missed
-                    : completed;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 20, right: 20, top: 16),
-                  child: _buildHeader(),
-                ),
-                const SizedBox(height: 16),
-                _buildTabPills(),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: _buildBookingList(currentList, _selectedTab, provider),
-                ),
-              ],
-            );
-          },
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFFFFA500)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'My Bookings',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: const Color(0xFFFFA500),
+          labelColor: const Color(0xFFFFA500),
+          unselectedLabelColor: const Color(0xFF666666),
+          tabs: const [
+            Tab(text: 'Upcoming'),
+            Tab(text: 'Missed'),
+            Tab(text: 'Completed'),
+          ],
         ),
       ),
-    );
-  }
+      body: Consumer<BookingViewModel>(
+        builder: (context, provider, _) {
+          final upcoming = provider.userBookings
+              .where((b) => b.status == BookingStatus.upcoming && b.bookingDate.isAfter(DateTime.now()))
+              .toList()
+            ..sort((a, b) => a.bookingDate.compareTo(b.bookingDate));
+          
+          final now = DateTime.now();
+          final missed = provider.userBookings
+              .where((b) => b.status == BookingStatus.upcoming && b.bookingDate.isBefore(now))
+              .toList()
+            ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
+          
+          final completed = provider.userBookings
+              .where((b) => b.status == BookingStatus.completed || b.status == BookingStatus.cancelled)
+              .toList()
+            ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: const Icon(Icons.chevron_left, color: Color(0xFFFFA500), size: 28),
-        ),
-        const SizedBox(width: 8),
-        const Text(
-          'My Bookings',
-          style: TextStyle(
-            color: Color(0xFFFFA500),
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTabPills() {
-    final tabs = ['upcoming', 'missed', 'completed'];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: tabs.map((tab) {
-          final isActive = _selectedTab == tab;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedTab = tab),
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? const Color(0xFFFFA500)
-                    : const Color(0xFF0D0D0D),
-                borderRadius: BorderRadius.circular(50),
-                border: Border.all(
-                  color: isActive
-                      ? const Color(0xFFFFA500)
-                      : const Color(0xFF333333),
-                  width: 1.5,
-                ),
-              ),
-              child: Text(
-                tab.toUpperCase(),
-                style: TextStyle(
-                  color: isActive ? Colors.black : const Color(0xFFAAAAAA),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildBookingList(upcoming, 'upcoming', provider),
+              _buildBookingList(missed, 'missed', provider),
+              _buildBookingList(completed, 'completed', provider),
+            ],
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -177,7 +120,6 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           return _BookingCard(
             booking: booking,
             package: provider.packages.where((p) => p.id == booking.packageId).firstOrNull,
-            provider: provider,
           );
         },
       ),
@@ -188,13 +130,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 class _BookingCard extends StatelessWidget {
   final BookingModel booking;
   final PackageModel? package;
-  final BookingViewModel provider;
 
-  const _BookingCard({
-    required this.booking,
-    this.package,
-    required this.provider,
-  });
+  const _BookingCard({required this.booking, this.package});
 
   @override
   Widget build(BuildContext context) {
@@ -218,25 +155,8 @@ class _BookingCard extends StatelessWidget {
 
     final isMissed = booking.status == BookingStatus.upcoming && bookingTime.isBefore(now);
 
-    return GestureDetector(
-      onTap: isUpcoming
-          ? () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BookingDetailScreen(
-                    booking: booking,
-                    package: package,
-                    packageNameFallback: package?.name ?? 'Package',
-                    slotLocation: booking.slotLocation,
-                    slotCoach: booking.slotCoach,
-                  ),
-                ),
-              );
-            }
-          : null,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFF111111),
@@ -335,7 +255,6 @@ class _BookingCard extends StatelessWidget {
           ],
         ],
       ),
-    ),
     );
   }
 }

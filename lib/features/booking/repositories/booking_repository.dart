@@ -1,11 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
-import 'package:uuid/uuid.dart';
 import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
 import '../models/gym_model.dart';
-import '../../../core/database/local_booking_db.dart';
 
 class BookingRepository {
   final _supabase = Supabase.instance.client;
@@ -60,7 +58,7 @@ class BookingRepository {
     try {
       final response = await _supabase
           .from('package_gyms')
-          .select('gym_id, is_active, gyms(id, name, venue, address, status)')
+          .select('is_active, gyms(id, name, venue, address, status)')
           .eq('package_id', packageId)
           .eq('is_active', true);
 
@@ -69,65 +67,17 @@ class BookingRepository {
           .toList();
 
       final gyms = <GymModel>[];
-      final fallbackGymIds = <String>[];
-
       for (final row in rows) {
         final gymRaw = row['gyms'];
         if (gymRaw is Map) {
           gyms.add(GymModel.fromMap(Map<String, dynamic>.from(gymRaw)));
-        } else if (gymRaw is List) {
-          for (final item in gymRaw) {
-            if (item is Map) {
-              gyms.add(GymModel.fromMap(Map<String, dynamic>.from(item)));
-            }
-          }
-        } else {
-          final gymId = row['gym_id']?.toString();
-          if (gymId != null && gymId.isNotEmpty) {
-            fallbackGymIds.add(gymId);
-          }
         }
       }
 
-      if (gyms.isEmpty && fallbackGymIds.isNotEmpty) {
-        final fallbackResponse = await _supabase
-            .from('gyms')
-            .select('id, name, venue, address, status')
-            .inFilter('id', fallbackGymIds);
-
-        gyms.addAll(
-          (fallbackResponse as List).map(
-            (row) => GymModel.fromMap(Map<String, dynamic>.from(row)),
-          ),
-        );
-      }
-
-      final uniqueGyms = <String, GymModel>{
-        for (final gym in gyms) gym.id: gym,
-      }.values.toList();
-
-      uniqueGyms.sort((a, b) => a.name.compareTo(b.name));
-      return uniqueGyms;
+      gyms.sort((a, b) => a.name.compareTo(b.name));
+      return gyms;
     } catch (e) {
       throw Exception('Failed to fetch package gyms: $e');
-    }
-  }
-
-  Future<List<String>> fetchPackageGymIds(String packageId) async {
-    try {
-      final response = await _supabase
-          .from('package_gyms')
-          .select('gym_id')
-          .eq('package_id', packageId)
-          .eq('is_active', true);
-
-      return (response as List)
-          .map((row) => row['gym_id']?.toString() ?? '')
-          .where((id) => id.isNotEmpty)
-          .toSet()
-          .toList();
-    } catch (e) {
-      throw Exception('Failed to fetch package gym IDs: $e');
     }
   }
 
@@ -162,7 +112,7 @@ class BookingRepository {
       final slots = (response as List)
           .map((data) => SlotModel.fromMap(data))
           .toList();
-
+      
       return slots;
     } catch (e) {
       throw Exception('Failed to fetch slots: $e');
@@ -283,57 +233,37 @@ class BookingRepository {
         throw Exception(error);
       }
 
-      BookingModel? booking;
       final bookingPayload = data['booking'];
       if (bookingPayload is Map) {
-        booking = BookingModel.fromMap(Map<String, dynamic>.from(bookingPayload));
-      } else if (bookingPayload is String && bookingPayload.isNotEmpty) {
+        return BookingModel.fromMap(Map<String, dynamic>.from(bookingPayload));
+      }
+
+      if (bookingPayload is String && bookingPayload.isNotEmpty) {
         try {
           final decoded = jsonDecode(bookingPayload);
           if (decoded is Map) {
-            booking = BookingModel.fromMap(Map<String, dynamic>.from(decoded));
+            return BookingModel.fromMap(Map<String, dynamic>.from(decoded));
           }
-        } catch (_) {}
-      }
-
-      if (booking == null) {
-        final fallback = await _supabase
-            .from('bookings')
-            .select()
-            .eq('user_id', userId)
-            .eq('slot_id', slotId)
-            .eq('package_id', packageId)
-            .order('booking_date', ascending: false)
-            .limit(1)
-            .maybeSingle();
-
-        if (fallback != null) {
-          booking = BookingModel.fromMap(Map<String, dynamic>.from(fallback));
+        } catch (_) {
+          // Ignore and try the database fallback lookup below.
         }
       }
 
-      if (booking == null) {
-        throw Exception('Booking was created but response payload was missing.');
+      final fallback = await _supabase
+          .from('bookings')
+          .select()
+          .eq('user_id', userId)
+          .eq('slot_id', slotId)
+          .eq('package_id', packageId)
+          .order('booking_date', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (fallback != null) {
+        return BookingModel.fromMap(Map<String, dynamic>.from(fallback));
       }
 
-      final qrCodeData = 'QR-${const Uuid().v4()}';
-      await _supabase
-          .from('bookings')
-          .update({'qr_code_data': qrCodeData})
-          .eq('id', booking.id);
-
-      return BookingModel(
-        id: booking.id,
-        userId: booking.userId,
-        packageId: booking.packageId,
-        slotId: booking.slotId,
-        bookingDate: booking.bookingDate,
-        status: booking.status,
-        totalPaid: booking.totalPaid,
-        receiptUrl: booking.receiptUrl,
-        qrCodeData: qrCodeData,
-        sessionNumber: booking.sessionNumber,
-      );
+      throw Exception('Booking was created but response payload was missing.');
     } catch (e) {
       throw Exception('Failed to create booking: $e');
     }
@@ -341,76 +271,31 @@ class BookingRepository {
 
   Future<List<BookingModel>> fetchUserBookings(String userId) async {
     try {
-      // Use joined query to fetch booking and slot details in one go
       final response = await _supabase
           .from('bookings')
-          .select('*, gym_slots(class_name, location, coach_name, start_time)')
+          .select()
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
-      final bookings = <BookingModel>[];
-      final rows = response as List;
-
-      for (final data in rows) {
-        final slotData = data['gym_slots'];
-        
-        var qrCodeData = data['qr_code_data']?.toString();
-        if (qrCodeData == null || qrCodeData.isEmpty) {
-          qrCodeData = 'QR-${const Uuid().v4()}';
-          try {
-            await _supabase
-                .from('bookings')
-                .update({'qr_code_data': qrCodeData})
-                .eq('id', data['id'])
-                .eq('user_id', userId);
-          } catch (_) {}
-        }
-
-        String? slotLocation;
-        String? slotCoach;
-        DateTime? slotStartTime;
-
-        if (slotData != null) {
-          if (slotData is Map) {
-            slotLocation = slotData['location']?.toString();
-            slotCoach = slotData['coach_name']?.toString();
-            if (slotData['start_time'] != null) {
-              slotStartTime = DateTime.tryParse(slotData['start_time'].toString())?.toLocal();
-            }
-          } else if (slotData is List && slotData.isNotEmpty) {
-            final firstSlot = slotData.first as Map;
-            slotLocation = firstSlot['location']?.toString();
-            slotCoach = firstSlot['coach_name']?.toString();
-            if (firstSlot['start_time'] != null) {
-              slotStartTime = DateTime.tryParse(firstSlot['start_time'].toString())?.toLocal();
-            }
-          }
-        }
-
-        final booking = BookingModel(
-          id: data['id']?.toString() ?? '',
-          userId: data['user_id']?.toString() ?? '',
-          packageId: data['package_id']?.toString() ?? '',
-          slotId: data['slot_id']?.toString(),
-          slotLocation: slotLocation,
-          slotCoach: slotCoach,
-          bookingDate: slotStartTime ?? DateTime.tryParse(data['booking_date']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
-          status: BookingStatus.values.byName(data['status']?.toString() ?? 'upcoming'),
-          totalPaid: double.tryParse(data['total_paid']?.toString() ?? '0') ?? 0,
-          receiptUrl: data['receipt_url']?.toString(),
-          qrCodeData: qrCodeData,
-          sessionNumber: int.tryParse(data['session_number']?.toString() ?? '1') ?? 1,
+      return (response as List).map((data) {
+        final booking = BookingModel.fromMap(data);
+        return BookingModel(
+          id: booking.id,
+          userId: booking.userId,
+          packageId: booking.packageId,
+          slotId: booking.slotId,
+          bookingDate: booking.bookingDate.toLocal(),
+          status: booking.status,
+          totalPaid: booking.totalPaid,
+          receiptUrl: booking.receiptUrl,
+          qrCodeData: booking.qrCodeData,
+          sessionNumber: booking.sessionNumber,
         );
-        bookings.add(booking);
-      }
-
-      return bookings;
+      }).toList();
     } catch (e) {
-      // Re-throw so ViewModel can handle offline fallback
-      rethrow;
+      throw Exception('Failed to fetch user bookings: $e');
     }
   }
-
 
   Future<void> cancelBookingWithRefund({
     required String bookingId,
@@ -455,41 +340,6 @@ class BookingRepository {
       }
     } catch (e) {
       throw Exception('Failed to reschedule booking: $e');
-    }
-  }
-
-  Future<void> updateBookingStatus(String bookingId, String status, String userId) async {
-    try {
-      await _supabase
-          .from('bookings')
-          .update({'status': status})
-          .eq('id', bookingId)
-          .eq('user_id', userId);
-
-      try {
-        await LocalBookingDatabase.updateCachedBookingStatus(bookingId, status);
-      } catch (_) {}
-    } catch (e) {
-      throw Exception('Failed to update booking status: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>?> getSlotDetails(String slotId) async {
-    try {
-      final response = await _supabase
-          .from('gym_slots')
-          .select('class_name, location, coach_name')
-          .eq('id', slotId)
-          .single()
-          .maybeSingle();
-      if (response == null) return null;
-      return Map<String, dynamic>.from({
-        'location': response['location'],
-        'coachName': response['coach_name'],
-        'className': response['class_name'],
-      });
-    } catch (_) {
-      return null;
     }
   }
 }

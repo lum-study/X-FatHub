@@ -228,28 +228,33 @@ class _HydrationLogScreenState extends State<HydrationLogScreen> {
           confirmDismiss: (direction) async {
             return true; // Allow swipe, we'll handle undo
           },
-          onDismissed: (direction) {
+          onDismissed: (direction) async {
             if (entry.id != null) {
-              // Delete entry (already removed from UI by viewmodel)
-              viewModel.deleteEntry(entry.id!).then((deletedEntry) {
-                if (mounted && deletedEntry != null) {
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: const Text('Entry deleted'),
-                      duration: const Duration(seconds: 3),
-                      behavior: SnackBarBehavior.floating,
-                      dismissDirection: DismissDirection.horizontal,
-                      action: SnackBarAction(
-                        label: 'Undo',
-                        onPressed: () {
-                          viewModel.undoDeleteEntry(deletedEntry);
-                        },
-                      ),
+              final deletedEntry = await viewModel.deleteEntry(entry.id!);
+
+              if (mounted && deletedEntry != null) {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: const Text('Entry deleted'),
+                    duration: const Duration(seconds: 3),
+                    behavior: SnackBarBehavior.floating,
+                    dismissDirection: DismissDirection.horizontal,
+                    action: SnackBarAction(
+                      label: 'Undo',
+                      onPressed: () {
+                        viewModel.undoDeleteEntry(deletedEntry);
+                      },
                     ),
-                  );
-                }
-              });
+                  ),
+                );
+                // Auto-dismiss after 3 seconds if not already dismissed
+                Future.delayed(const Duration(seconds: 3), () {
+                  if (mounted) {
+                    scaffoldMessenger.hideCurrentSnackBar();
+                  }
+                });
+              }
             }
           },
           child: GestureDetector(
