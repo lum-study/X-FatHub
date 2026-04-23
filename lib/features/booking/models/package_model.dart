@@ -11,7 +11,6 @@ class PackageModel {
   final List<String> benefits;
   final List<String> rules;
   final List<String> gymNames;
-  final String category;
 
   PackageModel({
     required this.id,
@@ -26,7 +25,6 @@ class PackageModel {
     this.benefits = const [],
     this.rules = const [],
     this.gymNames = const [],
-    this.category = 'Gym',
   });
 
   factory PackageModel.fromMap(Map<String, dynamic> map) {
@@ -44,7 +42,6 @@ class PackageModel {
       benefits: _parseStringList(map['benefits']),
       rules: _parseStringList(map['rules']),
       gymNames: _parseStringList(map['gym_names']),
-      category: map['category']?.toString() ?? 'Gym',
     );
   }
 
@@ -86,7 +83,6 @@ class PackageModel {
       'benefits': benefits,
       'rules': rules,
       'gym_names': gymNames,
-      'category': category,
     };
   }
 }

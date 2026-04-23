@@ -2,6 +2,8 @@ import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/env_config.dart';
+import 'supabase_service.dart';
 import 'pedometer_service.dart';
 import '../../features/activity_health/repositories/step_tracker_repository.dart';
 
@@ -17,7 +19,8 @@ class WorkManagerService {
   static Future<void> initWorkManager() async {
     try {
       // Initialize WorkManager with callback function
-      await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+      // Set isInDebugMode to true during development to see logs and notifications
+      await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
 
       print('✓ WorkManager initialized successfully');
 
@@ -29,15 +32,22 @@ class WorkManagerService {
   }
 
   /// Schedule daily final steps save task: Every day at 11:55 PM to record final step count
-  /// Uses periodic task to ensure it runs reliably every day without manual rescheduling
-  /// This ensures a final daily record is saved to Supabase even when app is not open
   static Future<void> scheduleDailyFinalStepsSaveTask() async {
     try {
-      // Calculate delay to next 11:55 PM
+      final prefs = await SharedPreferences.getInstance();
+      final lastScheduledDate = prefs.getString('last_wm_schedule_date') ?? '';
+      final todayStr = DateTime.now().toIso8601String().split('T')[0];
+
+      // Only reschedule if not done today to prevent task reset
+      if (lastScheduledDate == todayStr) {
+        print('ℹ️ Daily sync task already scheduled for today, skipping re-registration');
+        return;
+      }
+
+      // Calculate delay to next 11:55 PM (23:55)
       final now = DateTime.now();
       final targetTime = DateTime(now.year, now.month, now.day, 23, 55);
 
-      // If 11:55 PM has already passed today, target tomorrow's 11:55 PM
       final nextRun = targetTime.isBefore(now)
           ? targetTime.add(const Duration(days: 1))
           : targetTime;
@@ -49,11 +59,12 @@ class WorkManagerService {
         'daily_final_steps_save',
         frequency: const Duration(hours: 24),
         initialDelay: delayUntilNextRun,
-        // ← First run at 11:55 PM
         constraints: Constraints(networkType: NetworkType.connected),
         backoffPolicy: BackoffPolicy.exponential,
         backoffPolicyDelay: const Duration(minutes: 5),
       );
+
+      await prefs.setString('last_wm_schedule_date', todayStr);
 
       print(
         '✓ Daily task scheduled for 11:55 PM (first run in ${delayUntilNextRun.inHours}h ${delayUntilNextRun.inMinutes % 60}m)',
@@ -73,41 +84,13 @@ class WorkManagerService {
     }
   }
 
-  /// Execute quick sync on app launch
-  /// Gets current step count from pedometer and ensures it's synced to Supabase
-  /// This runs BEFORE the UI is displayed to ensure profile has fresh step data
+  /// One-time sync triggered on app launch
   static Future<void> executeQuickSyncOnAppLaunch() async {
+    print('🔄 [LAUNCH SYNC] Triggering quick step sync to Supabase...');
     try {
-      print('🚀 App launch detected - executing quick sync...');
-
-      // Get today's current steps from pedometer
-      await PedometerService.initPedometer();
-
-      // Wait a bit for pedometer to receive fresh sensor data
-      // This ensures we get accurate step count instead of stale data
-      await Future.delayed(const Duration(seconds: 1));
-
-      final steps = await PedometerService.getTodaySteps();
-      print('✓ [QUICK SYNC] Got current steps ($steps) from pedometer');
-
-      // Try to sync to Supabase if network available via repository
-      final connectivity = Connectivity();
-      final connectivityResult = await connectivity.checkConnectivity();
-
-      if (connectivityResult != ConnectivityResult.none) {
-        print('📡 Network available - syncing to Supabase on app launch...');
-        try {
-          final repository = StepTrackerRepository();
-          await repository.saveTodaySteps(steps);
-          print('✓ [QUICK SYNC] Synced steps to Supabase');
-        } catch (e) {
-          print('📡 Sync to Supabase deferred (will retry later): $e');
-        }
-      } else {
-        print('📡 No network on app launch - will retry later');
-      }
+      await _executeDailyFinalStepsSaveTask();
     } catch (e) {
-      print('✗ Error in quick sync on app launch: $e');
+      print('⚠️ [LAUNCH SYNC] Background sync failed or skipped: $e');
     }
   }
 }
@@ -116,19 +99,18 @@ class WorkManagerService {
 /// Must be a top-level function called from main()
 @pragma('vm:entry-point')
 void callbackDispatcher() {
-  print('🔴 [DEBUG] callbackDispatcher called!');
   Workmanager().executeTask((taskName, inputData) async {
     try {
-      print('\n════════════════════════════════════════════════');
-      print('🚀 [CALLBACK DISPATCHER] WorkManager task initiated');
-      print('   Task Name: $taskName');
-      print('   Expected: daily_final_steps_save');
-      print('   Time: ${DateTime.now()}');
-      print('════════════════════════════════════════════════\n');
+      // IMPORTANT: Initialize background isolate services
+      // Background isolates don't share memory with the main app isolate
+      await EnvConfig.init();
+      await SupabaseService.init();
+      
+      print('\n🚀 [WORKMANAGER] Executing task: $taskName');
 
       switch (taskName) {
         case 'daily_final_steps_save':
-        case 'local_save_steps': // Handle legacy task name
+        case 'local_save_steps':
           await _executeDailyFinalStepsSaveTask();
           break;
         default:
@@ -136,100 +118,50 @@ void callbackDispatcher() {
           return Future.value(false);
       }
 
-      print('\n════════════════════════════════════════════════');
-      print('✓ [CALLBACK DISPATCHER] WorkManager task completed: $taskName');
-      print('════════════════════════════════════════════════\n');
       return Future.value(true);
     } catch (e) {
-      print('\n════════════════════════════════════════════════');
-      print('❌ [CALLBACK DISPATCHER ERROR] WorkManager task failed');
-      print('   Task: $taskName');
-      print('   Error: $e');
-      print('════════════════════════════════════════════════\n');
+      print('❌ [WORKMANAGER ERROR] Task failed in background isolate: $e');
       return Future.value(false);
     }
   });
 }
 
 /// Execute daily final steps save task: Sync today's final step count to Supabase
-/// Runs periodically every 24 hours
 Future<void> _executeDailyFinalStepsSaveTask() async {
   try {
-    final now = DateTime.now();
-    final hour = now.hour;
-    final minute = now.minute;
-    final timeStr =
-        '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-
-    print('\n════════════════════════════════════════════════');
-    print('🔔 [CALLBACK FIRED] Daily step sync task executed at $timeStr');
-    print('════════════════════════════════════════════════\n');
-
-    final prefs = await SharedPreferences.getInstance();
-
-    // 🌐 NETWORK CHECK - Trace point 2
-    print('🌐 Checking network connectivity...');
-    final connectivity = Connectivity();
-    final connectivityResult = await connectivity.checkConnectivity();
-
+    // 🌐 NETWORK CHECK
+    final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
-      print('❌ [NETWORK ERROR] No network available - WorkManager will retry');
-      throw Exception('No network available - WorkManager will retry');
-    }
-    print('✓ Network connected\n');
-
-    // 🔐 AUTH CHECK - Trace point 3
-    print('🔐 Checking authentication...');
-    final client = Supabase.instance.client;
-    final userId = client.auth.currentUser?.id;
-
-    if (userId == null) {
-      print('❌ [AUTH ERROR] No authenticated user');
-      throw Exception('No authenticated user for step sync');
-    }
-    print('✓ User authenticated: $userId\n');
-
-    // 📊 GET STEP COUNT - Trace point 4
-    print('📊 Initializing pedometer...');
-    await PedometerService.initPedometer();
-
-    print('📊 Fetching step count...');
-    final finalSteps = await PedometerService.getTodaySteps();
-    print('✓ Step count retrieved: $finalSteps steps\n');
-
-    if (finalSteps <= 0) {
-      print('ℹ️ No steps recorded for the day - marking as synced');
+      print('❌ [SYNC] No network - skipping sync');
       return;
     }
 
-    // 📤 SUPABASE SYNC - Trace point 5
-    print('📤 Syncing to Supabase...');
-    try {
-      final repository = StepTrackerRepository();
-      await repository.saveTodaySteps(finalSteps);
-
-      // ✅ SUCCESS NOTIFICATION
-      print('\n════════════════════════════════════════════════');
-      print(
-        '✅ [SYNC SUCCESS] Successfully saved $finalSteps steps to Supabase',
-      );
-      print('   Time: $timeStr');
-      print('════════════════════════════════════════════════\n');
-
-      // Sync completed successfully
-    } catch (e) {
-      print('\n════════════════════════════════════════════════');
-      print('❌ [SUPABASE ERROR] Failed to save steps to Supabase');
-      print('   Error: $e');
-      print('   WorkManager will retry (up to 2 times)');
-      print('════════════════════════════════════════════════\n');
-      rethrow; // Let WorkManager retry
+    // 🔐 AUTH CHECK
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
+    if (userId == null) {
+      print('❌ [SYNC] No authenticated user');
+      return;
     }
+
+    // 📊 GET STEP COUNT
+    await PedometerService.initPedometer();
+    final finalSteps = await PedometerService.getTodayStepsCalculated(
+      refreshFromSensor: true,
+    );
+
+    if (finalSteps <= 0) {
+      print('ℹ️ [SYNC] No steps recorded for today');
+      return;
+    }
+
+    // 📤 SUPABASE SYNC
+    final repository = StepTrackerRepository();
+    await repository.saveTodaySteps(finalSteps);
+    print('✅ [SYNC SUCCESS] Saved $finalSteps steps for user: $userId');
+    
   } catch (e) {
-    print('\n════════════════════════════════════════════════');
-    print('❌ [JOB FAILED] Error in daily final steps save task');
-    print('   Error: $e');
-    print('════════════════════════════════════════════════\n');
-    rethrow; // Let WorkManager handle with retry logic
+    print('❌ [SYNC ERROR] $e');
+    rethrow;
   }
 }

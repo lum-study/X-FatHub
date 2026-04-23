@@ -109,10 +109,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () {
+                Navigator.pop(context);
                 currentPasswordController.dispose();
                 newPasswordController.dispose();
                 confirmPasswordController.dispose();
-                Navigator.pop(context);
               },
               child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
@@ -154,6 +154,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         if (mounted) {
                           Navigator.pop(context);
+                          currentPasswordController.dispose();
+                          newPasswordController.dispose();
+                          confirmPasswordController.dispose();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Password changed successfully!'),
@@ -204,29 +207,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                'Effective date: April 23, 2026',
+                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+              ),
+              const SizedBox(height: 12),
               _buildPrivacySection(
-                'Data Collection',
-                'We collect personal information including name, email, age, weight, and health-related data to provide and improve our services.',
+                'Information We Collect',
+                'We collect profile information you provide, including name, email, bio, birthdate, gender, height, and weight records.',
               ),
               _buildPrivacySection(
-                'Data Usage',
-                'Your data is used to track health metrics, calculate progress, and provide personalized fitness recommendations.',
+                'How We Use Information',
+                'Your data is used to provide tracking features, calculate progress, personalize your dashboard, and improve app reliability.',
               ),
               _buildPrivacySection(
-                'Data Security',
-                'We use industry-standard encryption and security measures to protect your personal information.',
+                'Storage and Security',
+                'Data is stored in secure cloud services with access controls. We apply technical safeguards, but no service is absolutely risk-free.',
               ),
               _buildPrivacySection(
                 'Data Sharing',
-                'Your data is never shared with third parties without your explicit consent.',
+                'We do not sell your personal data. We share data only with infrastructure providers required to operate the app.',
               ),
               _buildPrivacySection(
-                'Data Retention',
-                'Your data is retained as long as your account is active. Upon account deletion, all data is permanently removed.',
+                'Your Choices',
+                'You can update your profile, update weight records, or request account deletion from inside the app settings.',
               ),
               _buildPrivacySection(
-                'Your Rights',
-                'You have the right to access, modify, or delete your personal data at any time.',
+                'Contact',
+                'For privacy questions, contact support at support@xfithub.app.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTermsOfServiceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Terms of Service',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Effective date: April 23, 2026',
+                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              _buildPrivacySection(
+                'Use of Service',
+                'You agree to use this app for lawful personal fitness and wellness tracking only.',
+              ),
+              _buildPrivacySection(
+                'Account Responsibility',
+                'You are responsible for keeping your login credentials secure and for activity under your account.',
+              ),
+              _buildPrivacySection(
+                'Health Disclaimer',
+                'This app provides informational tracking only and does not replace medical advice, diagnosis, or treatment.',
+              ),
+              _buildPrivacySection(
+                'Content and Conduct',
+                'You must not upload harmful, abusive, or illegal content through profile fields or community features.',
+              ),
+              _buildPrivacySection(
+                'Termination',
+                'We may suspend access for misuse. You may stop using the service at any time and delete your account.',
+              ),
+              _buildPrivacySection(
+                'Changes',
+                'We may update these terms and will publish the latest version in the app settings page.',
               ),
             ],
           ),
@@ -419,9 +483,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _buildLegalTile(
-              title: 'Terms of Service',
-              icon: Icons.description_outlined,
+            GestureDetector(
+              onTap: _showTermsOfServiceDialog,
+              child: _buildLegalTile(
+                title: 'Terms of Service',
+                icon: Icons.description_outlined,
+              ),
             ),
             const SizedBox(height: 32),
 

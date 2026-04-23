@@ -1,29 +1,11 @@
 import 'package:flutter/material.dart';
-import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import '../repository/community_repository.dart';
 
-enum CommunitySortMode {
-  time,
-  likes,
-}
-
-enum CommunitySortOrder {
-  descending,
-  ascending,
-}
-
 class CommunityProvider extends ChangeNotifier {
   final CommunityRepository _repository = CommunityRepository();
-  int _scrollToTopToken = 0;
 
   String? get currentUserId => _repository.currentUserId;
-  int get scrollToTopToken => _scrollToTopToken;
-
-  void requestScrollToTop() {
-    _scrollToTopToken++;
-    notifyListeners();
-  }
 
   Future<List<PostModel>> fetchPosts(String selectedFilter) async {
     return await _repository.fetchPosts(selectedFilter);
@@ -48,59 +30,9 @@ class CommunityProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createPost(String content, {
-    List<String>? mediaUrls, 
-    String? locationName, 
-    double? locationLat, 
-    double? locationLng,
-    String? activityId,
-    String? activityType,
-    String? activityTitle,
-    int? activityDurationSeconds,
-    double? activityDistance,
-  }) async {
+  Future<void> createPost(String content, {String? mediaUrl, String? category}) async {
     await _repository.createPost(
-      content,
-      mediaUrls: mediaUrls,
-      locationName: locationName,
-      locationLat: locationLat,
-      locationLng: locationLng,
-      activityId: activityId,
-      activityType: activityType,
-      activityTitle: activityTitle,
-      activityDurationSeconds: activityDurationSeconds,
-      activityDistance: activityDistance,
-    );
-    notifyListeners();
-  }
-
-  Future<void> deletePost(String postId) async {
-    await _repository.deletePost(postId);
-    notifyListeners();
-  }
-
-  Future<void> updatePost(PostModel post) async {
-    await _repository.updatePost(post);
-    notifyListeners();
-  }
-
-  Future<bool> isFollowing(String targetUserId) async {
-    return await _repository.isFollowing(targetUserId);
-  }
-
-  Future<void> toggleFollow(String targetUserId, bool isCurrentlyFollowing) async {
-    await _repository.toggleFollow(targetUserId, isCurrentlyFollowing);
-    notifyListeners(); // Could also let particular components rebuild themselves
-  }
-
-  Future<List<CommentModel>> getComments(String postId) async {
-    return await _repository.getComments(postId);
-  }
-
-  Future<void> addComment(String postId, String content) async {
-    final userId = currentUserId;
-    if (userId == null) return;
-    await _repository.addComment(postId, userId, content);
+        content, mediaUrl: mediaUrl, category: category);
     notifyListeners();
   }
 }
