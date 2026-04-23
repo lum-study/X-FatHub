@@ -179,6 +179,25 @@ CREATE POLICY "Users can view their own bookings"
   FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create bookings" ON bookings;
+CREATE POLICY "Users can create bookings"
+  ON bookings
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own bookings" ON bookings;
+CREATE POLICY "Users can update their own bookings"
+  ON bookings
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own bookings" ON bookings;
+CREATE POLICY "Users can delete their own bookings"
+  ON bookings
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- Policies for packages
 DROP POLICY IF EXISTS "Anyone can view packages" ON packages;
 CREATE POLICY "Anyone can view packages"
@@ -206,6 +225,14 @@ CREATE POLICY "Anyone can view gym slots"
   ON gym_slots
   FOR SELECT
   USING (true);
+
+-- Policies for stripe_webhook_events (service role only)
+DROP POLICY IF EXISTS "Service role can manage webhook events" ON stripe_webhook_events;
+CREATE POLICY "Service role can manage webhook events"
+  ON stripe_webhook_events
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 DROP FUNCTION IF EXISTS get_user_credit_balance(UUID, UUID);
 CREATE OR REPLACE FUNCTION get_user_credit_balance(
@@ -572,3 +599,4 @@ GRANT SELECT ON packages TO authenticated;
 GRANT SELECT ON gyms TO authenticated;
 GRANT SELECT ON package_gyms TO authenticated;
 GRANT SELECT ON gym_slots TO authenticated;
+GRANT ALL ON stripe_webhook_events TO service_role;
