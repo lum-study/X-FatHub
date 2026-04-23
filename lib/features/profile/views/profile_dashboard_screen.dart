@@ -34,13 +34,23 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     final profile = profileViewModel.profile;
 
     return Scaffold(
-      backgroundColor: Colors.black87,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black87,
+        backgroundColor: Colors.black,
         elevation: 0,
-        title: const Text(
-          'Health Dashboard',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.person, color: Colors.orange),
+            SizedBox(width: 8),
+            Text(
+              'Profile',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
@@ -914,4 +924,3 @@ class _CircleProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-
