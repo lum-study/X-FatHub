@@ -23,9 +23,6 @@ Future<void> main() async {
   // Initialize WorkManager for reliable scheduled background tasks
   await WorkManagerService.initWorkManager();
   
-  // Execute quick sync on app launch
-  await WorkManagerService.executeQuickSyncOnAppLaunch();
-  
   // Request permissions early (Activity recognition for step tracking)
   await PermissionService.requestStepTrackerPermissions();
 
@@ -79,7 +76,7 @@ class _MyAppState extends State<MyApp> {
           scaffoldBackgroundColor: Colors.black,
 
           appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.white,   // AppBar background
+            backgroundColor: Colors.black,   // AppBar background
             foregroundColor: Colors.orange,   // AppBar text & icon color
           ),
 

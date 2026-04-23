@@ -38,8 +38,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               Tab(text: 'History'),
             ],
             indicatorColor: Colors.black,
-            labelColor: Colors.black,
-            unselectedLabelColor: Colors.black,
+            labelColor: Colors.orange,
+            unselectedLabelColor: Colors.white,
           ),
         ),
         body: SafeArea(
