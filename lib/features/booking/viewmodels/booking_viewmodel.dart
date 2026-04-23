@@ -4,6 +4,7 @@ import '../models/slot_model.dart';
 import '../models/booking_model.dart';
 import '../models/gym_model.dart';
 import '../repositories/booking_repository.dart';
+import '../../../core/database/local_booking_db.dart';
 import 'dart:async';
 
 enum PaymentMethodOption { card, applePay, eWallet, fpx }
@@ -28,6 +29,7 @@ class BookingViewModel extends ChangeNotifier {
   List<PackageModel> _packages = [];
   List<SlotModel> _slots = [];
   List<GymModel> _selectedPackageGyms = [];
+  Set<String> _selectedPackageGymIds = <String>{};
   List<BookingModel> _userBookings = [];
 
   bool _isLoading = false;
@@ -37,6 +39,8 @@ class BookingViewModel extends ChangeNotifier {
   String? _latestQrCodeData;
   final Map<String, int> _sessionsRemainingByPackage = {};
   final Map<String, DateTime> _expiryByPackage = {};
+  final Map<String, String> _cachedPackageNameByBookingId = {};
+  bool _isUsingLocalBookingCache = false;
 
   final DateTime _bookingWindowStartDate = _localToday();
   PackageModel? _selectedPackage;
@@ -66,6 +70,29 @@ class BookingViewModel extends ChangeNotifier {
       Map.unmodifiable(_sessionsRemainingByPackage);
   Map<String, DateTime> get expiryByPackage =>
       Map.unmodifiable(_expiryByPackage);
+  bool get isUsingLocalBookingCache => _isUsingLocalBookingCache;
+  Set<String> get selectedPackageGymIds =>
+      Set<String>.unmodifiable(_selectedPackageGymIds);
+  List<String> get allowedClassNames =>
+      _selectedPackage?.allowedClassNames ?? [];
+  String? packageNameForBooking(String bookingId) =>
+      _cachedPackageNameByBookingId[bookingId];
+
+  SlotModel? slotById(String slotId) {
+    try {
+      return _slots.firstWhere((s) => s.id == slotId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int sessionsRemainingForPackage(String packageId) {
+    return _sessionsRemainingByPackage[packageId] ?? 0;
+  }
+
+  DateTime? expiryForPackage(String packageId) {
+    return _expiryByPackage[packageId];
+  }
 
   List<PackageModel> get activePackages {
     final list = _packages
@@ -118,25 +145,35 @@ class BookingViewModel extends ChangeNotifier {
   }
 
   bool _isSlotAllowedForPackage(PackageModel package, SlotModel slot) {
-    final allowedGymIds = _selectedPackageGyms
+    final normalizedSlotClass = slot.className.trim().toLowerCase();
+    if (normalizedSlotClass.isEmpty) {
+      return false;
+    }
+
+    if (package.allowedClassNames.isNotEmpty) {
+      final matchesClass = package.allowedClassNames.any(
+        (allowed) => allowed.trim().toLowerCase() == normalizedSlotClass,
+      );
+      if (!matchesClass) {
+        return false;
+      }
+    }
+
+    final gymIdsFromModels = _selectedPackageGyms
         .map((gym) => gym.id)
         .where((id) => id.isNotEmpty)
         .toSet();
 
-    // Package-to-gym mapping is mandatory for booking availability.
-    if (allowedGymIds.isEmpty) {
+    final allowedGymIds = <String>{
+      ...gymIdsFromModels,
+      ..._selectedPackageGymIds,
+    };
+
+    if (allowedGymIds.isNotEmpty && !allowedGymIds.contains(slot.gymId)) {
       return false;
     }
 
-    if (!allowedGymIds.contains(slot.gymId)) {
-      return false;
-    }
-
-    if (package.allowedClassNames.isEmpty) {
-      return true;
-    }
-
-    return package.allowedClassNames.contains(slot.className);
+    return true;
   }
 
   List<SlotModel> _filterSlotsForSelectedPackage(List<SlotModel> slots) {
@@ -179,6 +216,7 @@ class BookingViewModel extends ChangeNotifier {
     _selectedPackage = package;
     _selectedSlot = null;
     _selectedPackageGyms = [];
+    _selectedPackageGymIds = <String>{};
     _errorMessage = null;
     notifyListeners();
   }
@@ -187,6 +225,7 @@ class BookingViewModel extends ChangeNotifier {
     final package = _selectedPackage;
     if (package == null) {
       _selectedPackageGyms = [];
+      _selectedPackageGymIds = <String>{};
       notifyListeners();
       return;
     }
@@ -197,10 +236,14 @@ class BookingViewModel extends ChangeNotifier {
 
     try {
       _selectedPackageGyms = await _repository.fetchPackageGyms(package.id);
+      _selectedPackageGymIds = (await _repository.fetchPackageGymIds(
+        package.id,
+      )).toSet();
       _errorMessage = null;
     } catch (e) {
       _selectedPackageGyms = [];
-      _errorMessage = e.toString();
+      _selectedPackageGymIds = <String>{};
+      _errorMessage = 'Package details error: ${e.toString()}';
     } finally {
       if (setLoading) {
         _setLoading(false);
@@ -228,6 +271,8 @@ class BookingViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    // Ensure package details are loaded before fetching slots.
+    await loadSelectedPackageDetails(setLoading: false);
     await fetchSlotsForDate(_selectedDate);
   }
 
@@ -263,6 +308,7 @@ class BookingViewModel extends ChangeNotifier {
   }
 
   Future<void> refreshBookSession() async {
+    await loadSelectedPackageDetails(setLoading: false);
     await fetchSlotsForDate(_selectedDate);
   }
 
@@ -297,16 +343,16 @@ class BookingViewModel extends ChangeNotifier {
     try {
       final fetchedSlots = await _repository.fetchSlotsByDate(date);
       var filteredSlots = _filterSlotsForSelectedPackage(fetchedSlots);
-      
+
       if (_isToday(date)) {
         filteredSlots = _filterPastSlots(filteredSlots);
       }
-      
+
       _slots = filteredSlots;
       _errorMessage = null;
       _syncSelectedSlotWithAvailableSlots();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = 'Slot fetch error: ${e.toString()}';
     } finally {
       if (setLoading) {
         _setLoading(false);
@@ -316,7 +362,9 @@ class BookingViewModel extends ChangeNotifier {
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   List<SlotModel> _filterPastSlots(List<SlotModel> slots) {
@@ -340,7 +388,7 @@ class BookingViewModel extends ChangeNotifier {
     _selectedSlot = match.first;
   }
 
-  Future<void> fetchUserBookings(
+  Future<bool> fetchUserBookings(
     String userId, {
     bool setLoading = true,
   }) async {
@@ -348,10 +396,18 @@ class BookingViewModel extends ChangeNotifier {
       _setLoading(true);
     }
     try {
-      _userBookings = await _repository.fetchUserBookings(userId);
+      final bookings = await _repository.fetchUserBookings(userId);
+      _userBookings = bookings;
       _errorMessage = null;
+      _isUsingLocalBookingCache = false;
+      await _syncAllBookingsToLocalCache(userId);
+      return bookings.isNotEmpty;
     } catch (e) {
       _errorMessage = e.toString();
+      if (_userBookings.isEmpty) {
+        await _loadBookingsFromLocalCache(userId);
+      }
+      return _userBookings.isNotEmpty;
     } finally {
       if (setLoading) {
         _setLoading(false);
@@ -443,13 +499,135 @@ class BookingViewModel extends ChangeNotifier {
       return;
     }
 
-    await fetchUserBookings(userId, setLoading: false);
-    await fetchActivePackageCredits(setLoading: false);
-    await fetchCreditBalance(
-      packageId: _selectedPackage?.id,
-      setLoading: false,
-    );
+    try {
+      // Try fetching from remote first
+      final bookings = await _repository.fetchUserBookings(userId);
+      _userBookings = bookings;
+      _isUsingLocalBookingCache = false;
+      
+      // Update local cache with fresh data
+      await _syncAllBookingsToLocalCache(userId);
+      
+      // Fetch other data if possible
+      try {
+        await fetchActivePackageCredits(setLoading: false);
+        await fetchCreditBalance(
+          packageId: _selectedPackage?.id,
+          setLoading: false,
+        );
+      } catch (_) {}
+    } catch (e) {
+      // If remote fails (e.g. offline), load from local cache
+      await _loadBookingsFromLocalCache(userId);
+    }
+
     notifyListeners();
+  }
+
+  Future<void> _syncAllBookingsToLocalCache(String userId) async {
+    try {
+      final packageNameById = {for (final p in _packages) p.id: p.name};
+
+      final rows = _userBookings
+          .map(
+            (b) => {
+              'id': b.id,
+              'user_id': b.userId,
+              'package_id': b.packageId,
+              'package_name': packageNameById[b.packageId] ?? _cachedPackageNameByBookingId[b.id] ?? '',
+              'slot_id': b.slotId,
+              'slot_location': b.slotLocation,
+              'slot_coach': b.slotCoach,
+              'booking_date': b.bookingDate.toIso8601String(),
+              'status': b.status.name,
+              'qr_code_data': b.qrCodeData,
+              'session_number': b.sessionNumber,
+              'total_paid': b.totalPaid,
+            },
+          )
+          .toList();
+
+      await LocalBookingDatabase.saveBookings(
+        userId: userId,
+        bookings: rows,
+      );
+      
+      // Also update the memory map for package names
+      for (final b in _userBookings) {
+        final name = packageNameById[b.packageId] ?? _cachedPackageNameByBookingId[b.id];
+        if (name != null) {
+          _cachedPackageNameByBookingId[b.id] = name;
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadBookingsFromLocalCache(String userId) async {
+    try {
+      final rows = await LocalBookingDatabase.getCachedBookings(userId);
+      _cachedPackageNameByBookingId.clear();
+
+      final cached = <BookingModel>[];
+      for (final row in rows) {
+        final statusRaw = row[LocalBookingDatabase.colStatus]?.toString();
+        final status = _parseBookingStatus(statusRaw);
+        final bookingDateRaw =
+            row[LocalBookingDatabase.colBookingDate]?.toString() ?? '';
+
+        final booking = BookingModel(
+          id: row[LocalBookingDatabase.colBookingId]?.toString() ?? '',
+          userId: row[LocalBookingDatabase.colUserId]?.toString() ?? userId,
+          packageId: row[LocalBookingDatabase.colPackageId]?.toString() ?? '',
+          slotId: row[LocalBookingDatabase.colSlotId]?.toString(),
+          slotLocation: row[LocalBookingDatabase.colSlotLocation]?.toString(),
+          slotCoach: row[LocalBookingDatabase.colSlotCoach]?.toString(),
+          bookingDate:
+              DateTime.tryParse(bookingDateRaw)?.toLocal() ?? DateTime.now(),
+          status: status,
+          totalPaid:
+              double.tryParse(
+                row[LocalBookingDatabase.colTotalPaid]?.toString() ?? '0',
+              ) ??
+              0,
+          qrCodeData: row[LocalBookingDatabase.colQrCodeData]?.toString(),
+          sessionNumber:
+              int.tryParse(
+                row[LocalBookingDatabase.colSessionNumber]?.toString() ?? '1',
+              ) ??
+              1,
+        );
+        cached.add(booking);
+
+        final packageName =
+            row[LocalBookingDatabase.colPackageName]?.toString() ?? '';
+        if (packageName.isNotEmpty && booking.id.isNotEmpty) {
+          _cachedPackageNameByBookingId[booking.id] = packageName;
+        }
+      }
+
+      _userBookings = cached;
+      _isUsingLocalBookingCache = cached.isNotEmpty;
+      if (_isUsingLocalBookingCache) {
+        _errorMessage =
+            'Offline mode: showing cached booking history.';
+      }
+    } catch (_) {
+      _isUsingLocalBookingCache = false;
+    }
+  }
+
+  BookingStatus _parseBookingStatus(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return BookingStatus.upcoming;
+    }
+
+    for (final status in BookingStatus.values) {
+      if (status.name == raw) {
+        return status;
+      }
+    }
+
+    return BookingStatus.upcoming;
   }
 
   Future<String> createCheckoutForSelectedPackage() async {

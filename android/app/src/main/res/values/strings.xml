@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App shortcut strings -->
+    <string name="shortcut_hydration_short">Hydration</string>
+    <string name="shortcut_hydration_long">View your hydration log</string>
+</resources>

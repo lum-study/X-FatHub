@@ -1,9 +1,14 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
 import '../../activity_health/repositories/step_tracker_repository.dart';
 import '../../activity_health/repositories/hydration_repository.dart';
+import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
+import '../../activity_health/viewmodels/hydration_viewmodel.dart';
+import '../../activity_health/viewmodels/activity_tracking_viewmodel.dart';
 import '../../../core/database/local_profile_db.dart';
 
 final _supabase = Supabase.instance.client;
@@ -15,6 +20,7 @@ class ProfileViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _weightHistory = [];
+  Completer<void>? _initCompleter;
 
   ProfileViewModel({ProfileRepository? repository}) 
       : _repository = repository ?? ProfileRepository();
@@ -29,10 +35,23 @@ class ProfileViewModel extends ChangeNotifier {
   bool get needsProfileSetup => _profile != null && !_profile!.profileCompleted;
 
   Future<void> init() async {
-    final user = _repository.currentUser;
-    if (user != null) {
-      await loadProfile(user.id);
-      await loadWeightHistory(user.id);
+    // Guard against concurrent initialization - if already initializing, wait for completion
+    if (_initCompleter != null) {
+      return _initCompleter!.future;
+    }
+    _initCompleter = Completer<void>();
+    
+    try {
+      final user = _repository.currentUser;
+      if (user != null) {
+        await _repository.ensureProfileRecord(user);
+        await loadProfile(user.id);
+        await loadWeightHistory(user.id);
+      }
+      _initCompleter?.complete();
+    } catch (e) {
+      _initCompleter?.completeError(e);
+      rethrow;
     }
   }
 
@@ -74,8 +93,6 @@ class ProfileViewModel extends ChangeNotifier {
     String? name,
     String? bio,
     int? age,
-    String? gender,
-    DateTime? birthdate,
     double? currentWeight,
     double? initialWeight,
     double? weightGoal,
@@ -89,18 +106,15 @@ class ProfileViewModel extends ChangeNotifier {
     if (user == null) return;
 
     final currentProfile = _profile ?? ProfileModel(id: user.id, email: user.email!);
-    final resolvedCurrentWeight = currentWeight ??
-        (initialWeight != null ? initialWeight : currentProfile.currentWeight);
 
     final updatedProfile = currentProfile.copyWith(
       name: name ?? currentProfile.name,
       bio: bio ?? currentProfile.bio,
       age: age ?? currentProfile.age,
-      gender: gender ?? currentProfile.gender,
-      birthdate: birthdate ?? currentProfile.birthdate,
-      currentWeight: resolvedCurrentWeight,
-      // Only update initial weight when explicitly passed in.
-      initialWeight: initialWeight ?? currentProfile.initialWeight,
+      currentWeight: currentWeight ?? currentProfile.currentWeight,
+      initialWeight: initialWeight ?? (currentProfile.initialWeight != null 
+          ? currentProfile.initialWeight 
+          : currentWeight),
       weightGoal: weightGoal ?? currentProfile.weightGoal,
       height: height ?? currentProfile.height,
       stepsGoal: stepsGoal ?? currentProfile.stepsGoal,
@@ -178,7 +192,11 @@ class ProfileViewModel extends ChangeNotifier {
   Future<void> signIn(String email, String password) async {
     _setLoading(true);
     try {
-      await _repository.signIn(email: email, password: password);
+      final authResponse = await _repository.signIn(email: email, password: password);
+      final signedInUser = authResponse.user;
+      if (signedInUser != null) {
+        await _repository.ensureProfileRecord(signedInUser);
+      }
       await init();
       _error = null;
     } catch (e) {
@@ -202,6 +220,23 @@ class ProfileViewModel extends ChangeNotifier {
     _profile = null;
     _weightHistory = [];
     notifyListeners();
+  }
+
+  /// Global signOut with provider cleanup
+  Future<void> signOutWithCleanup(
+    StepTrackerViewModel stepVM,
+    HydrationViewModel hydrationVM,
+    ActivityTrackingViewModel activityVM,
+  ) async {
+    // 1. Clear all health data from providers and reset pedometer baseline
+    await stepVM.clearData();
+    hydrationVM.clearData();
+    activityVM.clearData();
+
+    // 2. Perform repository sign out
+    await signOut();
+    
+    print('✓ Global sign out with data cleanup completed');
   }
 
   Future<void> changePassword({
@@ -261,42 +296,19 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> uploadProfilePicture(String imagePath) async {
-    if (_profile == null) {
-      throw Exception('Profile not loaded');
-    }
+    if (_profile == null) return;
     
     _setLoading(true);
     try {
       final url = await _repository.uploadProfilePicture(_profile!.id, imagePath);
       if (url != null) {
         _profile = _profile!.copyWith(profilePictureUrl: url);
-        await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
         notifyListeners();
       }
     } catch (e) {
       _error = e.toString();
-      rethrow;
     } finally {
       _setLoading(false);
-    }
-  }
-
-  Future<void> updateCurrentWeightOnly(double newWeight) async {
-    final user = _repository.currentUser;
-    if (user == null || _profile == null) {
-      throw Exception('Profile not loaded');
-    }
-
-    try {
-      await _repository.updateCurrentWeight(user.id, newWeight);
-      _profile = _profile!.copyWith(currentWeight: newWeight);
-      await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
-      _error = null;
-      notifyListeners();
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-      rethrow;
     }
   }
 }

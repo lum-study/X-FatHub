@@ -5,6 +5,7 @@ import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/views/package_detail_screen.dart';
 import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
+import 'package:xfathub/features/booking/views/checkout_screen.dart';
 import 'package:xfathub/features/booking/views/booking_history_screen.dart';
 
 class PackagesScreen extends StatefulWidget {
@@ -15,16 +16,67 @@ class PackagesScreen extends StatefulWidget {
 }
 
 class _PackagesScreenState extends State<PackagesScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedCategory = 'All';
+
   @override
   void initState() {
     super.initState();
-    // Use package-style import for the provider to match app_providers.dart
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final provider = Provider.of<BookingViewModel>(context, listen: false);
         provider.initializePackagesPage();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<PackageModel> _filterPackages(List<PackageModel> packages) {
+    return packages.where((p) {
+      final matchesSearch =
+          _searchQuery.isEmpty ||
+          p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          p.description.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesCategory =
+          _selectedCategory == 'All' ||
+          p.category.toLowerCase() == _selectedCategory.toLowerCase();
+      return matchesSearch && matchesCategory;
+    }).toList();
+  }
+
+  Color _getBadgeColor(String? badge) {
+    switch (badge?.toLowerCase()) {
+      case 'popular':
+        return const Color(0xFFFFA500);
+      case 'starter':
+        return const Color(0xFF2196F3);
+      case 'best value':
+      case 'bestvalue':
+        return const Color(0xFF4CAF50);
+      default:
+        return const Color(0xFFFFA500);
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'gym':
+        return const Color(0xFF2196F3);
+      case 'yoga':
+        return const Color(0xFF9C27B0);
+      case 'hiit':
+        return const Color(0xFFF44336);
+      case 'swim':
+        return const Color(0xFF00BCD4);
+      default:
+        return const Color(0xFF888888);
+    }
   }
 
   void _openPackageDetail(
@@ -51,6 +103,18 @@ class _PackagesScreenState extends State<PackagesScreen> {
     );
   }
 
+  void _openPurchaseFlow(
+    BuildContext context,
+    BookingViewModel provider,
+    PackageModel package,
+  ) {
+    provider.selectPackage(package);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CheckoutScreen(package: package)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,7 +127,6 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 child: CircularProgressIndicator(color: Color(0xFFFFA500)),
               );
             }
-
             if (provider.errorMessage != null && provider.packages.isEmpty) {
               return Center(
                 child: Padding(
@@ -72,32 +135,63 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
-                        Icons.error_outline,
+                        Icons.wifi_off,
                         color: Color(0xFFFFA500),
                         size: 36,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        provider.errorMessage!,
+                        'You are offline',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white70),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Only can view booking history from cache.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        'If the database is empty, run the booking seed SQL file.',
+                        'Connect to the internet to browse packages.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BookingHistoryScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.history),
+                        label: const Text('My Bookings'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFA500),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               );
             }
-
             return RefreshIndicator(
-              onRefresh: () async {
-                await provider.refreshPackagesPage();
-              },
+              onRefresh: () async => provider.refreshPackagesPage(),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -112,65 +206,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     const SizedBox(height: 14),
                     _buildCategoryPills(),
                     const SizedBox(height: 14),
-                    if (provider.activePackages.isNotEmpty) ...[
-                      _buildSectionTitle(
-                        Icons.stars_rounded,
-                        "Active Packages",
-                      ),
-                      const SizedBox(height: 8),
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.activePackages.length,
-                        separatorBuilder: (context, _) =>
-                            const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final pkg = provider.activePackages[index];
-                          final credits =
-                              provider.sessionsRemainingByPackage[pkg.id] ?? 0;
-                          final expiry = provider.expiryByPackage[pkg.id];
-                          return _buildActivePackageCard(
-                            package: pkg,
-                            credits: credits,
-                            expiry: expiry,
-                            onBookTap: () =>
-                                _openBookSlot(context, provider, pkg),
-                            onDetailsTap: () =>
-                                _openPackageDetail(context, provider, pkg),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-
-                    _buildSectionTitle(Icons.layers, "Buy Packages"),
-                    const SizedBox(height: 8),
-
-                    if (provider.availablePackages.isEmpty &&
-                        !provider.isLoading)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text(
-                          "No additional packages to buy right now.",
-                          style: TextStyle(color: Colors.white54),
-                        ),
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.availablePackages.length,
-                        separatorBuilder: (context, _) =>
-                            const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final pkg = provider.availablePackages[index];
-                          return _buildPackageCard(
-                            package: pkg,
-                            onDetailsTap: () =>
-                                _openPackageDetail(context, provider, pkg),
-                          );
-                        },
-                      ),
+                    ..._buildPackagesList(provider),
                   ],
                 ),
               ),
@@ -181,13 +217,72 @@ class _PackagesScreenState extends State<PackagesScreen> {
     );
   }
 
+  List<Widget> _buildPackagesList(BookingViewModel provider) {
+    final widgets = <Widget>[];
+    final activeFiltered = _filterPackages(provider.activePackages);
+    final availableFiltered = _filterPackages(provider.availablePackages);
+
+    if (activeFiltered.isNotEmpty) {
+      widgets.add(_buildSectionTitle(Icons.stars_rounded, 'Active Packages'));
+      widgets.add(const SizedBox(height: 8));
+      for (var i = 0; i < activeFiltered.length; i++) {
+        final pkg = activeFiltered[i];
+        final credits = provider.sessionsRemainingByPackage[pkg.id] ?? 0;
+        final expiry = provider.expiryByPackage[pkg.id];
+        widgets.add(
+          _buildActivePackageCard(
+            package: pkg,
+            credits: credits,
+            expiry: expiry,
+            onBookTap: () => _openBookSlot(context, provider, pkg),
+            onBuyMoreTap: () => _openPurchaseFlow(context, provider, pkg),
+            onDetailsTap: () => _openPackageDetail(context, provider, pkg),
+          ),
+        );
+        if (i < activeFiltered.length - 1) {
+          widgets.add(const SizedBox(height: 10));
+        }
+      }
+      widgets.add(const SizedBox(height: 14));
+    }
+
+    widgets.add(_buildSectionTitle(Icons.layers, 'Buy Packages'));
+    widgets.add(const SizedBox(height: 8));
+
+    if (availableFiltered.isEmpty && !provider.isLoading) {
+      widgets.add(
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Text(
+            'No packages found.',
+            style: TextStyle(color: Colors.white54),
+          ),
+        ),
+      );
+    } else {
+      for (var i = 0; i < availableFiltered.length; i++) {
+        final pkg = availableFiltered[i];
+        widgets.add(
+          _buildPackageCard(
+            package: pkg,
+            onDetailsTap: () => _openPackageDetail(context, provider, pkg),
+          ),
+        );
+        if (i < availableFiltered.length - 1) {
+          widgets.add(const SizedBox(height: 10));
+        }
+      }
+    }
+    return widgets;
+  }
+
   Widget _buildHeader() {
     return Row(
       children: [
         const Icon(Icons.card_giftcard, color: Color(0xFFFFA500), size: 28),
         const SizedBox(width: 8),
         const Text(
-          "Packages",
+          'Packages',
           style: TextStyle(
             color: Color(0xFFFFA500),
             fontSize: 18,
@@ -196,12 +291,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
         ),
         const Spacer(),
         IconButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
-            );
-          },
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
+          ),
           icon: const Icon(Icons.history, color: Color(0xFFFFA500), size: 24),
           tooltip: 'Booking History',
         ),
@@ -221,43 +314,68 @@ class _PackagesScreenState extends State<PackagesScreen> {
         children: [
           const Icon(Icons.search, color: Color(0xFF555555), size: 20),
           const SizedBox(width: 10),
-          const Text(
-            "Search classes or packages…",
-            style: TextStyle(color: Color(0xFF444444), fontSize: 14),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: "Search classes or packages…",
+                hintStyle: TextStyle(color: Color(0xFF444444), fontSize: 14),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
           ),
+          if (_searchQuery.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                setState(() => _searchQuery = '');
+              },
+              child: const Icon(
+                Icons.clear,
+                color: Color(0xFF555555),
+                size: 18,
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildCategoryPills() {
-    final categories = ["All", "Gym", "Yoga", "HIIT", "Swim"];
+    final categories = ['All', 'Gym', 'Yoga', 'HIIT', 'Swim'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: categories.map((cat) {
-          final bool isActive = cat == "All";
-          return Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? const Color(0xFFFFA500)
-                  : const Color(0xFF0D0D0D),
-              borderRadius: BorderRadius.circular(50),
-              border: Border.all(
+          final isActive = cat == _selectedCategory;
+          return GestureDetector(
+            onTap: () => setState(() => _selectedCategory = cat),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
                 color: isActive
                     ? const Color(0xFFFFA500)
-                    : const Color(0xFF333333),
-                width: 1.5,
+                    : const Color(0xFF0D0D0D),
+                borderRadius: BorderRadius.circular(50),
+                border: Border.all(
+                  color: isActive
+                      ? const Color(0xFFFFA500)
+                      : const Color(0xFF333333),
+                  width: 1.5,
+                ),
               ),
-            ),
-            child: Text(
-              cat,
-              style: TextStyle(
-                color: isActive ? Colors.black : const Color(0xFFAAAAAA),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              child: Text(
+                cat,
+                style: TextStyle(
+                  color: isActive ? Colors.black : const Color(0xFFAAAAAA),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           );
@@ -288,15 +406,9 @@ class _PackagesScreenState extends State<PackagesScreen> {
     required PackageModel package,
     required VoidCallback onDetailsTap,
   }) {
-    IconData getIcon(String name) {
-      switch (name) {
-        case 'directions_run':
-          return Icons.directions_run;
-        case 'fitness_center':
-        default:
-          return Icons.fitness_center;
-      }
-    }
+    const badgeColor = Color(0xFFFFA500);
+    IconData getIcon(String name) =>
+        name == 'directions_run' ? Icons.directions_run : Icons.fitness_center;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -305,9 +417,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ? const Color(0xFF0F0F0F)
             : const Color(0xFF111111),
         border: Border.all(
-          color: package.isFeatured
-              ? const Color(0xFFFFA500)
-              : const Color(0xFF2A2A2A),
+          color: package.isFeatured ? badgeColor : const Color(0xFF2A2A2A),
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -316,18 +426,43 @@ class _PackagesScreenState extends State<PackagesScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  getIcon(package.iconName),
-                  color: const Color(0xFFFFA500),
-                  size: 20,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      getIcon(package.iconName),
+                      color: badgeColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getCategoryColor(
+                        package.category,
+                      ).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      package.category,
+                      style: TextStyle(
+                        color: _getCategoryColor(package.category),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
@@ -356,8 +491,8 @@ class _PackagesScreenState extends State<PackagesScreen> {
                           children: [
                             TextSpan(
                               text: "RM ${package.price.toStringAsFixed(0)} ",
-                              style: const TextStyle(
-                                color: Color(0xFFFFA500),
+                              style: TextStyle(
+                                color: badgeColor,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -375,11 +510,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                       ),
                       Row(
                         children: [
-                          const Icon(
-                            Icons.check_circle,
-                            color: Color(0xFFFFA500),
-                            size: 12,
-                          ),
+                          Icon(Icons.check_circle, color: badgeColor, size: 12),
                           const SizedBox(width: 4),
                           Text(
                             "${package.sessionsCount} Sessions Included",
@@ -400,21 +531,16 @@ class _PackagesScreenState extends State<PackagesScreen> {
                         vertical: 7,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFA500),
+                        color: badgeColor,
                         borderRadius: BorderRadius.circular(50),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            "View Details",
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                      child: const Text(
+                        "View Details",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
@@ -432,7 +558,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                   vertical: 3,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFA500),
+                  color: badgeColor,
                   borderRadius: BorderRadius.circular(50),
                 ),
                 child: Text(
@@ -456,19 +582,21 @@ class _PackagesScreenState extends State<PackagesScreen> {
     required int credits,
     required DateTime? expiry,
     required VoidCallback onBookTap,
+    required VoidCallback onBuyMoreTap,
     required VoidCallback onDetailsTap,
   }) {
     final expiryLabel = expiry == null
         ? '-'
         : DateFormat('d MMM y').format(expiry);
+    const badgeColor = Color(0xFFFFA500);
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A1000), Color(0xFF0F0F0F)],
+        gradient: LinearGradient(
+          colors: [badgeColor.withValues(alpha: 0.15), const Color(0xFF0F0F0F)],
         ),
-        border: Border.all(color: const Color(0xFFFFA500)),
+        border: Border.all(color: badgeColor),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -478,19 +606,47 @@ class _PackagesScreenState extends State<PackagesScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(
-                  package.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        package.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getCategoryColor(
+                          package.category,
+                        ).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        package.category,
+                        style: TextStyle(
+                          color: _getCategoryColor(package.category),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFA500),
+                  color: badgeColor,
                   borderRadius: BorderRadius.circular(40),
                 ),
                 child: const Text(
@@ -515,22 +671,55 @@ class _PackagesScreenState extends State<PackagesScreen> {
               Expanded(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFA500),
+                    backgroundColor: badgeColor,
                     foregroundColor: Colors.black,
                   ),
                   onPressed: onBookTap,
-                  child: const Text('Book Slot'),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_available, size: 16),
+                      SizedBox(width: 6),
+                      Text('Book'),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFFFA500)),
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: badgeColor),
+                  ),
+                  onPressed: onBuyMoreTap,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_circle_outline,
+                        size: 16,
+                        color: badgeColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text('More', style: TextStyle(color: badgeColor)),
+                    ],
+                  ),
                 ),
-                onPressed: onDetailsTap,
-                child: const Text(
-                  'Details',
-                  style: TextStyle(color: Color(0xFFFFA500)),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: badgeColor),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: onDetailsTap,
+                  child: Icon(Icons.info_outline, color: badgeColor, size: 18),
                 ),
               ),
             ],

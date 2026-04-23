@@ -46,6 +46,7 @@ class ActivityTrackingViewModel extends ChangeNotifier {
   
   // User data for metrics calculation
   double _userBodyWeight = 70.0; // Default weight in kg
+  Completer<void>? _initCompleter;
 
   // Getters for UI
   ActivityModel get currentActivity => _currentActivity;
@@ -91,6 +92,12 @@ class ActivityTrackingViewModel extends ChangeNotifier {
 
   /// Initialize ViewModel and request permissions
   Future<void> init(String userId, double? bodyWeight) async {
+    // Guard against concurrent initialization - if already initializing, wait for completion
+    if (_initCompleter != null) {
+      return _initCompleter!.future;
+    }
+    _initCompleter = Completer<void>();
+    
     _setLoading(true);
     _clearError();
 
@@ -179,10 +186,31 @@ class ActivityTrackingViewModel extends ChangeNotifier {
       print('✅ Activity tracking initialized successfully');
       _setLoading(false);
       notifyListeners();
+      _initCompleter?.complete();
     } catch (e) {
       _setError('Initialization error: $e');
       _setLoading(false);
       print('❌ Exception during initialization: $e');
+      _initCompleter?.completeError(e);
+    }
+  }
+
+  /// Start a new activity session
+  Future<void> retryLocationTracking(String userId) async {
+    try {
+      print('🔄 Retrying location tracking...');
+      _clearError();
+      _setLoading(true);
+      
+      // Reset the initialization completer to allow retry
+      _initCompleter = null;
+      
+      // Call init again with fresh state
+      await init(userId, null);
+    } catch (e) {
+      _setError('Retry failed: $e');
+      _setLoading(false);
+      print('❌ Retry failed: $e');
     }
   }
 
@@ -723,6 +751,26 @@ class ActivityTrackingViewModel extends ChangeNotifier {
     _userBodyWeight = 70.0;
     
     print('✅ All activity state cleared (initial location retained for Start button)');
+  }
+
+  /// Clear all data in provider
+  /// Called on logout
+  void clearData() {
+    _stopLocationTracking();
+    _stopElapsedTimer();
+    _resetActivityState();
+    _lastLocationPoint = null;
+    _initCompleter = null;
+    _errorMessage = null;
+    _currentActivity = ActivityModel(
+      id: '',
+      userId: '',
+      activityType: 'walk',
+      startTime: DateTime.now(),
+      createdAt: DateTime.now(),
+    );
+    notifyListeners();
+    print('✓ ActivityTrackingViewModel data cleared');
   }
 
   /// Set error message

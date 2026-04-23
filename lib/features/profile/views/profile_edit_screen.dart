@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:flutter/services.dart';
-import 'dart:io';
 import '../viewmodels/profile_viewmodel.dart';
 
 class ProfileEditScreen extends StatefulWidget {
@@ -16,120 +13,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
   late final TextEditingController _ageController;
-  late final TextEditingController _birthdateController;
   late final TextEditingController _heightController;
   late final TextEditingController _initialWeightController;
   late final TextEditingController _goalWeightController;
-  String? _selectedGender;
-  DateTime? _selectedBirthdate;
-  String? _pendingProfileImagePath;
-
+  
   bool _isLoading = false;
-
-  String _formatDateForInput(DateTime date) {
-    final year = date.year.toString().padLeft(4, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
-  }
-
-  Future<void> _pickBirthdate() async {
-    final now = DateTime.now();
-    final initialDate = _selectedBirthdate ??
-        DateTime(
-          now.year - 18,
-          now.month,
-          now.day,
-        );
-
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(1900),
-      lastDate: now,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Colors.orange,
-              onPrimary: Colors.black,
-              surface: Color(0xFF1E1E1E),
-              onSurface: Colors.white,
-            ),
-            dialogBackgroundColor: const Color(0xFF1E1E1E),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (pickedDate == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _selectedBirthdate = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-      );
-      _birthdateController.text = _formatDateForInput(_selectedBirthdate!);
-    });
-  }
-
-  void _showImagePicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Change Profile Picture',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.orange),
-              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.orange),
-              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: source, imageQuality: 80);
-    if (image == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _pendingProfileImagePath = image.path;
-    });
-  }
 
   @override
   void initState() {
@@ -139,23 +27,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _nameController = TextEditingController(text: profile?.name ?? '');
     _bioController = TextEditingController(text: profile?.bio ?? '');
     _ageController = TextEditingController(text: profile?.age?.toString() ?? '');
-    _birthdateController = TextEditingController(
-      text: profile?.birthdate != null ? _formatDateForInput(profile!.birthdate!) : '',
-    );
-    _selectedBirthdate = profile?.birthdate != null
-        ? DateTime(
-            profile!.birthdate!.year,
-            profile.birthdate!.month,
-            profile.birthdate!.day,
-          )
-        : null;
     _heightController = TextEditingController(text: profile?.height?.toString() ?? '');
     _initialWeightController = TextEditingController(text: profile?.initialWeight?.toString() ?? '');
     _goalWeightController = TextEditingController(text: profile?.weightGoal?.toString() ?? '');
-    final normalizedGender = profile?.gender?.toLowerCase();
-    _selectedGender = const ['male', 'female', 'other'].contains(normalizedGender)
-        ? normalizedGender
-        : null;
   }
 
   @override
@@ -163,7 +37,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _nameController.dispose();
     _bioController.dispose();
     _ageController.dispose();
-    _birthdateController.dispose();
     _heightController.dispose();
     _initialWeightController.dispose();
     _goalWeightController.dispose();
@@ -174,11 +47,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final bioText = _bioController.text.trim();
-      if (bioText.length > 30) {
-        throw Exception('Bio must be 30 characters or less');
-      }
-
       final age = _ageController.text.isNotEmpty ? int.parse(_ageController.text) : null;
       final height = _heightController.text.isNotEmpty ? double.parse(_heightController.text) : null;
       final initialWeight = _initialWeightController.text.isNotEmpty ? double.parse(_initialWeightController.text) : null;
@@ -188,19 +56,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       
       await provider.updateProfile(
         name: _nameController.text.isEmpty ? null : _nameController.text,
-        bio: bioText.isEmpty ? null : bioText,
+        bio: _bioController.text.isEmpty ? null : _bioController.text,
         age: age,
-        gender: _selectedGender,
-        birthdate: _selectedBirthdate,
         height: height,
         initialWeight: initialWeight,
+        currentWeight: initialWeight, // Same as initial when setting in profile
         weightGoal: goalWeight,
       );
 
-      if (_pendingProfileImagePath != null) {
-        await provider.uploadProfilePicture(_pendingProfileImagePath!);
-        _pendingProfileImagePath = null;
-      }
+      
+      // Reload profile to ensure it shows the updated data
+      await Future.delayed(const Duration(milliseconds: 500));
+      await provider.loadProfile(provider.profile?.id ?? '');
 
       if (mounted) {
         Navigator.pop(context);
@@ -251,50 +118,23 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           children: [
             // Profile Picture Section
             Center(
-              child: GestureDetector(
-                onTap: _showImagePicker,
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.orange.withOpacity(0.2),
-                        border: Border.all(color: Colors.orange, width: 2),
-                        image: _pendingProfileImagePath != null
-                            ? DecorationImage(
-                                image: FileImage(File(_pendingProfileImagePath!)),
-                                fit: BoxFit.cover,
-                              )
-                            : (profile?.profilePictureUrl != null &&
-                                    profile!.profilePictureUrl!.isNotEmpty)
-                                ? DecorationImage(
-                                    image: NetworkImage(profile.profilePictureUrl!),
-                                    fit: BoxFit.cover,
-                                  )
-                                : null,
-                      ),
-                      child: (_pendingProfileImagePath == null &&
-                              (profile?.profilePictureUrl == null ||
-                                  profile!.profilePictureUrl!.isEmpty))
-                          ? const Icon(Icons.person, size: 50, color: Colors.orange)
-                          : null,
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.orange,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                      ),
-                    ),
-                  ],
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.orange.withOpacity(0.2),
+                  border: Border.all(color: Colors.orange, width: 2),
+                  image: (profile?.profilePictureUrl != null && profile!.profilePictureUrl!.isNotEmpty)
+                      ? DecorationImage(
+                          image: NetworkImage(profile.profilePictureUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
+                child: (profile?.profilePictureUrl == null || profile!.profilePictureUrl!.isEmpty)
+                    ? const Icon(Icons.person, size: 50, color: Colors.orange)
+                    : null,
               ),
             ),
             const SizedBox(height: 24),
@@ -344,10 +184,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               controller: _bioController,
               style: const TextStyle(color: Colors.white),
               maxLines: 3,
-              maxLength: 30,
-              inputFormatters: [
-                LengthLimitingTextInputFormatter(30),
-              ],
               decoration: InputDecoration(
                 hintText: 'Tell us about yourself',
                 hintStyle: TextStyle(color: Colors.grey[600]),
@@ -395,85 +231,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Birthdate Field
-            Text(
-              'Birthdate (YYYY-MM-DD)',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[400],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _birthdateController,
-              readOnly: true,
-              onTap: _pickBirthdate,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Pick your birthdate',
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                filled: true,
-                fillColor: Colors.grey[900],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                suffixIcon: IconButton(
-                  onPressed: _pickBirthdate,
-                  icon: const Icon(Icons.calendar_month, color: Colors.orange),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Gender Field
-            Text(
-              'Gender',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[400],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedGender,
-              dropdownColor: Colors.grey[900],
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Select your gender',
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                filled: true,
-                fillColor: Colors.grey[900],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'male', child: Text('Male')),
-                DropdownMenuItem(value: 'female', child: Text('Female')),
-                DropdownMenuItem(value: 'other', child: Text('Other')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedGender = value;
-                });
-              },
             ),
             const SizedBox(height: 16),
 

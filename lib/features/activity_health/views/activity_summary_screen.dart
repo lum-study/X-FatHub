@@ -39,6 +39,14 @@ class _ActivitySummaryScreenState extends State<ActivitySummaryScreen> {
     return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
   }
 
+  String _formatDuration(Duration duration) {
+    final totalSeconds = duration.inSeconds;
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   List<LatLng> _getRouteLatLng() {
     final validPoints = widget.routePoints
         .where((p) {
@@ -258,7 +266,18 @@ class _ActivitySummaryScreenState extends State<ActivitySummaryScreen> {
                           ),
                           _buildStatColumn(
                             label: 'Duration',
-                            value: widget.activity.durationString,
+                            value:
+                                (widget.activity.durationString.isNotEmpty &&
+                                        widget.activity.durationString !=
+                                            '--:--:--')
+                                    ? widget.activity.durationString
+                                    : _formatDuration(
+                                        (widget.activity.endTime ??
+                                                DateTime.now())
+                                            .difference(
+                                              widget.activity.startTime,
+                                            ),
+                                      ),
                             color: Colors.blue,
                           ),
                           _buildStatColumn(
@@ -307,7 +326,7 @@ class _ActivitySummaryScreenState extends State<ActivitySummaryScreen> {
                       ),
                       _buildStatRow(
                         'Fastest Pace',
-                        '${widget.activity.maxSpeed!.toStringAsFixed(2)} km/h',
+                        '${(widget.activity.maxSpeed ?? 0).toStringAsFixed(2)} km/h',
                       ),
                       _buildStatRow(
                         'Route Points',
@@ -352,28 +371,7 @@ class _ActivitySummaryScreenState extends State<ActivitySummaryScreen> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 24),
-              // Action Buttons
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.arrow_back),
-                        label: const Text('Back'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24)
             ],
           ),
         ),
