@@ -87,7 +87,9 @@ class WorkManagerService {
       // This ensures we get accurate step count instead of stale data
       await Future.delayed(const Duration(seconds: 1));
 
-      final steps = await PedometerService.getTodaySteps();
+      final steps = await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: true,
+      );
       print('✓ [QUICK SYNC] Got current steps ($steps) from pedometer');
 
       // Try to sync to Supabase if network available via repository
@@ -194,7 +196,9 @@ Future<void> _executeDailyFinalStepsSaveTask() async {
     await PedometerService.initPedometer();
 
     print('📊 Fetching step count...');
-    final finalSteps = await PedometerService.getTodaySteps();
+    final finalSteps = await PedometerService.getTodayStepsCalculated(
+      refreshFromSensor: true,
+    );
     print('✓ Step count retrieved: $finalSteps steps\n');
 
     if (finalSteps <= 0) {
