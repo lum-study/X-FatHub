@@ -4,7 +4,7 @@
 BEGIN;
 
 -- Gyms
-INSERT INTO public.gyms (id, name, venue, address, status)
+INSERT INTO gyms (id, name, venue, address, status)
 VALUES
   ('11111111-1111-1111-1111-111111111111', 'X-Fit Central', 'Downtown Hub', '12 Central Avenue, Kuala Lumpur', 'active'),
   ('22222222-2222-2222-2222-222222222222', 'X-Fit North', 'Northpoint Arena', '8 Northpoint Road, Petaling Jaya', 'active'),
@@ -17,7 +17,7 @@ SET
   status = EXCLUDED.status;
 
 -- Packages
-INSERT INTO public.packages (
+INSERT INTO packages (
   id,
   name,
   description,
@@ -138,7 +138,7 @@ SET
   gym_names = EXCLUDED.gym_names;
 
 -- Package to gym mapping
-INSERT INTO public.package_gyms (id, package_id, gym_id, is_active)
+INSERT INTO package_gyms (id, package_id, gym_id, is_active)
 VALUES
   (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', '11111111-1111-1111-1111-111111111111', true),
   (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', '22222222-2222-2222-2222-222222222222', true),
@@ -152,12 +152,12 @@ ON CONFLICT (package_id, gym_id) DO UPDATE
 SET is_active = EXCLUDED.is_active;
 
 -- Reset only the target window to keep seed idempotent and predictable.
-DELETE FROM public.gym_slots
+DELETE FROM gym_slots
 WHERE start_time >= '2026-04-23 00:00:00+08'::timestamptz
   AND start_time < '2026-05-01 00:00:00+08'::timestamptz;
 
 -- Gym slots for 23 Apr 2026 - 30 Apr 2026 (+08)
-INSERT INTO public.gym_slots (
+INSERT INTO gym_slots (
   id,
   gym_id,
   start_time,

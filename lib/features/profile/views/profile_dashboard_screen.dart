@@ -8,6 +8,8 @@ import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
 import '../../booking/viewmodels/booking_viewmodel.dart';
 
+import '../../booking/views/booking_history_screen.dart';
+
 class ProfileDashboardScreen extends StatefulWidget {
   const ProfileDashboardScreen({super.key});
 
@@ -43,6 +45,16 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.orange),
+            tooltip: 'My Bookings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const BookingHistoryScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.orange),
             onPressed: () {
