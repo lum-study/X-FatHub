@@ -1,9 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 import '../models/package_model.dart';
 import '../models/slot_model.dart';
 import '../models/booking_model.dart';
 import '../models/gym_model.dart';
+import '../../../core/database/local_booking_db.dart';
 
 class BookingRepository {
   final _supabase = Supabase.instance.client;
@@ -58,7 +60,7 @@ class BookingRepository {
     try {
       final response = await _supabase
           .from('package_gyms')
-          .select('is_active, gyms(id, name, venue, address, status)')
+          .select('gym_id, is_active, gyms(id, name, venue, address, status)')
           .eq('package_id', packageId)
           .eq('is_active', true);
 
@@ -67,17 +69,65 @@ class BookingRepository {
           .toList();
 
       final gyms = <GymModel>[];
+      final fallbackGymIds = <String>[];
+
       for (final row in rows) {
         final gymRaw = row['gyms'];
         if (gymRaw is Map) {
           gyms.add(GymModel.fromMap(Map<String, dynamic>.from(gymRaw)));
+        } else if (gymRaw is List) {
+          for (final item in gymRaw) {
+            if (item is Map) {
+              gyms.add(GymModel.fromMap(Map<String, dynamic>.from(item)));
+            }
+          }
+        } else {
+          final gymId = row['gym_id']?.toString();
+          if (gymId != null && gymId.isNotEmpty) {
+            fallbackGymIds.add(gymId);
+          }
         }
       }
 
-      gyms.sort((a, b) => a.name.compareTo(b.name));
-      return gyms;
+      if (gyms.isEmpty && fallbackGymIds.isNotEmpty) {
+        final fallbackResponse = await _supabase
+            .from('gyms')
+            .select('id, name, venue, address, status')
+            .inFilter('id', fallbackGymIds);
+
+        gyms.addAll(
+          (fallbackResponse as List).map(
+            (row) => GymModel.fromMap(Map<String, dynamic>.from(row)),
+          ),
+        );
+      }
+
+      final uniqueGyms = <String, GymModel>{
+        for (final gym in gyms) gym.id: gym,
+      }.values.toList();
+
+      uniqueGyms.sort((a, b) => a.name.compareTo(b.name));
+      return uniqueGyms;
     } catch (e) {
       throw Exception('Failed to fetch package gyms: $e');
+    }
+  }
+
+  Future<List<String>> fetchPackageGymIds(String packageId) async {
+    try {
+      final response = await _supabase
+          .from('package_gyms')
+          .select('gym_id')
+          .eq('package_id', packageId)
+          .eq('is_active', true);
+
+      return (response as List)
+          .map((row) => row['gym_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch package gym IDs: $e');
     }
   }
 
@@ -112,7 +162,7 @@ class BookingRepository {
       final slots = (response as List)
           .map((data) => SlotModel.fromMap(data))
           .toList();
-      
+
       return slots;
     } catch (e) {
       throw Exception('Failed to fetch slots: $e');
@@ -233,43 +283,63 @@ class BookingRepository {
         throw Exception(error);
       }
 
+      BookingModel? booking;
       final bookingPayload = data['booking'];
       if (bookingPayload is Map) {
-        return BookingModel.fromMap(Map<String, dynamic>.from(bookingPayload));
-      }
-
-      if (bookingPayload is String && bookingPayload.isNotEmpty) {
+        booking = BookingModel.fromMap(Map<String, dynamic>.from(bookingPayload));
+      } else if (bookingPayload is String && bookingPayload.isNotEmpty) {
         try {
           final decoded = jsonDecode(bookingPayload);
           if (decoded is Map) {
-            return BookingModel.fromMap(Map<String, dynamic>.from(decoded));
+            booking = BookingModel.fromMap(Map<String, dynamic>.from(decoded));
           }
-        } catch (_) {
-          // Ignore and try the database fallback lookup below.
+        } catch (_) {}
+      }
+
+      if (booking == null) {
+        final fallback = await _supabase
+            .from('bookings')
+            .select()
+            .eq('user_id', userId)
+            .eq('slot_id', slotId)
+            .eq('package_id', packageId)
+            .order('booking_date', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        if (fallback != null) {
+          booking = BookingModel.fromMap(Map<String, dynamic>.from(fallback));
         }
       }
 
-      final fallback = await _supabase
-          .from('bookings')
-          .select()
-          .eq('user_id', userId)
-          .eq('slot_id', slotId)
-          .eq('package_id', packageId)
-          .order('booking_date', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      if (fallback != null) {
-        return BookingModel.fromMap(Map<String, dynamic>.from(fallback));
+      if (booking == null) {
+        throw Exception('Booking was created but response payload was missing.');
       }
 
-      throw Exception('Booking was created but response payload was missing.');
+      final qrCodeData = 'QR-${const Uuid().v4()}';
+      await _supabase
+          .from('bookings')
+          .update({'qr_code_data': qrCodeData})
+          .eq('id', booking.id);
+
+      return BookingModel(
+        id: booking.id,
+        userId: booking.userId,
+        packageId: booking.packageId,
+        slotId: booking.slotId,
+        bookingDate: booking.bookingDate,
+        status: booking.status,
+        totalPaid: booking.totalPaid,
+        receiptUrl: booking.receiptUrl,
+        qrCodeData: qrCodeData,
+        sessionNumber: booking.sessionNumber,
+      );
     } catch (e) {
       throw Exception('Failed to create booking: $e');
     }
   }
 
-  Future<List<BookingModel>> fetchUserBookings(String userId) async {
+Future<List<BookingModel>> fetchUserBookings(String userId) async {
     try {
       final response = await _supabase
           .from('bookings')
@@ -277,24 +347,103 @@ class BookingRepository {
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
-      return (response as List).map((data) {
-        final booking = BookingModel.fromMap(data);
-        return BookingModel(
+      final bookings = <BookingModel>[];
+
+      for (final data in response) {
+        var booking = BookingModel.fromMap(data);
+        var qrCodeData = booking.qrCodeData;
+
+        if (qrCodeData == null || qrCodeData.isEmpty) {
+          qrCodeData = 'QR-${const Uuid().v4()}';
+          try {
+            await _supabase
+                .from('bookings')
+                .update({'qr_code_data': qrCodeData})
+                .eq('id', booking.id)
+                .eq('user_id', userId);
+          } catch (_) {}
+        }
+
+        String? slotName;
+        String? slotLocation;
+        String? slotCoach;
+        DateTime? slotStartTime;
+
+        if (booking.slotId != null && booking.slotId!.isNotEmpty) {
+          try {
+            final slotResponse = await _supabase
+                .from('gym_slots')
+                .select('class_name, location, coach_name, start_time')
+                .eq('id', booking.slotId!)
+                .single();
+            slotName = slotResponse['class_name'];
+            slotLocation = slotResponse['location'];
+            slotCoach = slotResponse['coach_name'];
+            slotStartTime = slotResponse['start_time'] != null
+                ? DateTime.parse(slotResponse['start_time']).toLocal()
+                : null;
+          } catch (_) {}
+        }
+
+        final updatedBooking = BookingModel(
           id: booking.id,
           userId: booking.userId,
           packageId: booking.packageId,
           slotId: booking.slotId,
-          bookingDate: booking.bookingDate.toLocal(),
+          bookingDate: slotStartTime ?? booking.bookingDate.toLocal(),
           status: booking.status,
           totalPaid: booking.totalPaid,
           receiptUrl: booking.receiptUrl,
-          qrCodeData: booking.qrCodeData,
+          qrCodeData: qrCodeData,
           sessionNumber: booking.sessionNumber,
         );
-      }).toList();
+        bookings.add(updatedBooking);
+
+        try {
+          await LocalBookingDatabase.cacheBookings(
+            userId: userId,
+            bookings: [
+              {
+                'id': updatedBooking.id,
+                'user_id': updatedBooking.userId,
+                'package_id': updatedBooking.packageId,
+                'package_name': null,
+                'slot_id': updatedBooking.slotId,
+                'slot_name': slotName,
+                'slot_location': slotLocation,
+                'slot_coach': slotCoach,
+                'slot_start_time': slotStartTime?.toIso8601String(),
+                'booking_date': (slotStartTime ?? updatedBooking.bookingDate).toIso8601String(),
+                'status': updatedBooking.status.name,
+                'qr_code_data': qrCodeData,
+                'session_number': updatedBooking.sessionNumber,
+                'total_paid': updatedBooking.totalPaid,
+              }
+            ],
+          );
+        } catch (_) {}
+      }
+
+      return bookings;
     } catch (e) {
-      throw Exception('Failed to fetch user bookings: $e');
-    }
+      try {
+        final cached = await LocalBookingDatabase.getCachedBookings(userId);
+        if (cached.isNotEmpty) {
+          return cached.map((row) => BookingModel(
+            id: row['booking_id']?.toString() ?? '',
+            userId: row['user_id']?.toString() ?? '',
+            packageId: row['package_id']?.toString() ?? '',
+            slotId: row['slot_id']?.toString(),
+            bookingDate: DateTime.tryParse(row['booking_date']?.toString() ?? '') ?? DateTime.now(),
+            status: BookingStatus.values.byName(row['status']?.toString() ?? 'upcoming'),
+            totalPaid: double.tryParse(row['total_paid']?.toString() ?? '0') ?? 0,
+            qrCodeData: row['qr_code_data']?.toString(),
+            sessionNumber: int.tryParse(row['session_number']?.toString() ?? '1') ?? 1,
+          )).toList();
+        }
+      } catch (_) {}
+      rethrow;
+}
   }
 
   Future<void> cancelBookingWithRefund({
@@ -340,6 +489,41 @@ class BookingRepository {
       }
     } catch (e) {
       throw Exception('Failed to reschedule booking: $e');
+    }
+  }
+
+  Future<void> updateBookingStatus(String bookingId, String status, String userId) async {
+    try {
+      await _supabase
+          .from('bookings')
+          .update({'status': status})
+          .eq('id', bookingId)
+          .eq('user_id', userId);
+
+      try {
+        await LocalBookingDatabase.updateCachedBookingStatus(bookingId, status);
+      } catch (_) {}
+    } catch (e) {
+      throw Exception('Failed to update booking status: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getSlotDetails(String slotId) async {
+    try {
+      final response = await _supabase
+          .from('gym_slots')
+          .select('class_name, location, coach_name')
+          .eq('id', slotId)
+          .single()
+          .maybeSingle();
+      if (response == null) return null;
+      return Map<String, dynamic>.from({
+        'location': response['location'],
+        'coachName': response['coach_name'],
+        'className': response['class_name'],
+      });
+    } catch (_) {
+      return null;
     }
   }
 }

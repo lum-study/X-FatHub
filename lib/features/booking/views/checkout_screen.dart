@@ -14,9 +14,11 @@ class CheckoutScreen extends StatefulWidget {
   State<CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
-class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObserver {
+class _CheckoutScreenState extends State<CheckoutScreen>
+    with WidgetsBindingObserver {
   bool _isProcessing = false;
-  bool _isWaitingForPayment = false;
+  bool _isAwaitingPaymentReturn = false;
+  int _initialPackageCredits = -1;
 
   String get _deepLinkScheme => 'xfathub';
   String get _successUrl => '$_deepLinkScheme://payment/success';
@@ -36,12 +38,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _isWaitingForPayment) {
-      _isWaitingForPayment = false;
+    if (state == AppLifecycleState.resumed && _isAwaitingPaymentReturn) {
+      _verifyPaymentReturn();
+    }
+  }
+
+  Future<void> _verifyPaymentReturn() async {
+    if (!mounted) return;
+
+    final provider = context.read<BookingViewModel>();
+    await provider.refreshCurrentUserBookingData();
+    if (!mounted) return;
+
+    final latestCredits = provider.sessionsRemainingForPackage(
+      widget.package.id,
+    );
+    if (_initialPackageCredits >= 0 && latestCredits > _initialPackageCredits) {
+      _isAwaitingPaymentReturn = false;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const PaymentSuccessScreen()),
       );
+      return;
     }
+
+    _isAwaitingPaymentReturn = false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Payment was not confirmed yet. Complete payment and return again.',
+        ),
+      ),
+    );
   }
 
   Future<void> _payWithCard() async {
@@ -54,6 +81,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
     try {
       final provider = context.read<BookingViewModel>();
       provider.selectPackage(widget.package);
+      await provider.refreshCurrentUserBookingData();
+      _initialPackageCredits = provider.sessionsRemainingForPackage(
+        widget.package.id,
+      );
 
       final checkoutUrl = await provider.createCheckoutForPackage(
         widget.package.id,
@@ -85,19 +116,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
 
       setState(() {
         _isProcessing = false;
-        _isWaitingForPayment = true;
+        _isAwaitingPaymentReturn = true;
       });
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const PaymentSuccessScreen()),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Complete payment in browser. You will return here after redirect.',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checkout failed: $e')),
-      );
-      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Checkout failed: $e')));
+      setState(() {
+        _isProcessing = false;
+        _isAwaitingPaymentReturn = false;
+      });
     }
   }
 
@@ -258,7 +296,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
               const SizedBox(height: 10),
               _buildMethodTile(
                 icon: Icons.credit_card,
-                title: 'Card (Stripe)',
+                title: 'Credit/Debit Card',
                 subtitle: 'Pay securely via Stripe checkout.',
                 enabled: true,
                 onTap: _payWithCard,
