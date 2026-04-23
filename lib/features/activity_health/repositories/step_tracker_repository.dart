@@ -182,7 +182,9 @@ class StepTrackerRepository {
   /// Get current step count from device hardware
   Future<int> getStepCount() async {
     try {
-      return await PedometerService.getTodaySteps();
+      return await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: false,
+      );
     } catch (e) {
       print('Error getting step count from hardware: $e');
       return 0;
@@ -194,6 +196,24 @@ class StepTrackerRepository {
   Future<int> getTodaySteps() async {
     try {
       // Try to get today's steps from Supabase first
+      final remoteSteps = await getTodayStepsFromRemote();
+      if (remoteSteps > 0) {
+        return remoteSteps;
+      }
+      
+      // Fall back to pedometer if Supabase doesn't have data or network unavailable
+      return await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: false,
+      );
+    } catch (e) {
+      print('Error getting today\'s steps: $e');
+      return 0;
+    }
+  }
+
+  /// Get today's steps directly from Supabase
+  Future<int> getTodayStepsFromRemote() async {
+    try {
       final userId = _currentUserId;
       if (userId != null) {
         final today = DateTime.now();
@@ -201,30 +221,21 @@ class StepTrackerRepository {
             .toIso8601String()
             .split('T')[0];
         
-        try {
-          final response = await _supabaseClient
-              .from(_dailyTableName)
-              .select(_stepsColumn)
-              .eq(_userIdColumn, userId)
-              .eq(_dateColumn, todayDate)
-              .maybeSingle();
-          
-          if (response != null) {
-            // Found today's record in Supabase, return it
-            return (response[_stepsColumn] as num?)?.toInt() ?? 0;
-          }
-        } catch (e) {
-          print('⚠ Error fetching today\'s steps from Supabase: $e');
-          // Fall through to pedometer
+        final response = await _supabaseClient
+            .from(_dailyTableName)
+            .select(_stepsColumn)
+            .eq(_userIdColumn, userId)
+            .eq(_dateColumn, todayDate)
+            .maybeSingle();
+        
+        if (response != null) {
+          return (response[_stepsColumn] as num?)?.toInt() ?? 0;
         }
       }
-      
-      // Fall back to pedometer if Supabase doesn't have data or network unavailable
-      return await PedometerService.getTodaySteps();
     } catch (e) {
-      print('Error getting today\'s steps: $e');
-      return 0;
+      print('⚠ Error fetching today\'s steps from Supabase: $e');
     }
+    return 0;
   }
 
   /// Get distance walked in kilometers
@@ -373,6 +384,27 @@ class StepTrackerRepository {
           .eq(_dateColumn, dateStr);
     } catch (e) {
       print('Error deleting step record from Supabase: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete ALL step records for the current user from Supabase
+  /// This is called when user resets all step data
+  Future<void> deleteAllStepRecords() async {
+    try {
+      final userId = _currentUserId;
+      if (userId == null) {
+        throw Exception('No authenticated user');
+      }
+
+      await _supabaseClient
+          .from(_dailyTableName)
+          .delete()
+          .eq(_userIdColumn, userId);
+      
+      print('✓ All step records deleted for user: $userId');
+    } catch (e) {
+      print('Error deleting all step records from Supabase: $e');
       rethrow;
     }
   }

@@ -122,28 +122,41 @@ class HydrationViewModel extends ChangeNotifier {
     }
   }
 
-  /// Delete a hydration entry with undo capability
+  /// Immediately remove entry from UI, then delete from server
+  /// This ensures the Dismissible widget is removed from the tree right away
   /// Returns the deleted entry for undo functionality
   Future<HydrationEntry?> deleteEntry(int entryId) async {
     _clearError();
 
     try {
-      // Get the entry before deletion for undo
-      final entry = await _repository.getEntryById(entryId);
-      
-      if (entry != null) {
-        _deletedEntries.add(entry);
+      // Find and store the entry for undo
+      final entry = _hydrationData.todayEntries
+          .firstWhere((e) => e.id == entryId, orElse: () => null as dynamic);
+
+      if (entry == null) {
+        return null;
       }
 
+      // Immediately remove from UI (optimistic update)
+      _hydrationData = _hydrationData.copyWith(
+        todayEntries: _hydrationData.todayEntries
+            .where((e) => e.id != entryId)
+            .toList(),
+        todayConsumption:
+            (_hydrationData.todayConsumption - entry.amountMl).clamp(0, 999999),
+      );
+      _deletedEntries.add(entry as HydrationEntry);
+      notifyListeners(); // Notify immediately to remove from UI
+
+      // Delete from server in background
       await _repository.deleteEntry(entryId);
-      
-      // Reload data silently to update UI
-      await loadHydrationData(silent: true);
-      
+
       print('✓ Deleted entry $entryId');
-      return entry;
+      return entry as HydrationEntry;
     } catch (e) {
       _setError('Failed to delete entry: $e');
+      // Reload to restore the entry if deletion failed
+      await loadHydrationData(silent: true);
       return null;
     }
   }
@@ -222,6 +235,24 @@ class HydrationViewModel extends ChangeNotifier {
       print('Error getting consumption from remote: $e');
       return 0.0;
     }
+  }
+
+  /// Clear all data in provider
+  /// Called on logout
+  void clearData() {
+    _hydrationData = HydrationTrackerModel(
+      todayConsumption: 0,
+      dailyGoal: 0,
+      progress: 0.0,
+      todayEntries: [],
+      timestamp: DateTime.now(),
+    );
+    _deletedEntries.clear();
+    _undoTimerIds.clear();
+    _initCompleter = null;
+    _errorMessage = null;
+    notifyListeners();
+    print('✓ HydrationViewModel data cleared');
   }
 
   // Private helper methods

@@ -6,6 +6,7 @@ import 'settings_screen.dart';
 import 'profile_edit_screen.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
+import '../../activity_health/viewmodels/activity_tracking_viewmodel.dart';
 import '../../booking/viewmodels/booking_viewmodel.dart';
 
 import '../../booking/views/booking_history_screen.dart';
@@ -24,7 +25,14 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final profileViewModel = context.read<ProfileViewModel>();
       await profileViewModel.init();
-      context.read<BookingViewModel>().refreshCurrentUserBookingData();
+      
+      // Initialize health tracking data on dashboard load
+      // This ensures data is fetched from Supabase immediately after login
+      if (mounted) {
+        context.read<StepTrackerViewModel>().init();
+        context.read<HydrationViewModel>().init();
+        context.read<BookingViewModel>().refreshCurrentUserBookingData();
+      }
       
       await Future.delayed(const Duration(milliseconds: 300));
     });
@@ -310,207 +318,62 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             const SizedBox(height: 8),
             Text(
               profile.bio!,
-              style: TextStyle(fontSize: 14, color: Colors.grey[300]),
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
-          
-          const SizedBox(height: 20),
-          const Divider(color: Colors.grey),
-          const SizedBox(height: 16),
-          
-          // Personal Info Section
-          _buildInfoSection('Personal Information', [
-            _buildInfoRow(Icons.cake, 'Age', profile?.age != null ? '${profile.age} years old' : 'Not set'),
-            _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : 'Not set'),
-          ]),
-          
-          const SizedBox(height: 16),
-          
-          // Weight Info Section
-          _buildInfoSection('Weight Information', [
-            _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : 'Not set'),
-            _buildInfoRow(Icons.monitor_weight, 'Current Weight', profile?.currentWeight != null ? '${profile.currentWeight} kg' : 'Not set'),
-            _buildInfoRow(Icons.flag_circle, 'Goal Weight', profile?.weightGoal != null ? '${profile.weightGoal} kg' : 'Not set'),
-          ]),
-          
-          const SizedBox(height: 16),
-          
-          // Goals Section
-          _buildInfoSection('Goals', [
-            _buildInfoRow(Icons.directions_walk, 'Steps Goal', profile?.stepsGoal != null ? '${profile.stepsGoal} steps/day' : 'Not set'),
-            _buildInfoRow(Icons.water_drop, 'Hydration Goal', profile?.hydrationGoal != null ? '${profile.hydrationGoal} L/day' : 'Not set'),
-          ]),
           
           const SizedBox(height: 20),
           
           // Edit Profile Button
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
+            child: ElevatedButton(
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
                 );
               },
-              icon: const Icon(Icons.edit),
-              label: const Text('Edit Profile'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
+              child: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildInfoSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[400],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[850],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(children: children),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Colors.orange),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(color: Colors.grey[300], fontSize: 14),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showImagePicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Change Profile Picture',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.orange),
-              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.orange),
-              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: source, imageQuality: 80);
-    if (image != null && mounted) {
-      final viewModel = context.read<ProfileViewModel>();
-      await viewModel.uploadProfilePicture(image.path);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
   }
 
   Widget _buildWeightProgressSection(profile) {
     final currentWeight = profile?.currentWeight ?? 0.0;
     final initialWeight = profile?.initialWeight ?? 0.0;
     final weightGoal = profile?.weightGoal ?? 0.0;
-
-    // Calculate progress percentage (0-100)
-    double progressPercent = 0.0;
-    String progressText = 'Add weight and goal to start tracking';
-    bool hasWeightData = currentWeight > 0 && weightGoal > 0 && initialWeight > 0;
-
-    if (hasWeightData) {
-      final totalChange = (initialWeight - weightGoal).abs();
-      final achieved = (initialWeight - currentWeight).abs();
-      
-      if (totalChange > 0) {
-        progressPercent = (achieved / totalChange) * 100;
-        progressPercent = progressPercent.clamp(0.0, 100.0);
-        progressText = '${progressPercent.toStringAsFixed(1)}% progress to goal';
-        
-        if (progressPercent >= 100) {
-          progressText = 'Goal achieved! ';
-        }
+    
+    double progress = 0.0;
+    double weightLost = 0.0;
+    
+    if (initialWeight > 0 && weightGoal > 0 && currentWeight > 0) {
+      final totalToLose = (initialWeight - weightGoal).abs();
+      if (totalToLose > 0) {
+        weightLost = (initialWeight - currentWeight).abs();
+        progress = (weightLost / totalToLose).clamp(0.0, 1.0);
       }
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.orange.withOpacity(0.3)),
       ),
       child: Column(
@@ -520,181 +383,75 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Weight Goal Progress',
+                'Weight Progress',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-              Icon(Icons.monitor_weight_outlined, color: Colors.orange),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // All three weights display
-          if (hasWeightData)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Initial Weight
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Initial',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${initialWeight.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(Icons.arrow_downward, size: 16, color: Colors.blue.withOpacity(0.7)),
-                  ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                // Current Weight (center, highlighted)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Current',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${currentWeight.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(Icons.arrow_forward, size: 16, color: Colors.orange.withOpacity(0.7)),
-                  ],
-                ),
-                // Goal Weight
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Goal',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${weightGoal.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(Icons.flag, size: 16, color: Colors.green.withOpacity(0.7)),
-                  ],
-                ),
-              ],
-            )
-          else
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
                 child: Text(
-                  'Click profile to add weight',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[400],
-                    fontStyle: FontStyle.italic,
+                  'Goal: ${weightGoal.toStringAsFixed(1)} kg',
+                  style: const TextStyle(
+                    color: Colors.orange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 20),
           
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[800],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
+              minHeight: 12,
+            ),
+          ),
           const SizedBox(height: 12),
-
-          // Progress bar
-          if (hasWeightData) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: (progressPercent / 100).clamp(0.0, 1.0),
-                minHeight: 8,
-                backgroundColor: Colors.grey[800],
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-
-          // Progress text
-          Text(
-            progressText,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[300],
-              fontWeight: FontWeight.w500,
-            ),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildWeightStat('Initial', '${initialWeight.toStringAsFixed(1)} kg'),
+              _buildWeightStat('Current', '${currentWeight.toStringAsFixed(1)} kg'),
+              _buildWeightStat('Progress', '${(progress * 100).toInt()}%'),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required String goal,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey,
-                ),
-              ),
-              Icon(icon, color: color, size: 20),
-            ],
+  Widget _buildWeightStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Goal: $goal',
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -707,24 +464,18 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     required IconData icon,
     String unit = '',
   }) {
-    final displayProgress = (progress * 100).clamp(0.0, 100.0);
-    
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Title with icon
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(width: 4),
               Text(
                 title,
                 style: const TextStyle(
@@ -733,55 +484,93 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   color: Colors.grey,
                 ),
               ),
+              Icon(icon, color: color, size: 16),
             ],
           ),
           const SizedBox(height: 12),
-          
-          // Circular progress
           Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 80,
-                height: 80,
+                width: 70,
+                height: 70,
                 child: CustomPaint(
-                  painter: _CircleProgressPainter(progress: progress, color: color),
+                  painter: _CircleProgressPainter(
+                    progress: progress,
+                    color: color,
+                  ),
                 ),
               ),
               Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '$current$unit',
-                    style: TextStyle(
-                      color: Colors.white,
+                    current,
+                    style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
-                  Text(
-                    '${displayProgress.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  if (unit.isNotEmpty)
+                    Text(
+                      unit,
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
-                  ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          
-          // Goal text
+          const SizedBox(height: 12),
           Text(
             'Goal: $goal$unit',
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.grey,
-            ),
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showImagePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.orange),
+              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final picker = ImagePicker();
+                final image = await picker.pickImage(source: ImageSource.gallery);
+                if (image != null) {
+                  if (mounted) {
+                    await context.read<ProfileViewModel>().uploadProfilePicture(image.path);
+                  }
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.orange),
+              title: const Text('Take a Photo', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final picker = ImagePicker();
+                final image = await picker.pickImage(source: ImageSource.camera);
+                if (image != null) {
+                  if (mounted) {
+                    await context.read<ProfileViewModel>().uploadProfilePicture(image.path);
+                  }
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -804,7 +593,12 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              context.read<ProfileViewModel>().signOut();
+              // Clean up all health tracking data on logout
+              context.read<ProfileViewModel>().signOutWithCleanup(
+                context.read<StepTrackerViewModel>(),
+                context.read<HydrationViewModel>(),
+                context.read<ActivityTrackingViewModel>(),
+              );
             },
             child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
           ),
@@ -946,4 +740,3 @@ class _CircleProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-
