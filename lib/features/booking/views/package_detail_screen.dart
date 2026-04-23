@@ -49,7 +49,11 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
   Widget build(BuildContext context) {
     return Consumer<BookingViewModel>(
       builder: (context, provider, _) {
-        final hasCredits = provider.sessionsRemaining > 0;
+        final packageCredits = provider.sessionsRemainingForPackage(
+          widget.package.id,
+        );
+        final packageExpiry = provider.expiryForPackage(widget.package.id);
+        final hasCredits = packageCredits > 0;
 
         return Scaffold(
           backgroundColor: Colors.black,
@@ -82,7 +86,7 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
                   const SizedBox(height: 16),
                   _buildHero(),
                   const SizedBox(height: 14),
-                  _buildSummary(provider),
+                  _buildSummary(packageCredits, packageExpiry),
                   const SizedBox(height: 14),
                   _buildBenefits(),
                   const SizedBox(height: 14),
@@ -148,7 +152,7 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
     );
   }
 
-  Widget _buildSummary(BookingViewModel provider) {
+  Widget _buildSummary(int packageCredits, DateTime? packageExpiry) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -170,7 +174,7 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            '${provider.sessionsRemaining} sessions remaining',
+            '$packageCredits sessions remaining',
             style: const TextStyle(
               color: Color(0xFFFFA500),
               fontSize: 18,
@@ -179,9 +183,9 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            provider.nextExpiryDate == null
+            packageExpiry == null
                 ? 'No active purchase yet'
-                : 'Valid until ${provider.nextExpiryDate!.toLocal().toIso8601String().split('T').first}',
+                : 'Valid until ${packageExpiry.toLocal().toIso8601String().split('T').first}',
             style: const TextStyle(color: Color(0xFF888888), fontSize: 11),
           ),
         ],
@@ -382,19 +386,38 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
   }
 
   Widget _buildActionButtons(BookingViewModel provider, bool hasCredits) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFFA500),
-          foregroundColor: Colors.black,
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA500),
+              foregroundColor: Colors.black,
+            ),
+            onPressed: hasCredits
+                ? () => _bookSlots(provider)
+                : () => _buyPackage(provider),
+            child: Text(hasCredits ? 'Book Slot' : 'Buy Package'),
+          ),
         ),
-        onPressed: hasCredits
-            ? () => _bookSlots(provider)
-            : () => _buyPackage(provider),
-        child: Text(hasCredits ? 'Book Slot' : 'Buy Package'),
-      ),
+        if (hasCredits) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 45,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFFFA500)),
+                foregroundColor: const Color(0xFFFFA500),
+              ),
+              onPressed: () => _buyPackage(provider),
+              child: const Text('Buy More'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
