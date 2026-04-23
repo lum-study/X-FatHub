@@ -21,6 +21,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfileProvider>().init();
       context.read<BookingViewModel>().refreshCurrentUserBookingData();
+      // Initialize step tracker to load step data for dashboard display
+      context.read<StepTrackerViewModel>().init();
+      // Initialize hydration tracker to load hydration data for dashboard display
+      context.read<HydrationViewModel>().init();
     });
   }
 
@@ -95,6 +99,16 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                     BookingViewModel
                   >(
                     builder: (context, stepVM, hydrationVM, bookingVM, _) {
+                      final profileStepGoal = profile?.stepGoal;
+                      final profileHydrationGoalRaw = profile?.hydrationGoal;
+                      final hydrationGoalLiters =
+                          (profileHydrationGoalRaw != null &&
+                              profileHydrationGoalRaw > 0)
+                          ? (profileHydrationGoalRaw >= 100
+                                ? profileHydrationGoalRaw / 1000
+                                : profileHydrationGoalRaw)
+                          : null;
+
                       // Calculate streak (simple: days with steps > 0)
                       int streak = 0;
                       if (stepVM.steps > 0) {
@@ -113,17 +127,28 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                             title: 'Steps',
                             value: stepVM.steps.toString(),
                             icon: Icons.directions_walk,
-                            goal: '${stepVM.goalSteps}',
+                            goal:
+                                profileStepGoal != null && profileStepGoal > 0
+                                ? '$profileStepGoal'
+                                : 'Not set',
                             color: Colors.orange,
                           ),
-                          _buildStatCard(
-                            title: 'Hydration',
-                            value: hydrationVM.consumptionInLiters
-                                .toStringAsFixed(1),
-                            icon: Icons.local_drink_outlined,
-                            goal:
-                                '${hydrationVM.goalInLiters.toStringAsFixed(1)}L',
-                            color: Colors.blue,
+                          FutureBuilder<double>(
+                            future: hydrationVM.getTodayConsumptionFromRemote(),
+                            builder: (context, snapshot) {
+                              final hydrationValue = snapshot.hasData 
+                                  ? snapshot.data!.toStringAsFixed(1) 
+                                  : '0.0';
+                              return _buildStatCard(
+                                title: 'Hydration',
+                                value: hydrationValue,
+                                icon: Icons.local_drink_outlined,
+                                goal: hydrationGoalLiters != null
+                                  ? '${hydrationGoalLiters.toStringAsFixed(1)}L'
+                                  : 'Not set',
+                                color: Colors.blue,
+                              );
+                            },
                           ),
                           _buildStatCard(
                             title: 'Sessions Left',

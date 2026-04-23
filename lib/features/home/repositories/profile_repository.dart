@@ -20,6 +20,18 @@ class ProfileRepository {
 
   User? get currentUser => _supabase.auth.currentUser;
 
+  Future<void> ensureProfileRecord(User user) async {
+    try {
+      await _supabase.from('profiles').upsert({
+        'id': user.id,
+        'email': user.email ?? '',
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'id');
+    } catch (e) {
+      throw Exception('Failed to ensure profile record: $e');
+    }
+  }
+
   // --- Profile CRUD ---
 
   Future<ProfileModel?> getProfile(String userId) async {

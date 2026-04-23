@@ -2,44 +2,48 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/step_tracker_model.dart';
 import '../../../core/service/pedometer_service.dart';
-import '../../../core/database/local_step_db.dart';
 
 /// Repository for Step Tracker data layer
 /// Handles all data operations including Supabase and hardware sensors
 class StepTrackerRepository {
   final SupabaseClient _supabaseClient;
-  static const String _goalsTableName = 'step_tracker_goals';
+  static const String _profilesTableName = 'profiles';
   static const String _dailyTableName = 'step_tracker_daily';
+  static const String _profileIdColumn = 'id';
   static const String _userIdColumn = 'user_id';
-  static const String _goalStepsColumn = 'goal_steps';
+  static const String _stepGoalColumn = 'step_goal';
   static const String _updatedAtColumn = 'updated_at';
   static const String _stepsColumn = 'steps';
   static const String _dateColumn = 'date';
-  static const int _defaultGoalSteps = 10000;
+  static const String _createdAtColumn = 'created_at';
+  DateTime? _lastRemoteTodaySyncAt;
 
   StepTrackerRepository({SupabaseClient? supabaseClient})
       : _supabaseClient = supabaseClient ?? Supabase.instance.client;
 
-  /// Get the user's daily step goal from local database
-  /// Returns [_defaultGoalSteps] (10000) if no goal is set in the database
+  /// Get the user's daily step goal from remote database
   Future<int> getGoalSteps() async {
     try {
-      return await LocalStepDatabase.getGoalSteps();
+      final userId = _supabaseClient.auth.currentUser?.id;
+      if (userId != null) {
+        final profileGoal = await _fetchGoalStepsFromProfile(userId);
+        if (profileGoal != null) {
+          return profileGoal;
+        }
+      }
+      return 0;
     } catch (e) {
-      print('Error fetching goal steps from local database: $e');
-      return _defaultGoalSteps;
+      print('Error fetching goal steps: $e');
+      return 0;
     }
   }
 
-  /// Update the user's daily step goal in local database and sync to remote if network available
+  /// Update the user's daily step goal
   Future<void> setGoalSteps(int goalSteps) async {
     try {
-      // First update local database
-      await LocalStepDatabase.setGoalSteps(goalSteps);
-      print('Goal steps updated to $goalSteps in local database');
-      
       // Try to sync to remote if network is available
       await _syncGoalToRemote(goalSteps);
+      print('Goal steps updated to $goalSteps');
     } catch (e) {
       print('Error updating goal steps: $e');
       rethrow;
@@ -56,10 +60,101 @@ class StepTrackerRepository {
       return false;
     }
   }
+
+  String? get _currentUserId => _supabaseClient.auth.currentUser?.id;
+
+  Future<void> _upsertTodayStepsRemote({
+    required String userId,
+    required String date,
+    required int steps,
+  }) async {
+    // First, check if record already exists
+    final existingRecord = await _supabaseClient
+        .from(_dailyTableName)
+        .select(_createdAtColumn)
+        .eq(_userIdColumn, userId)
+        .eq(_dateColumn, date)
+        .maybeSingle();
+
+    final now = DateTime.now().toIso8601String();
+    
+    if (existingRecord != null) {
+      // Record exists - only update steps and updated_at, preserve created_at
+      await _supabaseClient.from(_dailyTableName).update({
+        _stepsColumn: steps,
+        _updatedAtColumn: now,
+      }).eq(_userIdColumn, userId).eq(_dateColumn, date);
+    } else {
+      // New record - set both created_at and updated_at
+      await _supabaseClient.from(_dailyTableName).insert({
+        _userIdColumn: userId,
+        _dateColumn: date,
+        _stepsColumn: steps,
+        _createdAtColumn: now,
+        _updatedAtColumn: now,
+      });
+    }
+  }
+
+  Future<void> _syncTodayStepsIfNeeded(int steps) async {
+    if (steps < 0) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastRemoteTodaySyncAt != null &&
+        now.difference(_lastRemoteTodaySyncAt!).inSeconds < 30) {
+      return;
+    }
+
+    final userId = _currentUserId;
+    if (userId == null) {
+      return;
+    }
+
+    final isNetworkAvailable = await _isNetworkAvailable();
+    if (!isNetworkAvailable) {
+      return;
+    }
+
+    final todayDate =
+        DateTime(now.year, now.month, now.day).toIso8601String().split('T')[0];
+    await _upsertTodayStepsRemote(userId: userId, date: todayDate, steps: steps);
+    _lastRemoteTodaySyncAt = now;
+  }
   
-  /// Sync step goal to remote database if network is available
+  Future<int?> _fetchGoalStepsFromProfile(String userId) async {
+    try {
+      final isNetworkAvailable = await _isNetworkAvailable();
+      if (!isNetworkAvailable) {
+        return null;
+      }
+
+      final response = await _supabaseClient
+          .from(_profilesTableName)
+          .select(_stepGoalColumn)
+          .eq(_profileIdColumn, userId)
+          .maybeSingle();
+
+      if (response == null) {
+        return 0;
+      }
+
+      final profile = response as Map<String, dynamic>;
+      return (profile[_stepGoalColumn] as num?)?.round() ?? 0;
+    } catch (e) {
+      print('⚠ Error fetching step goal from profile: $e');
+      return null;
+    }
+  }
+
+  /// Sync step goal to profiles table if network is available
   Future<void> _syncGoalToRemote(int goalSteps) async {
     try {
+      if (goalSteps <= 0) {
+        return;
+      }
+
       final isNetworkAvailable = await _isNetworkAvailable();
       if (!isNetworkAvailable) {
         print('⚠ No network available - goal will sync when network is restored');
@@ -72,13 +167,12 @@ class StepTrackerRepository {
         return;
       }
       
-      await _supabaseClient.from(_goalsTableName).upsert({
-        _userIdColumn: userId,
-        _goalStepsColumn: goalSteps,
+      await _supabaseClient.from(_profilesTableName).update({
+        _stepGoalColumn: goalSteps,
         _updatedAtColumn: DateTime.now().toIso8601String(),
-      }, onConflict: _userIdColumn);
+      }).eq(_profileIdColumn, userId);
       
-      print('✓ Goal steps synced to remote: $goalSteps steps');
+      print('✓ Goal steps synced to profile: $goalSteps steps');
     } catch (e) {
       print('⚠ Error syncing goal steps to remote: $e');
       // Don't rethrow - goal is already saved locally
@@ -95,10 +189,37 @@ class StepTrackerRepository {
     }
   }
 
-  /// Get today's step count directly from device sensor
-  /// Returns the actual number of steps walked today
+  /// Get today's step count: Try Supabase first (remote source of truth), then fall back to pedometer
+  /// This ensures we always have data even before pedometer is initialized
   Future<int> getTodaySteps() async {
     try {
+      // Try to get today's steps from Supabase first
+      final userId = _currentUserId;
+      if (userId != null) {
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day)
+            .toIso8601String()
+            .split('T')[0];
+        
+        try {
+          final response = await _supabaseClient
+              .from(_dailyTableName)
+              .select(_stepsColumn)
+              .eq(_userIdColumn, userId)
+              .eq(_dateColumn, todayDate)
+              .maybeSingle();
+          
+          if (response != null) {
+            // Found today's record in Supabase, return it
+            return (response[_stepsColumn] as num?)?.toInt() ?? 0;
+          }
+        } catch (e) {
+          print('⚠ Error fetching today\'s steps from Supabase: $e');
+          // Fall through to pedometer
+        }
+      }
+      
+      // Fall back to pedometer if Supabase doesn't have data or network unavailable
       return await PedometerService.getTodaySteps();
     } catch (e) {
       print('Error getting today\'s steps: $e');
@@ -168,35 +289,90 @@ class StepTrackerRepository {
   /// Last element (today) is replaced with live pedometer data instead of database
   Future<List<int>> getSevenDaySteps() async {
     try {
-      var dailySteps = await LocalStepDatabase.getSevenDaySteps();
-      
-      // Validate that we're getting daily values, not cumulative
-      // Typical daily steps should be < 100,000 (unrealistic to exceed this in one day)
-      for (int i = 0; i < dailySteps.length - 1; i++) { // Check all except today
-        if (dailySteps[i] > 100000) {
-          print('⚠️ Warning: Suspiciously high step count detected (${dailySteps[i]} on day $i)');
-          print('   This may indicate cumulative data. Please verify database integrity.');
+      final userId = _currentUserId;
+      if (userId == null) {
+        throw Exception('No authenticated user');
+      }
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final startDate = today.subtract(const Duration(days: 6));
+      final startDateStr = startDate.toIso8601String().split('T')[0];
+      final todayDateStr = today.toIso8601String().split('T')[0];
+
+      final response = await _supabaseClient
+          .from(_dailyTableName)
+          .select('$_dateColumn,$_stepsColumn')
+          .eq(_userIdColumn, userId)
+          .gte(_dateColumn, startDateStr)
+          .lte(_dateColumn, todayDateStr)
+          .order(_dateColumn, ascending: true);
+
+      final sevenDays = List<int>.filled(7, 0);
+      for (final row in (response as List).cast<Map<String, dynamic>>()) {
+        final dateString = row[_dateColumn] as String?;
+        if (dateString == null) {
+          continue;
+        }
+
+        final date = DateTime.tryParse(dateString);
+        if (date == null) {
+          continue;
+        }
+
+        final index = date.difference(startDate).inDays;
+        if (index >= 0 && index < 7) {
+          sevenDays[index] = (row[_stepsColumn] as num?)?.toInt() ?? 0;
         }
       }
-      
-      // Replace today's data (index 6) with live pedometer data
-      final todayStepsLive = await getTodaySteps();
-      dailySteps[6] = todayStepsLive;
-      
-      return dailySteps;
+
+      return sevenDays;
     } catch (e) {
-      print('Error fetching 7-day steps: $e');
-      return [0, 0, 0, 0, 0, 0, 0];
+      print('Error fetching 7-day steps from Supabase: $e');
+      rethrow;
     }
   }
 
   /// Save today's steps to local database
   Future<void> saveTodaySteps(int steps) async {
     try {
-      await LocalStepDatabase.saveTodaySteps(steps);
-      print('Today\'s steps ($steps) saved to local database');
+      final userId = _currentUserId;
+      if (userId == null) {
+        throw Exception('No authenticated user');
+      }
+
+      final now = DateTime.now();
+      final todayDate = DateTime(now.year, now.month, now.day)
+          .toIso8601String()
+          .split('T')[0];
+
+      await _upsertTodayStepsRemote(userId: userId, date: todayDate, steps: steps);
+      print('Today\'s steps ($steps) saved to Supabase');
     } catch (e) {
       print('Error saving today\'s steps: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete a step record by date from Supabase (fallback to local)
+  Future<int> deleteStepRecordByDate(DateTime date) async {
+    final dateStr = DateTime(date.year, date.month, date.day)
+        .toIso8601String()
+        .split('T')[0];
+
+    try {
+      final userId = _currentUserId;
+      if (userId == null) {
+        throw Exception('No authenticated user');
+      }
+
+      return await _supabaseClient
+          .from(_dailyTableName)
+          .delete()
+          .eq(_userIdColumn, userId)
+          .eq(_dateColumn, dateStr);
+    } catch (e) {
+      print('Error deleting step record from Supabase: $e');
       rethrow;
     }
   }
@@ -205,8 +381,8 @@ class StepTrackerRepository {
   /// Called when user enters the step tracker page to ensure latest goal is synced
   Future<void> syncGoalToRemote() async {
     try {
-      final currentGoal = await LocalStepDatabase.getGoalSteps();
-      await _syncGoalToRemote(currentGoal);
+      // Goal is already stored in profiles table; this ensures sync on page load
+      await _syncGoalToRemote(0);
     } catch (e) {
       print('Error syncing goal to remote on page load: $e');
       // Don't rethrow - non-critical operation
@@ -222,15 +398,19 @@ class StepTrackerRepository {
   /// - Gets distance from device sensor
   /// - Calculates kcal burned: distance(km) × bodyWeight(kg) × 0.75
   /// - Retrieves last 6 days from local SQLite + today's live data from pedometer
-  /// - Background service saves today's final steps to SQLite only at 11:59 PM
+  /// - Background service saves today's final steps to SQLite only at 8:20 AM
   Future<StepTrackerModel> getStepTrackerData() async {
     try {
       // Get today's steps using baseline calculation (real-time from pedometer, not DB)
       final steps = await getTodaySteps();
+      await _syncTodayStepsIfNeeded(steps);
       final goalSteps = await getGoalSteps();
       final distance = await getDistance();
       final kcal = await calculateKcal(distance);
       final dailySteps = await getSevenDaySteps(); // Last element is today's live data
+
+      // Keep today's graph point aligned to latest live sensor value.
+      dailySteps[6] = steps;
 
       // Calculate progress as a percentage (0.0 to 1.0)
       final progress = goalSteps > 0 ? (steps / goalSteps).clamp(0.0, 1.0) : 0.0;
@@ -249,7 +429,7 @@ class StepTrackerRepository {
       // Return a default model with zeros
       return StepTrackerModel(
         steps: 0,
-        goalSteps: _defaultGoalSteps,
+        goalSteps: 0,
         distance: 0.0,
         progress: 0.0,
         kcal: 0.0,

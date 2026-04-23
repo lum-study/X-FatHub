@@ -61,7 +61,7 @@ class StepTrackerModel {
   factory StepTrackerModel.fromJson(Map<String, dynamic> json) {
     return StepTrackerModel(
       steps: json['steps'] as int? ?? 0,
-      goalSteps: json['goalSteps'] as int? ?? 10000,
+      goalSteps: json['goalSteps'] as int? ?? 0,
       distance: (json['distance'] as num?)?.toDouble() ?? 0.0,
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
       kcal: (json['kcal'] as num?)?.toDouble() ?? 0.0,

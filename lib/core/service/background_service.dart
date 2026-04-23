@@ -6,14 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'pedometer_service.dart';
 import 'work_manager_service.dart';
-import '../database/local_step_db.dart';
-import '../database/local_hydration_db.dart';
 import '../config/env_config.dart';
 import '../../features/activity_health/repositories/hydration_repository.dart';
 
 /// Service to handle background step tracking
 /// Manages continuous step monitoring even when app is closed
 /// Uses WorkManager for reliable scheduled synchronization tasks
+@pragma('vm:entry-point')
 class BackgroundService {
   static StreamSubscription? _connectivitySubscription;
   static int _syncRetryCount = 0;
@@ -120,69 +119,42 @@ class BackgroundService {
   }
 
   /// Perform the actual weekly sync upload
-  /// This is called when network is available (both on schedule and on network restoration)
+  /// Note: With Supabase-first architecture, all step data is synced in real-time via the repository.
+  /// This method is now simplified and serves as a verification/health check.
   static Future<void> _performWeeklySyncToSupabase() async {
     try {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
 
       if (userId == null) {
-        print('⚠ No authenticated user for weekly sync');
+        print('⚠ No authenticated user for weekly sync verification');
         return;
       }
 
-      // Get all records from local database
-      final allRecords = await LocalStepDatabase.getAllRecords();
-      
-      if (allRecords.isEmpty) {
-        print('ℹ No records to sync for weekly upload');
-        return;
-      }
+      // Query recent records from Supabase to verify sync is working
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      final startDate = DateTime(sevenDaysAgo.year, sevenDaysAgo.month, sevenDaysAgo.day)
+          .toIso8601String()
+          .split('T')[0];
 
-      print('📤 Starting weekly sync: uploading ${allRecords.length} records to Supabase...');
+      final response = await client
+          .from('step_tracker_daily')
+          .select('date,steps')
+          .eq('user_id', userId)
+          .gte('date', startDate)
+          .order('date', ascending: false);
 
-      final List<String> successfulDates = [];
-      int uploadedCount = 0;
-      int failedCount = 0;
-
-      // Upload each record to Supabase
-      for (var record in allRecords) {
-        try {
-          final date = record['date'] as String;
-          final steps = record['steps'] as int;
-
-          await client.from('step_tracker_daily').upsert({
-            'user_id': userId,
-            'date': date,
-            'steps': steps,
-            'updated_at': DateTime.now().toIso8601String(),
-          }, onConflict: 'user_id,date');
-
-          successfulDates.add(date);
-          uploadedCount++;
-          print('✓ Uploaded weekly record: $date ($steps steps)');
-        } catch (e) {
-          failedCount++;
-          print('⚠ Failed to upload record: $e');
-        }
-      }
-
-      // Delete successfully uploaded records from local database
-      if (successfulDates.isNotEmpty) {
-        final deleted = await LocalStepDatabase.deleteRecordsByDates(successfulDates);
-        print('🗑️ Weekly sync complete: $uploadedCount records uploaded, $deleted deleted from local DB, $failedCount failed');
-      }
-
-      if (failedCount == 0) {
-        print('✅ Weekly sync successful: All records uploaded and cleared from local database');
-      }
+      final recordCount = (response as List).length;
+      print('✅ Weekly sync verification: Found $recordCount records in Supabase (last 7 days)');
+      print('ℹ All step data is synced in real-time via the repository layer');
     } catch (e) {
-      print('❌ Weekly sync error: $e');
+      print('❌ Weekly sync verification error: $e');
     }
   }
 
-  /// Sync unsynced records (older than 7 days) to Supabase
-  /// This is called periodically by WorkManager
+  /// Verify step data sync to Supabase
+  /// With Supabase-first architecture, all step updates are synced immediately via the repository.
+  /// This method serves as a health check to ensure Supabase connectivity.
   static Future<void> _syncUnsyncedRecordsToSupabase() async {
     try {
       final client = Supabase.instance.client;
@@ -190,49 +162,35 @@ class BackgroundService {
 
       if (userId == null) {
         _syncRetryCount = 0;
+        print('⚠ No authenticated user for sync verification');
         return;
       }
 
-      // Get all unsynced records (older than 7 days)
-      final unsyncedRecords = await LocalStepDatabase.getUnsyncedRecords();
-      
-      if (unsyncedRecords.isEmpty) {
-        return; // No records to sync
-      }
+      // Query today's step record to verify Supabase connectivity
+      final today = DateTime.now();
+      final todayDate = DateTime(today.year, today.month, today.day)
+          .toIso8601String()
+          .split('T')[0];
 
-      // Sync each record to Supabase
-      for (var record in unsyncedRecords) {
-        try {
-          final date = record['date'] as String;
-          final steps = record['steps'] as int;
+      final response = await client
+          .from('step_tracker_daily')
+          .select('steps')
+          .eq('user_id', userId)
+          .eq('date', todayDate)
+          .maybeSingle();
 
-          await client.from('step_tracker_daily').upsert({
-            'user_id': userId,
-            'date': date,
-            'steps': steps,
-            'updated_at': DateTime.now().toIso8601String(),
-          }, onConflict: 'user_id,date');
-
-          // Mark as synced in local database
-          await LocalStepDatabase.markAsSynced(date);
-          print('✓ Synced record $date ($steps steps) to Supabase');
-        } catch (e) {
-          print('⚠ Failed to sync record: $e');
-          _syncRetryCount++;
-        }
-      }
-
-      // Clean up old synced records (older than 30 days)
-      final deleted = await LocalStepDatabase.deleteOldRecords();
-      if (deleted > 0) {
-        print('✓ Cleaned up $deleted old records');
+      if (response != null) {
+        final steps = response['steps'] as int;
+        print('✓ Supabase sync verified: Today\'s steps ($steps) successfully synced');
+      } else {
+        print('ℹ No step data synced yet for today');
       }
 
       _syncRetryCount = 0;
     } catch (e) {
       _syncRetryCount++;
       if (_syncRetryCount <= _maxSyncRetries) {
-        print('⚠ Sync failed (attempt $_syncRetryCount): $e');
+        print('⚠ Sync verification failed (attempt $_syncRetryCount): $e');
       }
     }
   }

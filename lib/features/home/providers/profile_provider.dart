@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
@@ -10,6 +11,7 @@ class ProfileProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _weightHistory = [];
+  Completer<void>? _initCompleter;
 
   ProfileProvider({ProfileRepository? repository}) 
       : _repository = repository ?? ProfileRepository();
@@ -23,10 +25,23 @@ class ProfileProvider extends ChangeNotifier {
   bool get isAuthenticated => Supabase.instance.client.auth.currentSession != null;
 
   Future<void> init() async {
-    final user = _repository.currentUser;
-    if (user != null) {
-      await loadProfile(user.id);
-      await loadWeightHistory(user.id);
+    // Guard against concurrent initialization - if already initializing, wait for completion
+    if (_initCompleter != null) {
+      return _initCompleter!.future;
+    }
+    _initCompleter = Completer<void>();
+    
+    try {
+      final user = _repository.currentUser;
+      if (user != null) {
+        await _repository.ensureProfileRecord(user);
+        await loadProfile(user.id);
+        await loadWeightHistory(user.id);
+      }
+      _initCompleter?.complete();
+    } catch (e) {
+      _initCompleter?.completeError(e);
+      rethrow;
     }
   }
 
@@ -110,7 +125,11 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> signIn(String email, String password) async {
     _setLoading(true);
     try {
-      await _repository.signIn(email: email, password: password);
+      final authResponse = await _repository.signIn(email: email, password: password);
+      final signedInUser = authResponse.user;
+      if (signedInUser != null) {
+        await _repository.ensureProfileRecord(signedInUser);
+      }
       await init();
       _error = null;
     } catch (e) {

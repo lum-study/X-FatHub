@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Quick action shortcut to view hydration log -->
+    <shortcut
+        android:shortcutId="hydration_log"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_hydration_short"
+        android:shortcutLongLabel="@string/shortcut_hydration_long">
+        <!-- Deep link intent: xfathub://hydration maps to /hydration route in Flutter -->
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="xfathub://hydration"
+            android:targetPackage="com.example.xfathub" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>
