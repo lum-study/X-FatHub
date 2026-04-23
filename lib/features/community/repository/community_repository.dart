@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/database/local_community_db.dart';
+import '../../../core/database/local_profile_db.dart';
 import '../models/comment_model.dart';
 import '../models/post_model.dart';
 
@@ -8,6 +10,33 @@ class CommunityRepository {
   // Fallback to dummy Alex Fit UUID if not authenticated so local testing works
   String? get currentUserId =>
       _supabase.auth.currentUser?.id ?? '11111111-1111-1111-1111-111111111111';
+
+  Future<Map<String, dynamic>?> _buildOfflineOwnProfileStats(String userId) async {
+    final localProfile = await LocalProfileDatabase.getProfile(userId);
+    final cachedPosts = await LocalCommunityDatabase.getOwnCachedPosts(userId);
+
+    if (localProfile == null && cachedPosts.isEmpty) {
+      return null;
+    }
+
+    final createdAtStr = localProfile?[LocalProfileDatabase.colCreatedAt] as String?;
+    final joinedDate = createdAtStr != null
+        ? DateTime.tryParse(createdAtStr) ?? DateTime.now()
+        : (cachedPosts.isNotEmpty ? cachedPosts.last.createdAt : DateTime.now());
+
+    final name = (localProfile?[LocalProfileDatabase.colName] as String?)?.trim();
+    final avatarUrl = localProfile?[LocalProfileDatabase.colProfilePictureUrl] as String?;
+    final totalLikes = cachedPosts.fold<int>(0, (sum, post) => sum + post.likesCount);
+
+    return {
+      'name': (name != null && name.isNotEmpty) ? name : 'You',
+      'profilePictureUrl': avatarUrl,
+      'joinedDate': joinedDate,
+      'totalPosts': cachedPosts.length,
+      'totalLikes': totalLikes,
+      'totalFollowers': 0,
+    };
+  }
 
   Future<Map<String, Map<String, String?>>> _fetchPublicProfilesByUserIds(
       Iterable<String> userIds) async {
@@ -74,41 +103,61 @@ class CommunityRepository {
   }
 
   Future<List<PostModel>> fetchUserPosts(String targetUserId) async {
-    final response = await _supabase
-        .from('posts')
-        .select(
-      '*, post_likes(user_id), post_comments(id), post_favourites(user_id)')
-        .eq('user_id', targetUserId)
-        .order('created_at', ascending: false);
+    try {
+      final response = await _supabase
+          .from('posts')
+          .select(
+          '*, post_likes(user_id), post_comments(id), post_favourites(user_id)')
+          .eq('user_id', targetUserId)
+          .order('created_at', ascending: false);
 
-    var posts = (response as List)
-        .map((map) => PostModel.fromMap(map, currentUserId: currentUserId))
-        .toList();
+      var posts = (response as List)
+          .map((map) => PostModel.fromMap(map, currentUserId: currentUserId))
+          .toList();
 
-    final profilesById = await _fetchPublicProfilesByUserIds(posts.map((p) => p.userId));
-    posts = posts
-        .map(
-          (post) => post.copyWith(
-            authorName: profilesById[post.userId]?['name'] ?? post.authorName,
-            authorAvatarUrl:
-                profilesById[post.userId]?['profile_picture_url'] ?? post.authorAvatarUrl,
-          ),
-        )
-      .toList();
+      final profilesById = await _fetchPublicProfilesByUserIds(posts.map((p) => p.userId));
+      posts = posts
+          .map(
+            (post) => post.copyWith(
+              authorName: profilesById[post.userId]?['name'] ?? post.authorName,
+              authorAvatarUrl:
+                  profilesById[post.userId]?['profile_picture_url'] ?? post.authorAvatarUrl,
+            ),
+          )
+          .toList();
 
-    return posts;
+      if (currentUserId != null && targetUserId == currentUserId) {
+        await LocalCommunityDatabase.saveOwnPosts(userId: targetUserId, posts: posts);
+      }
+
+      return posts;
+    } catch (e) {
+      // Offline fallback for current user's own profile posts.
+      if (currentUserId != null && targetUserId == currentUserId) {
+        final cachedPosts = await LocalCommunityDatabase.getOwnCachedPosts(targetUserId);
+        if (cachedPosts.isNotEmpty) {
+          return cachedPosts;
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>?> fetchUserProfileStats(
       String targetUserId) async {
+    final isOwnProfile = currentUserId != null && currentUserId == targetUserId;
+
     try {
       final profileResponse = await _supabase.rpc(
         'get_public_profile',
         params: {'p_user_id': targetUserId},
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (profileResponse == null || profileResponse['success'] != true) {
         print('Profile not found for ID: $targetUserId. Is RLS blocking this?');
+        if (isOwnProfile) {
+          return await _buildOfflineOwnProfileStats(targetUserId);
+        }
         return null;
       }
 
@@ -124,7 +173,8 @@ class CommunityRepository {
           .from('posts')
           .select('id')
           .eq('user_id', targetUserId)
-          .count(CountOption.exact);
+          .count(CountOption.exact)
+          .timeout(const Duration(seconds: 8));
       final postsCount = postsCountResponse.count ?? 0;
 
       // Count likes received on their posts
@@ -132,7 +182,8 @@ class CommunityRepository {
           .from('post_likes')
           .select('id, posts!inner(user_id)')
           .eq('posts.user_id', targetUserId)
-          .count(CountOption.exact);
+          .count(CountOption.exact)
+          .timeout(const Duration(seconds: 8));
       final likesCount = likesCountResponse.count ?? 0;
 
       // Count followers
@@ -140,7 +191,8 @@ class CommunityRepository {
           .from('user_followers')
           .select('follower_id')
           .eq('following_id', targetUserId)
-          .count(CountOption.exact);
+          .count(CountOption.exact)
+          .timeout(const Duration(seconds: 8));
       final followersCount = followersCountResponse.count ?? 0;
 
       return {
@@ -153,6 +205,9 @@ class CommunityRepository {
       };
     } catch (e) {
       print('Error fetching user profile stats: $e');
+      if (isOwnProfile) {
+        return await _buildOfflineOwnProfileStats(targetUserId);
+      }
       return null;
     }
   }
@@ -215,6 +270,13 @@ class CommunityRepository {
     };
 
     await _supabase.from('posts').insert(data);
+
+    // Keep local cache fresh for offline own-profile view.
+    try {
+      await fetchUserPosts(userId);
+    } catch (_) {
+      // Ignore cache refresh errors here; post was already created remotely.
+    }
   }
 
   // --- DELETE POST ---
@@ -222,6 +284,7 @@ class CommunityRepository {
     final userId = currentUserId;
     if (userId == null) return;
     await _supabase.from('posts').delete().eq('id', postId).eq('user_id', userId);
+    await LocalCommunityDatabase.deleteCachedPost(postId, userId);
   }
 
   // --- FOLLOW ---
@@ -310,5 +373,9 @@ class CommunityRepository {
         'activity_distance': post.activityDistance,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', post.id);
+
+      if (currentUserId != null && post.userId == currentUserId) {
+        await LocalCommunityDatabase.upsertOwnPost(post);
+      }
     }
   }
