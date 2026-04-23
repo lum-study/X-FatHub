@@ -79,17 +79,25 @@ class StepTrackerViewModel extends ChangeNotifier {
         return;
       }
 
-      // Initialize pedometer and set up real-time listening
+      // Initialize pedometer
       final pedometerInitialized = await PedometerService.initPedometer();
+      
+      // Check if sensor is available
+      await _checkSensorAvailability();
+
+      // FETCH FROM SUPABASE AND INITIALIZE PEDOMETER
+      // This satisfies the requirement: "When user login, it auto initialize by adding the count from the supabase and the pedometer"
+      final supabaseSteps = await _repository.getTodayStepsFromRemote();
+      if (supabaseSteps > 0) {
+        await PedometerService.initializeTodaySteps(supabaseSteps);
+        print('✓ Initialized pedometer with $supabaseSteps steps from Supabase');
+      }
+
       if (pedometerInitialized) {
         // Give pedometer enough time to receive the first sensor event
-        // This ensures step count data is available when we load
         await Future.delayed(const Duration(seconds: 2));
         _setupStepCountListener();
       }
-
-      // Check if sensor is available
-      await _checkSensorAvailability();
       
       // Load step tracker data (pedometer should have data by now)
       await loadStepTrackerData();
@@ -356,6 +364,32 @@ class StepTrackerViewModel extends ChangeNotifier {
       _setLoading(false);
       rethrow;
     }
+  }
+
+  /// Clear all data in provider and reset pedometer baseline
+  /// Called on logout
+  Future<void> clearData() async {
+    _stepCountStreamSubscription?.cancel();
+    _stepCountStreamSubscription = null;
+    
+    // Reset local pedometer baseline
+    await PedometerService.resetTodaySteps();
+    
+    _stepTrackerData = StepTrackerModel(
+      steps: 0,
+      goalSteps: 0,
+      distance: 0.0,
+      progress: 0.0,
+      kcal: 0.0,
+      timestamp: DateTime.now(),
+      dailySteps: [0, 0, 0, 0, 0, 0, 0],
+    );
+    _previousStepCount = 0;
+    _isFirstLoadComplete = false;
+    _initCompleter = null;
+    _errorMessage = null;
+    notifyListeners();
+    print('✓ StepTrackerViewModel data cleared and pedometer reset');
   }
 
   /// Get dynamic day labels starting from 6 days ago to today

@@ -196,29 +196,9 @@ class StepTrackerRepository {
   Future<int> getTodaySteps() async {
     try {
       // Try to get today's steps from Supabase first
-      final userId = _currentUserId;
-      if (userId != null) {
-        final today = DateTime.now();
-        final todayDate = DateTime(today.year, today.month, today.day)
-            .toIso8601String()
-            .split('T')[0];
-        
-        try {
-          final response = await _supabaseClient
-              .from(_dailyTableName)
-              .select(_stepsColumn)
-              .eq(_userIdColumn, userId)
-              .eq(_dateColumn, todayDate)
-              .maybeSingle();
-          
-          if (response != null) {
-            // Found today's record in Supabase, return it
-            return (response[_stepsColumn] as num?)?.toInt() ?? 0;
-          }
-        } catch (e) {
-          print('⚠ Error fetching today\'s steps from Supabase: $e');
-          // Fall through to pedometer
-        }
+      final remoteSteps = await getTodayStepsFromRemote();
+      if (remoteSteps > 0) {
+        return remoteSteps;
       }
       
       // Fall back to pedometer if Supabase doesn't have data or network unavailable
@@ -229,6 +209,33 @@ class StepTrackerRepository {
       print('Error getting today\'s steps: $e');
       return 0;
     }
+  }
+
+  /// Get today's steps directly from Supabase
+  Future<int> getTodayStepsFromRemote() async {
+    try {
+      final userId = _currentUserId;
+      if (userId != null) {
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day)
+            .toIso8601String()
+            .split('T')[0];
+        
+        final response = await _supabaseClient
+            .from(_dailyTableName)
+            .select(_stepsColumn)
+            .eq(_userIdColumn, userId)
+            .eq(_dateColumn, todayDate)
+            .maybeSingle();
+        
+        if (response != null) {
+          return (response[_stepsColumn] as num?)?.toInt() ?? 0;
+        }
+      }
+    } catch (e) {
+      print('⚠ Error fetching today\'s steps from Supabase: $e');
+    }
+    return 0;
   }
 
   /// Get distance walked in kilometers

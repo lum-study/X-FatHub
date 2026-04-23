@@ -753,6 +753,26 @@ class ActivityTrackingViewModel extends ChangeNotifier {
     print('✅ All activity state cleared (initial location retained for Start button)');
   }
 
+  /// Clear all data in provider
+  /// Called on logout
+  void clearData() {
+    _stopLocationTracking();
+    _stopElapsedTimer();
+    _resetActivityState();
+    _lastLocationPoint = null;
+    _initCompleter = null;
+    _errorMessage = null;
+    _currentActivity = ActivityModel(
+      id: '',
+      userId: '',
+      activityType: 'walk',
+      startTime: DateTime.now(),
+      createdAt: DateTime.now(),
+    );
+    notifyListeners();
+    print('✓ ActivityTrackingViewModel data cleared');
+  }
+
   /// Set error message
   void _setError(String message) {
     _errorMessage = message;

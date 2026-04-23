@@ -1,10 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
 import '../../activity_health/repositories/step_tracker_repository.dart';
 import '../../activity_health/repositories/hydration_repository.dart';
+import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
+import '../../activity_health/viewmodels/hydration_viewmodel.dart';
+import '../../activity_health/viewmodels/activity_tracking_viewmodel.dart';
 import '../../../core/database/local_profile_db.dart';
 
 final _supabase = Supabase.instance.client;
@@ -216,6 +220,23 @@ class ProfileViewModel extends ChangeNotifier {
     _profile = null;
     _weightHistory = [];
     notifyListeners();
+  }
+
+  /// Global signOut with provider cleanup
+  Future<void> signOutWithCleanup(
+    StepTrackerViewModel stepVM,
+    HydrationViewModel hydrationVM,
+    ActivityTrackingViewModel activityVM,
+  ) async {
+    // 1. Clear all health data from providers and reset pedometer baseline
+    await stepVM.clearData();
+    hydrationVM.clearData();
+    activityVM.clearData();
+
+    // 2. Perform repository sign out
+    await signOut();
+    
+    print('✓ Global sign out with data cleanup completed');
   }
 
   Future<void> changePassword({

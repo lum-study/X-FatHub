@@ -72,46 +72,6 @@ class WorkManagerService {
       print('✗ Error cancelling WorkManager tasks: $e');
     }
   }
-
-  /// Execute quick sync on app launch
-  /// Gets current step count from pedometer and ensures it's synced to Supabase
-  /// This runs BEFORE the UI is displayed to ensure profile has fresh step data
-  static Future<void> executeQuickSyncOnAppLaunch() async {
-    try {
-      print('🚀 App launch detected - executing quick sync...');
-
-      // Get today's current steps from pedometer
-      await PedometerService.initPedometer();
-
-      // Wait a bit for pedometer to receive fresh sensor data
-      // This ensures we get accurate step count instead of stale data
-      await Future.delayed(const Duration(seconds: 1));
-
-      final steps = await PedometerService.getTodayStepsCalculated(
-        refreshFromSensor: true,
-      );
-      print('✓ [QUICK SYNC] Got current steps ($steps) from pedometer');
-
-      // Try to sync to Supabase if network available via repository
-      final connectivity = Connectivity();
-      final connectivityResult = await connectivity.checkConnectivity();
-
-      if (connectivityResult != ConnectivityResult.none) {
-        print('📡 Network available - syncing to Supabase on app launch...');
-        try {
-          final repository = StepTrackerRepository();
-          await repository.saveTodaySteps(steps);
-          print('✓ [QUICK SYNC] Synced steps to Supabase');
-        } catch (e) {
-          print('📡 Sync to Supabase deferred (will retry later): $e');
-        }
-      } else {
-        print('📡 No network on app launch - will retry later');
-      }
-    } catch (e) {
-      print('✗ Error in quick sync on app launch: $e');
-    }
-  }
 }
 
 /// Callback dispatcher for background WorkManager tasks

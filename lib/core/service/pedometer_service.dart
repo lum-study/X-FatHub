@@ -213,30 +213,37 @@ class PedometerService {
     }
   }
 
-  /// Reset today's step count and baseline to the current sensor value
-  /// Used when user explicitly resets step data
-  static Future<void> resetTodaySteps() async {
+  /// Initialize today's step count with a specific value and reset baseline.
+  /// Used during login to "add" supabase steps to pedometer.
+  static Future<void> initializeTodaySteps(int steps) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now();
       final todayStr = "${now.year}-${now.month}-${now.day}";
 
-      int baseline = prefs.getInt(_lastSensorValueKey) ?? 0;
+      int currentSensorValue = prefs.getInt(_lastSensorValueKey) ?? 0;
       try {
+        // Try to get current sensor value for a fresh baseline
         final event = await Pedometer.stepCountStream
             .first
             .timeout(const Duration(seconds: 2));
-        baseline = event.steps;
+        currentSensorValue = event.steps;
       } catch (e) {
-        print('⚠ Could not read current sensor baseline: $e');
+        print('⚠ Could not read current sensor for baseline: $e');
       }
 
       await prefs.setString(_lastUpdateDateKey, todayStr);
-      await prefs.setInt(_todayStepsKey, 0);
-      await prefs.setInt(_lastSensorValueKey, baseline);
-      print('✓ Today steps reset to 0 with baseline $baseline');
+      await prefs.setInt(_todayStepsKey, steps);
+      await prefs.setInt(_lastSensorValueKey, currentSensorValue);
+      print('✓ Today steps initialized to $steps with baseline $currentSensorValue');
     } catch (e) {
-      print('Error resetting today steps: $e');
+      print('Error initializing today steps: $e');
     }
+  }
+
+  /// Reset today's step count and baseline to the current sensor value
+  /// Used when user explicitly resets step data or logs out
+  static Future<void> resetTodaySteps() async {
+    await initializeTodaySteps(0);
   }
 }
