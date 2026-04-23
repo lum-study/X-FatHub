@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS profiles (
   height DOUBLE PRECISION,
   step_goal INT,
   hydration_goal INTEGER,
-  profile_completed BOOLEAN DEFAULT false,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
