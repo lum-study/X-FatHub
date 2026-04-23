@@ -559,6 +559,59 @@ AS $$
     END;
 $$;
 
+DROP FUNCTION IF EXISTS get_public_profile(UUID);
+CREATE OR REPLACE FUNCTION get_public_profile(
+  p_user_id UUID
+)
+RETURNS JSONB
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT CASE
+    WHEN auth.uid() IS NULL THEN
+      jsonb_build_object('success', false, 'error', 'unauthorized')
+    ELSE
+      COALESCE(
+        (
+          SELECT jsonb_build_object(
+            'success', true,
+            'id', p.id,
+            'name', p.name,
+            'created_at', p.created_at,
+            'profile_picture_url', p.profile_picture_url
+          )
+          FROM profiles p
+          WHERE p.id = p_user_id
+          LIMIT 1
+        ),
+        jsonb_build_object('success', false, 'error', 'Profile not found.')
+      )
+  END;
+$$;
+
+DROP FUNCTION IF EXISTS get_public_profiles(UUID[]);
+CREATE OR REPLACE FUNCTION get_public_profiles(
+  p_user_ids UUID[]
+)
+RETURNS TABLE (
+  id UUID,
+  name TEXT,
+  profile_picture_url TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p.id,
+    COALESCE(p.name, 'User') AS name,
+    p.profile_picture_url
+  FROM profiles p
+  WHERE auth.uid() IS NOT NULL
+    AND p.id = ANY (p_user_ids);
+$$;
+
 DROP FUNCTION IF EXISTS create_booking_with_credit(UUID, UUID, UUID);
 CREATE OR REPLACE FUNCTION create_booking_with_credit(
   p_user_id UUID,
@@ -858,6 +911,8 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION get_user_credit_balance(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_public_profile(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_public_profiles(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION create_booking_with_credit(UUID, UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION cancel_booking_with_refund(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION reschedule_booking(UUID, UUID, UUID) TO authenticated;

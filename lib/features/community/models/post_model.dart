@@ -33,6 +33,7 @@ class PostModel {
 
   // Extra fields for UI display
   final String authorName;
+  final String? authorAvatarUrl;
   final int likesCount;
   final int commentsCount;
   final bool isLikedByMe;
@@ -54,6 +55,7 @@ class PostModel {
     this.activityDurationSeconds,
     this.activityDistance,
     this.authorName = 'User',
+    this.authorAvatarUrl,
     this.likesCount = 0,
     this.commentsCount = 0,
     this.isLikedByMe = false,
@@ -97,6 +99,7 @@ class PostModel {
 
       // These fields might be joined from other tables in a real query
       authorName: map['profiles']?['name'] ?? 'User',
+  authorAvatarUrl: map['author_avatar_url'] as String? ?? map['profiles']?['profile_picture_url'] as String?,
       likesCount: map['likes_count'] ?? postLikes?.length ?? 0,
       commentsCount: map['comments_count'] ?? map['post_comments']?.length ?? 0,
       isLikedByMe: map['is_liked_by_me'] ?? checkIsLiked,
@@ -136,6 +139,7 @@ class PostModel {
     int? activityDurationSeconds,
     double? activityDistance,
     String? authorName,
+    String? authorAvatarUrl,
     int? likesCount,
     int? commentsCount,
     bool? isLikedByMe,
@@ -157,6 +161,7 @@ class PostModel {
       activityDurationSeconds: activityDurationSeconds ?? this.activityDurationSeconds,
       activityDistance: activityDistance ?? this.activityDistance,
       authorName: authorName ?? this.authorName,
+      authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,
       isLikedByMe: isLikedByMe ?? this.isLikedByMe,

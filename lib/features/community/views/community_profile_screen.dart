@@ -214,6 +214,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
     }
 
     final name = _userStats!['name'] as String;
+    final profilePictureUrl = _userStats!['profilePictureUrl'] as String?;
     final joinedDate = _userStats!['joinedDate'] as DateTime;
     final totalLikes = _userStats!['totalLikes'] as int;
     final totalPosts = _userStats!['totalPosts'] as int;
@@ -240,7 +241,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            _buildProfileHeader(name, formattedDate, totalLikes, totalPosts, totalFollowers),
+            _buildProfileHeader(name, formattedDate, totalLikes, totalPosts, totalFollowers, profilePictureUrl),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Row(
@@ -362,6 +363,7 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
                       author: post.authorName,
                       time: timeStr,
                       avatarIcon: Icons.person,
+                      avatarUrl: post.authorAvatarUrl,
                       content: post.content,
                       hasMedia: post.mediaUrl != null && post.mediaUrl!.isNotEmpty,
                       likes: post.likesCount,
@@ -443,15 +445,25 @@ class _CommunityProfileScreenState extends State<CommunityProfileScreen> {
   }
 
   Widget _buildProfileHeader(
-      String name, String formattedDate, int totalLikes, int totalPosts, int totalFollowers) {
+      String name,
+      String formattedDate,
+      int totalLikes,
+      int totalPosts,
+      int totalFollowers,
+      String? profilePictureUrl) {
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Column(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 40,
             backgroundColor: Color(0xFF1E1E1E),
-            child: Icon(Icons.person, color: Colors.orange, size: 50),
+            backgroundImage: (profilePictureUrl != null && profilePictureUrl.isNotEmpty)
+                ? NetworkImage(profilePictureUrl)
+                : null,
+            child: (profilePictureUrl == null || profilePictureUrl.isEmpty)
+                ? const Icon(Icons.person, color: Colors.orange, size: 50)
+                : null,
           ),
           const SizedBox(height: 12),
           Text(

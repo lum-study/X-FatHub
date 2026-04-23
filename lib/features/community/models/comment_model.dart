@@ -9,6 +9,7 @@ class CommentModel {
 
   // Extra metadata
   final String authorName;
+  final String? authorAvatarUrl;
 
   CommentModel({
     required this.id,
@@ -17,13 +18,16 @@ class CommentModel {
     required this.content,
     required this.createdAt,
     this.authorName = 'User',
+    this.authorAvatarUrl,
   });
 
   factory CommentModel.fromJson(Map<String, dynamic> json) {
     // Determine author name from joined 'profiles' table if available
-    String author = 'User';
+    String author = json['author_name'] as String? ?? 'User';
+    String? avatarUrl = json['author_avatar_url'] as String?;
     if (json['profiles'] != null && json['profiles'] is Map) {
       author = json['profiles']['name'] ?? 'User';
+      avatarUrl = json['profiles']['profile_picture_url'] as String? ?? avatarUrl;
     }
 
     return CommentModel(
@@ -33,6 +37,22 @@ class CommentModel {
       content: json['content'] as String,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       authorName: author,
+      authorAvatarUrl: avatarUrl,
+    );
+  }
+
+  CommentModel copyWith({
+    String? authorName,
+    String? authorAvatarUrl,
+  }) {
+    return CommentModel(
+      id: id,
+      postId: postId,
+      userId: userId,
+      content: content,
+      createdAt: createdAt,
+      authorName: authorName ?? this.authorName,
+      authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
     );
   }
 }

@@ -296,9 +296,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         children: [
                           GestureDetector(
                             onTap: _navigateToProfile,
-                            child: const CircleAvatar(
+                            child: CircleAvatar(
                               backgroundColor: Color(0xFF1E1E1E),
-                              child: Icon(Icons.person, color: Colors.orange),
+                              backgroundImage: (post.authorAvatarUrl != null && post.authorAvatarUrl!.isNotEmpty)
+                                  ? NetworkImage(post.authorAvatarUrl!)
+                                  : null,
+                              child: (post.authorAvatarUrl == null || post.authorAvatarUrl!.isEmpty)
+                                  ? const Icon(Icons.person, color: Colors.orange)
+                                  : null,
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -620,7 +625,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         author: comment.authorName,
                         time: commentTime,
                         text: comment.content,
-                        icon: Icons.person,
+                        avatarUrl: comment.authorAvatarUrl,
                         userId: comment.userId,
                       ),
                     );
@@ -699,7 +704,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
     required String author,
     required String time,
     required String text,
-    required IconData icon,
+    String? avatarUrl,
     required String userId,
   }) {
     return Row(
@@ -710,7 +715,12 @@ class _CommentsScreenState extends State<CommentsScreen> {
           child: CircleAvatar(
             radius: 15,
             backgroundColor: const Color(0xFF1E1E1E),
-            child: Icon(icon, color: const Color(0xFFAAAAAA), size: 16),
+            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: (avatarUrl == null || avatarUrl.isEmpty)
+                ? const Icon(Icons.person, color: Color(0xFFAAAAAA), size: 16)
+                : null,
           ),
         ),
         const SizedBox(width: 10),
