@@ -15,6 +15,7 @@ class PostCard extends StatefulWidget {
   final String author;
   final String time;
   final IconData avatarIcon;
+  final String? avatarUrl;
   final String content;
   final bool hasMedia;
   final int likes;
@@ -33,6 +34,7 @@ class PostCard extends StatefulWidget {
     required this.author,
     required this.time,
     required this.avatarIcon,
+    this.avatarUrl,
     required this.content,
     required this.hasMedia,
     required this.likes,
@@ -174,7 +176,12 @@ class _PostCardState extends State<PostCard> {
                   onTap: widget.onProfileTap,
                   child: CircleAvatar(
                     backgroundColor: const Color(0xFF1E1E1E),
-                    child: Icon(widget.avatarIcon, color: Colors.orange),
+                    backgroundImage: (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(widget.avatarUrl!)
+                        : null,
+                    child: (widget.avatarUrl == null || widget.avatarUrl!.isEmpty)
+                        ? Icon(widget.avatarIcon, color: Colors.orange)
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -453,7 +460,6 @@ class _PostCardState extends State<PostCard> {
                           isActive: _isStarred,
                         ),
                       ),
-                      _buildActionBtn(Icons.share, ''),
                     ],
                   ),
                 ],

@@ -9,21 +9,51 @@ class CommunityRepository {
   String? get currentUserId =>
       _supabase.auth.currentUser?.id ?? '11111111-1111-1111-1111-111111111111';
 
+  Future<Map<String, Map<String, String?>>> _fetchPublicProfilesByUserIds(
+      Iterable<String> userIds) async {
+    final ids = userIds.toSet().toList();
+    if (ids.isEmpty) return <String, Map<String, String?>>{};
+
+    final response = await _supabase.rpc(
+      'get_public_profiles',
+      params: {'p_user_ids': ids},
+    );
+
+    final Map<String, Map<String, String?>> profilesById = {};
+    for (final row in (response as List)) {
+      final id = row['id'] as String?;
+      if (id == null) continue;
+      profilesById[id] = {
+        'name': (row['name'] as String?) ?? 'User',
+        'profile_picture_url': row['profile_picture_url'] as String?,
+      };
+    }
+    return profilesById;
+  }
+
   Future<List<PostModel>> fetchPosts(String selectedFilter) async {
     if (currentUserId == null) return [];
 
-    // We select the post, inner join to profiles for authorName,
-    // and left join to likes/comments for counts.
     final response = await _supabase
         .from('posts')
         .select(
-        '*, profiles(name), post_likes(user_id), post_comments(id), post_favourites(user_id)')
+        '*, post_likes(user_id), post_comments(id), post_favourites(user_id)')
         .order('created_at', ascending: false);
 
     List<PostModel> posts = (response as List).map((map) {
-      // Map JSON to dynamic model structure matching what PostModel expects
       return PostModel.fromMap(map, currentUserId: currentUserId);
     }).toList();
+
+    final profilesById = await _fetchPublicProfilesByUserIds(posts.map((p) => p.userId));
+    posts = posts
+        .map(
+          (post) => post.copyWith(
+            authorName: profilesById[post.userId]?['name'] ?? post.authorName,
+            authorAvatarUrl:
+                profilesById[post.userId]?['profile_picture_url'] ?? post.authorAvatarUrl,
+          ),
+        )
+        .toList();
 
     // Map filters locally for simplicity, though this could be done via Supabase queries
     if (selectedFilter == 'Following') {
@@ -47,27 +77,37 @@ class CommunityRepository {
     final response = await _supabase
         .from('posts')
         .select(
-        '*, profiles(name), post_likes(user_id), post_comments(id), post_favourites(user_id)')
+      '*, post_likes(user_id), post_comments(id), post_favourites(user_id)')
         .eq('user_id', targetUserId)
         .order('created_at', ascending: false);
 
-    return (response as List)
+    var posts = (response as List)
         .map((map) => PostModel.fromMap(map, currentUserId: currentUserId))
         .toList();
+
+    final profilesById = await _fetchPublicProfilesByUserIds(posts.map((p) => p.userId));
+    posts = posts
+        .map(
+          (post) => post.copyWith(
+            authorName: profilesById[post.userId]?['name'] ?? post.authorName,
+            authorAvatarUrl:
+                profilesById[post.userId]?['profile_picture_url'] ?? post.authorAvatarUrl,
+          ),
+        )
+      .toList();
+
+    return posts;
   }
 
   Future<Map<String, dynamic>?> fetchUserProfileStats(
       String targetUserId) async {
     try {
-      final profileResponse = await _supabase
-          .from('profiles')
-          .select('name, created_at')
-          .eq('id', targetUserId)
-          .maybeSingle();
+      final profileResponse = await _supabase.rpc(
+        'get_public_profile',
+        params: {'p_user_id': targetUserId},
+      );
 
-      if (profileResponse == null) {
-        // If it's returning null, it's highly likely RLS blocked it because 
-        // they are viewing someone else's profile or they are unauthenticated using the dummy ID.
+      if (profileResponse == null || profileResponse['success'] != true) {
         print('Profile not found for ID: $targetUserId. Is RLS blocking this?');
         return null;
       }
@@ -105,6 +145,7 @@ class CommunityRepository {
 
       return {
         'name': name,
+        'profilePictureUrl': profileResponse['profile_picture_url'],
         'joinedDate': joinedDate,
         'totalPosts': postsCount,
         'totalLikes': likesCount,
@@ -220,12 +261,23 @@ class CommunityRepository {
   Future<List<CommentModel>> getComments(String postId) async {
     final response = await _supabase
         .from('post_comments')
-        .select('*, profiles(name)')
+        .select('*')
         .eq('post_id', postId)
         .order('created_at', ascending: true);
 
     final data = response as List;
-    return data.map((json) => CommentModel.fromJson(json)).toList();
+    var comments = data.map((json) => CommentModel.fromJson(json)).toList();
+    final profilesById = await _fetchPublicProfilesByUserIds(comments.map((c) => c.userId));
+    comments = comments
+        .map(
+          (comment) => comment.copyWith(
+            authorName: profilesById[comment.userId]?['name'] ?? comment.authorName,
+            authorAvatarUrl: profilesById[comment.userId]?['profile_picture_url'] ??
+                comment.authorAvatarUrl,
+          ),
+        )
+        .toList();
+    return comments;
   }
 
   Future<CommentModel> addComment(String postId, String userId, String content) async {
@@ -233,9 +285,15 @@ class CommunityRepository {
       'post_id': postId,
       'user_id': userId,
         'content': content,
-      }).select('*, profiles(name)').single();
-      
-      return CommentModel.fromJson(response);
+      }).select('*').single();
+
+      final comment = CommentModel.fromJson(response);
+      final profilesById = await _fetchPublicProfilesByUserIds([userId]);
+      return comment.copyWith(
+        authorName: profilesById[userId]?['name'] ?? comment.authorName,
+        authorAvatarUrl:
+            profilesById[userId]?['profile_picture_url'] ?? comment.authorAvatarUrl,
+      );
     }
 
     Future<void> updatePost(PostModel post) async {
