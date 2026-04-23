@@ -58,12 +58,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
-            <!-- Deep link intent filter for hydration -->
+            <!-- Deep link intent filter for payment and hydration -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="xfathub" android:host="hydration"/>
+                <data android:scheme="xfathub" />
             </intent-filter>
         </activity>
         <!-- Foreground service for activity tracking in background -->

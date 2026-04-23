@@ -44,31 +44,9 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   }
 
   Future<void> _verifyPaymentReturn() async {
-    if (!mounted) return;
-
-    final provider = context.read<BookingViewModel>();
-    await provider.refreshCurrentUserBookingData();
-    if (!mounted) return;
-
-    final latestCredits = provider.sessionsRemainingForPackage(
-      widget.package.id,
-    );
-    if (_initialPackageCredits >= 0 && latestCredits > _initialPackageCredits) {
-      _isAwaitingPaymentReturn = false;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const PaymentSuccessScreen()),
-      );
-      return;
-    }
-
+    // Relying on global deep link listener in main.dart now.
+    // This local verification is removed to avoid duplicate navigation or race conditions.
     _isAwaitingPaymentReturn = false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Payment was not confirmed yet. Complete payment and return again.',
-        ),
-      ),
-    );
   }
 
   Future<void> _payWithCard() async {

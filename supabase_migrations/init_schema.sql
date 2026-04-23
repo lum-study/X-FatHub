@@ -759,7 +759,7 @@ AS $$
     WHEN NOT EXISTS (SELECT 1 FROM booking_row) THEN
       jsonb_build_object('success', false, 'error', 'Booking not found.')
     WHEN EXISTS (SELECT 1 FROM booking_row WHERE status <> 'upcoming') THEN
-      jsonb_build_object('success', false, 'error', 'Only upcoming bookings can be cancelled.')
+      jsonb_build_object('success', false, 'error', 'Only upcoming bookings can be removed.')
     WHEN NOT EXISTS (SELECT 1 FROM updated_booking) THEN
       jsonb_build_object('success', false, 'error', 'Unable to cancel booking.')
     ELSE

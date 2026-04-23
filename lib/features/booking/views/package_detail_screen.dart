@@ -4,6 +4,7 @@ import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/views/book_and_pay_screen.dart';
 import 'package:xfathub/features/booking/views/checkout_screen.dart';
+import 'package:xfathub/features/booking/views/booking_history_screen.dart';
 
 class PackageDetailScreen extends StatefulWidget {
   final PackageModel package;
@@ -80,6 +81,16 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const BookingHistoryScreen(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.history, color: Color(0xFFFFA500)),
                       ),
                     ],
                   ),
@@ -216,7 +227,7 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
     final rules = package.rules.isEmpty
         ? const <String>[
             'A session is deducted only after successful booking confirmation.',
-            'Cancelled sessions are handled by server-side booking policy.',
+            'Refunds for missed sessions are handled by the server-side booking policy.',
             'Only authenticated users can purchase and consume package credits.',
           ]
         : package.rules;

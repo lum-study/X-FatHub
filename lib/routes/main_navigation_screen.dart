@@ -1,18 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../features/profile/views/home_screen.dart';
+import '../features/home/views/home_screen.dart';
 import '../features/profile/views/profile_dashboard_screen.dart';
 import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
 import '../features/community/providers/community_provider.dart';
 import '../features/profile/viewmodels/profile_viewmodel.dart';
+import '../features/profile/views/login_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+
+  /// Navigate to a specific tab
+  static void switchToTab(int index) {
+    if (_MainNavigationScreenState._instance != null) {
+      _MainNavigationScreenState._instance!.setState(() {
+        _MainNavigationScreenState._instance!._selectedIndex = index;
+      });
+      // Pop all routes in that tab to go to its home
+      _MainNavigationScreenState._instance!._navigatorKeys[index].currentState
+          ?.popUntil((route) => route.isFirst);
+    }
+  }
 
   /// Navigate to a specific route within the tracker tab
   static void navigateToTrackerRoute(Widget screen) {
@@ -61,13 +74,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final profileViewModel = context.watch<ProfileViewModel>();
     final isAuthenticated = profileViewModel.isAuthenticated;
 
-    // If not authenticated, show only the Home (Login) screen without navigation
+    // If not authenticated, show Login screen
     if (!isAuthenticated) {
-      return const HomeScreen();
+      return const LoginScreen();
     }
 
-    return WillPopScope(
-      onWillPop: _handleBackPress,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final NavigatorState? navigator = _navigatorKeys[_selectedIndex].currentState;
+        if (navigator != null && navigator.canPop()) {
+          navigator.pop();
+        } else {
+          if (_selectedIndex != 2) {
+            setState(() => _selectedIndex = 2);
+          } else {
+            // If we are on the home tab and cannot pop, we might want to exit the app
+            // or let the system handle it. In many apps, pressing back on the root
+            // of the primary tab exits the app.
+            // Returning false (default when canPop is false) allows the system
+            // to handle it if we don't do anything. 
+            // However, to mimic old behavior of allowing exit:
+            if (context.mounted) {
+               // SystemNavigator.pop() could be used here if needed.
+            }
+          }
+        }
+      },
       child: Scaffold(
         backgroundColor: Colors.black,
         body: IndexedStack(
@@ -180,17 +214,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         if (!mounted) return;
         context.read<CommunityProvider>().requestScrollToTop();
       });
-    }
-  }
-
-  Future<bool> _handleBackPress() async {
-    if (_navigatorKeys[_selectedIndex].currentState?.canPop() ?? false) {
-      _navigatorKeys[_selectedIndex].currentState?.pop();
-      return false;
-    } else {
-      if (_selectedIndex == 2) return Future.value(true);
-      setState(() => _selectedIndex = 2);
-      return false;
     }
   }
 }

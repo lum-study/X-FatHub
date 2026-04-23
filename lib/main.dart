@@ -55,6 +55,10 @@ class _MyAppState extends State<MyApp> {
           MainNavigationScreen.navigateToTrackerRoute(
             const HydrationLogScreen(),
           );
+        } else if (route == '/payment/success') {
+          navigatorKey.currentState?.pushNamed(AppRoutes.paymentSuccess);
+        } else if (route == '/payment/cancel') {
+          navigatorKey.currentState?.pushNamed(AppRoutes.paymentCancel);
         }
       }
     });

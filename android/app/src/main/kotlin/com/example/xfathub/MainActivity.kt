@@ -50,10 +50,17 @@ class MainActivity : FlutterActivity() {
         val data = intent.data
         if (data != null && data.scheme == "xfathub") {
             val host = data.host
-            println("🔗 Deep link detected: $host")
+            val path = data.path
+            println("🔗 Deep link detected: $host, path: $path")
+            
+            // Build the route
+            var route = "/$host"
+            if (path != null && path != "/") {
+                route = "/$host$path"
+            }
             
             // Send the deep link route to Flutter
-            deepLinkMethodChannel?.invokeMethod("navigate", mapOf("route" to "/$host"))
+            deepLinkMethodChannel?.invokeMethod("navigate", mapOf("route" to route))
         }
     }
 

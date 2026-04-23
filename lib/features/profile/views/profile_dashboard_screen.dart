@@ -6,6 +6,7 @@ import 'profile_edit_screen.dart';
 import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
 import '../../activity_health/viewmodels/hydration_viewmodel.dart';
 import '../../booking/viewmodels/booking_viewmodel.dart';
+import '../../booking/views/booking_history_screen.dart';
 
 class ProfileDashboardScreen extends StatefulWidget {
   const ProfileDashboardScreen({super.key});
@@ -42,6 +43,17 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.orange),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BookingHistoryScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.orange),
             onPressed: () {
@@ -715,91 +727,19 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   }
 
   Future<void> _showWeightUpdateDialog(BuildContext context, profile) async {
-    final weightController = TextEditingController(
-      text: profile?.currentWeight?.toString() ?? '',
-    );
-
-    // Store everything we need BEFORE showing dialog
     final provider = context.read<ProfileViewModel>();
     final profileCopy = provider.profile;
-    final initialWeight = profileCopy?.initialWeight ?? 0.0;
-    final weightGoal = profileCopy?.weightGoal ?? 0.0;
     final userId = profileCopy?.id ?? '';
     final messenger = ScaffoldMessenger.of(context);
 
     final newWeight = await showDialog<double>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Update Current Weight',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: weightController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Enter weight in kg',
-            hintStyle: TextStyle(color: Colors.grey[600]),
-            filled: true,
-            fillColor: Colors.grey[800],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              final parsedWeight = double.tryParse(weightController.text.trim());
-
-              if (parsedWeight == null || parsedWeight <= 0) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a valid weight'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-
-              // Validation using stored values (not context).
-              if (initialWeight > 0 && weightGoal > 0) {
-                final minWeight = initialWeight < weightGoal
-                    ? initialWeight
-                    : weightGoal;
-                final maxWeight = initialWeight > weightGoal
-                    ? initialWeight
-                    : weightGoal;
-
-                if (parsedWeight < minWeight || parsedWeight > maxWeight) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Weight must be between ${minWeight.toStringAsFixed(1)} kg and ${maxWeight.toStringAsFixed(1)} kg',
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-              }
-
-              Navigator.of(dialogContext).pop(parsedWeight);
-            },
-            child: const Text('Update', style: TextStyle(color: Colors.orange)),
-          ),
-        ],
+      builder: (context) => WeightUpdateDialog(
+        currentWeight: profile?.currentWeight,
+        initialWeight: profile?.initialWeight ?? 0.0,
+        weightGoal: profile?.weightGoal ?? 0.0,
       ),
     );
-
-    weightController.dispose();
 
     if (newWeight == null) {
       return;
@@ -831,6 +771,111 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         backgroundColor: Colors.green,
         duration: Duration(seconds: 2),
       ),
+    );
+  }
+}
+
+class WeightUpdateDialog extends StatefulWidget {
+  final double? currentWeight;
+  final double initialWeight;
+  final double weightGoal;
+
+  const WeightUpdateDialog({
+    super.key,
+    this.currentWeight,
+    required this.initialWeight,
+    required this.weightGoal,
+  });
+
+  @override
+  State<WeightUpdateDialog> createState() => _WeightUpdateDialogState();
+}
+
+class _WeightUpdateDialogState extends State<WeightUpdateDialog> {
+  late final TextEditingController _weightController;
+
+  @override
+  void initState() {
+    super.initState();
+    _weightController = TextEditingController(
+      text: widget.currentWeight?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.grey[900],
+      title: const Text(
+        'Update Current Weight',
+        style: TextStyle(color: Colors.white),
+      ),
+      content: TextField(
+        controller: _weightController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: 'Enter weight in kg',
+          hintStyle: TextStyle(color: Colors.grey[600]),
+          filled: true,
+          fillColor: Colors.grey[800],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+        ),
+        TextButton(
+          onPressed: () {
+            final parsedWeight = double.tryParse(_weightController.text.trim());
+
+            if (parsedWeight == null || parsedWeight <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please enter a valid weight'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            if (widget.initialWeight > 0 && widget.weightGoal > 0) {
+              final minWeight = widget.initialWeight < widget.weightGoal
+                  ? widget.initialWeight
+                  : widget.weightGoal;
+              final maxWeight = widget.initialWeight > widget.weightGoal
+                  ? widget.initialWeight
+                  : widget.weightGoal;
+
+              if (parsedWeight < minWeight || parsedWeight > maxWeight) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Weight must be between ${minWeight.toStringAsFixed(1)} kg and ${maxWeight.toStringAsFixed(1)} kg',
+                    ),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+            }
+
+            Navigator.of(context).pop(parsedWeight);
+          },
+          child: const Text('Update', style: TextStyle(color: Colors.orange)),
+        ),
+      ],
     );
   }
 }

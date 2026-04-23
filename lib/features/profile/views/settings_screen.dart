@@ -15,181 +15,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isChangingPassword = false;
 
   void _showChangePasswordDialog() {
-    final currentPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
-    bool obscureCurrentPassword = true;
-    bool obscureNewPassword = true;
-    bool obscureConfirmPassword = true;
-
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: Colors.grey[900],
-          title: const Text(
-            'Change Password',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Current Password
-                TextField(
-                  controller: currentPasswordController,
-                  obscureText: obscureCurrentPassword,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Current Password',
-                    labelStyle: TextStyle(color: Colors.grey[400]),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        obscureCurrentPassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () => setState(() => obscureCurrentPassword = !obscureCurrentPassword),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // New Password
-                TextField(
-                  controller: newPasswordController,
-                  obscureText: obscureNewPassword,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    labelStyle: TextStyle(color: Colors.grey[400]),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        obscureNewPassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () => setState(() => obscureNewPassword = !obscureNewPassword),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Confirm Password
-                TextField(
-                  controller: confirmPasswordController,
-                  obscureText: obscureConfirmPassword,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Confirm New Password',
-                    labelStyle: TextStyle(color: Colors.grey[400]),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                currentPasswordController.dispose();
-                newPasswordController.dispose();
-                confirmPasswordController.dispose();
-              },
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            TextButton(
-              onPressed: _isChangingPassword
-                  ? null
-                  : () async {
-                      if (currentPasswordController.text.isEmpty ||
-                          newPasswordController.text.isEmpty ||
-                          confirmPasswordController.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please fill all fields')),
-                        );
-                        return;
-                      }
-
-                      if (newPasswordController.text != confirmPasswordController.text) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('New passwords do not match')),
-                        );
-                        return;
-                      }
-
-                      if (newPasswordController.text.length < 6) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Password must be at least 6 characters')),
-                        );
-                        return;
-                      }
-
-                      setState(() => _isChangingPassword = true);
-
-                      try {
-                        final provider = context.read<ProfileViewModel>();
-                        await provider.changePassword(
-                          currentPassword: currentPasswordController.text,
-                          newPassword: newPasswordController.text,
-                        );
-
-                        if (mounted) {
-                          Navigator.pop(context);
-                          currentPasswordController.dispose();
-                          newPasswordController.dispose();
-                          confirmPasswordController.dispose();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Password changed successfully!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
-                          );
-                        }
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isChangingPassword = false);
-                        }
-                      }
-                    },
-              child: _isChangingPassword
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(Colors.orange),
-                      ),
-                    )
-                  : const Text('Change', style: TextStyle(color: Colors.orange)),
-            ),
-          ],
-        ),
-      ),
+      builder: (context) => const ChangePasswordDialog(),
     );
   }
 
@@ -643,3 +471,186 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
+class ChangePasswordDialog extends StatefulWidget {
+  const ChangePasswordDialog({super.key});
+
+  @override
+  State<ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscureCurrentPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.grey[900],
+      title: const Text(
+        'Change Password',
+        style: TextStyle(color: Colors.white),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _currentPasswordController,
+              obscureText: _obscureCurrentPassword,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Current Password',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureCurrentPassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => setState(() => _obscureCurrentPassword = !_obscureCurrentPassword),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _newPasswordController,
+              obscureText: _obscureNewPassword,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'New Password',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureNewPassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirmPasswordController,
+              obscureText: _obscureConfirmPassword,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Confirm New Password',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+        ),
+        TextButton(
+          onPressed: _isLoading
+              ? null
+              : () async {
+                  if (_currentPasswordController.text.isEmpty ||
+                      _newPasswordController.text.isEmpty ||
+                      _confirmPasswordController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fill all fields')),
+                    );
+                    return;
+                  }
+
+                  if (_newPasswordController.text != _confirmPasswordController.text) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('New passwords do not match')),
+                    );
+                    return;
+                  }
+
+                  if (_newPasswordController.text.length < 6) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Password must be at least 6 characters')),
+                    );
+                    return;
+                  }
+
+                  setState(() => _isLoading = true);
+
+                  try {
+                    final provider = context.read<ProfileViewModel>();
+                    await provider.changePassword(
+                      currentPassword: _currentPasswordController.text,
+                      newPassword: _newPasswordController.text,
+                    );
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Password changed successfully!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e')),
+                      );
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() => _isLoading = false);
+                    }
+                  }
+                },
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.orange),
+                  ),
+                )
+              : const Text('Change', style: TextStyle(color: Colors.orange)),
+        ),
+      ],
+    );
+  }
+}
+

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
+import 'package:xfathub/routes/main_navigation_screen.dart';
 
 class PaymentSuccessScreen extends StatefulWidget {
   final bool isCancelled;
@@ -68,7 +69,10 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
                     foregroundColor: Colors.black,
                   ),
                   onPressed: () {
+                    // Navigate back to the home route (MainNavigationScreen)
                     Navigator.of(context).popUntil((route) => route.isFirst);
+                    // Switch to Packages tab (Index 1)
+                    MainNavigationScreen.switchToTab(1);
                   },
                   child: const Text(
                     'Go to Packages',
