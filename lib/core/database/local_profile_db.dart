@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 class LocalProfileDatabase {
   static const String _dbName = 'profile.db';
   static const String _tableName = 'profiles';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   static const String colId = 'id';
   static const String colEmail = 'email';
@@ -12,6 +12,8 @@ class LocalProfileDatabase {
   static const String colBio = 'bio';
   static const String colProfilePictureUrl = 'profile_picture_url';
   static const String colAge = 'age';
+  static const String colGender = 'gender';
+  static const String colBirthdate = 'birthdate';
   static const String colHeight = 'height';
   static const String colCurrentWeight = 'current_weight';
   static const String colInitialWeight = 'initial_weight';
@@ -37,6 +39,7 @@ class LocalProfileDatabase {
       path,
       version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -49,6 +52,8 @@ class LocalProfileDatabase {
         $colBio TEXT,
         $colProfilePictureUrl TEXT,
         $colAge INTEGER,
+        $colGender TEXT,
+        $colBirthdate TEXT,
         $colHeight REAL,
         $colCurrentWeight REAL,
         $colInitialWeight REAL,
@@ -60,6 +65,13 @@ class LocalProfileDatabase {
         $colUpdatedAt TEXT
       )
     ''');
+  }
+
+  static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN $colGender TEXT');
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN $colBirthdate TEXT');
+    }
   }
 
   static Future<void> saveProfile(Map<String, dynamic> profile, {bool synced = true}) async {

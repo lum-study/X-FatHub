@@ -74,6 +74,8 @@ class ProfileViewModel extends ChangeNotifier {
     String? name,
     String? bio,
     int? age,
+    String? gender,
+    DateTime? birthdate,
     double? currentWeight,
     double? initialWeight,
     double? weightGoal,
@@ -87,15 +89,18 @@ class ProfileViewModel extends ChangeNotifier {
     if (user == null) return;
 
     final currentProfile = _profile ?? ProfileModel(id: user.id, email: user.email!);
+    final resolvedCurrentWeight = currentWeight ??
+        (initialWeight != null ? initialWeight : currentProfile.currentWeight);
 
     final updatedProfile = currentProfile.copyWith(
       name: name ?? currentProfile.name,
       bio: bio ?? currentProfile.bio,
       age: age ?? currentProfile.age,
-      currentWeight: currentWeight ?? currentProfile.currentWeight,
-      initialWeight: initialWeight ?? (currentProfile.initialWeight != null 
-          ? currentProfile.initialWeight 
-          : currentWeight),
+      gender: gender ?? currentProfile.gender,
+      birthdate: birthdate ?? currentProfile.birthdate,
+      currentWeight: resolvedCurrentWeight,
+      // Only update initial weight when explicitly passed in.
+      initialWeight: initialWeight ?? currentProfile.initialWeight,
       weightGoal: weightGoal ?? currentProfile.weightGoal,
       height: height ?? currentProfile.height,
       stepsGoal: stepsGoal ?? currentProfile.stepsGoal,
@@ -256,19 +261,42 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> uploadProfilePicture(String imagePath) async {
-    if (_profile == null) return;
+    if (_profile == null) {
+      throw Exception('Profile not loaded');
+    }
     
     _setLoading(true);
     try {
       final url = await _repository.uploadProfilePicture(_profile!.id, imagePath);
       if (url != null) {
         _profile = _profile!.copyWith(profilePictureUrl: url);
+        await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
         notifyListeners();
       }
     } catch (e) {
       _error = e.toString();
+      rethrow;
     } finally {
       _setLoading(false);
+    }
+  }
+
+  Future<void> updateCurrentWeightOnly(double newWeight) async {
+    final user = _repository.currentUser;
+    if (user == null || _profile == null) {
+      throw Exception('Profile not loaded');
+    }
+
+    try {
+      await _repository.updateCurrentWeight(user.id, newWeight);
+      _profile = _profile!.copyWith(currentWeight: newWeight);
+      await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      rethrow;
     }
   }
 }

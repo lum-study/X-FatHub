@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import '../viewmodels/profile_viewmodel.dart';
 import 'settings_screen.dart';
 import 'profile_edit_screen.dart';
@@ -234,104 +233,55 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       ),
       child: Column(
         children: [
-          // Profile Picture with edit button
-          GestureDetector(
-            onTap: () => _showImagePicker(context),
-            child: Stack(
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.orange.withOpacity(0.2),
-                    border: Border.all(color: Colors.orange, width: 3),
-                    image: (profile?.profilePictureUrl != null &&
-                            profile!.profilePictureUrl!.isNotEmpty)
-                        ? DecorationImage(
-                            image: NetworkImage(profile.profilePictureUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: (profile?.profilePictureUrl == null ||
-                          profile!.profilePictureUrl!.isEmpty)
-                      ? const Icon(Icons.person, size: 50, color: Colors.orange)
-                      : null,
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                  ),
-                ),
-              ],
+          // Profile picture is view-only on dashboard.
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.orange.withOpacity(0.2),
+              border: Border.all(color: Colors.orange, width: 3),
+              image: (profile?.profilePictureUrl != null &&
+                      profile!.profilePictureUrl!.isNotEmpty)
+                  ? DecorationImage(
+                      image: NetworkImage(profile.profilePictureUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
+            child: (profile?.profilePictureUrl == null ||
+                    profile!.profilePictureUrl!.isEmpty)
+                ? const Icon(Icons.person, size: 50, color: Colors.orange)
+                : null,
           ),
           const SizedBox(height: 16),
-          
-          // Name
-          Text(
-            profile?.name ?? 'Guest User',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          
-          // Email
-          Text(
-            profile?.email ?? 'No email',
-            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-          ),
-          
-          // Bio
-          if (profile?.bio != null && profile!.bio!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              profile.bio!,
-              style: TextStyle(fontSize: 14, color: Colors.grey[300]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-          
+
           const SizedBox(height: 20),
           const Divider(color: Colors.grey),
           const SizedBox(height: 16),
-          
+
           // Personal Info Section
           _buildInfoSection('Personal Information', [
+            _buildInfoRow(Icons.person, 'Name', profile?.name ?? 'Not set'),
+            _buildInfoRow(Icons.email, 'Email', profile?.email ?? 'Not set'),
+            _buildInfoRow(Icons.info_outline, 'Bio', profile?.bio?.isNotEmpty == true ? profile!.bio! : 'Not set'),
             _buildInfoRow(Icons.cake, 'Age', profile?.age != null ? '${profile.age} years old' : 'Not set'),
+            _buildInfoRow(Icons.event, 'Birthdate', _formatBirthdate(profile?.birthdate)),
+            _buildInfoRow(Icons.wc, 'Gender', _formatGender(profile?.gender)),
             _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : 'Not set'),
           ]),
-          
+
           const SizedBox(height: 16),
-          
+
           // Weight Info Section
           _buildInfoSection('Weight Information', [
             _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : 'Not set'),
             _buildInfoRow(Icons.monitor_weight, 'Current Weight', profile?.currentWeight != null ? '${profile.currentWeight} kg' : 'Not set'),
             _buildInfoRow(Icons.flag_circle, 'Goal Weight', profile?.weightGoal != null ? '${profile.weightGoal} kg' : 'Not set'),
           ]),
-          
-          const SizedBox(height: 16),
-          
-          // Goals Section
-          _buildInfoSection('Goals', [
-            _buildInfoRow(Icons.directions_walk, 'Steps Goal', profile?.stepsGoal != null ? '${profile.stepsGoal} steps/day' : 'Not set'),
-            _buildInfoRow(Icons.water_drop, 'Hydration Goal', profile?.hydrationGoal != null ? '${profile.hydrationGoal} L/day' : 'Not set'),
-          ]),
-          
+
           const SizedBox(height: 20),
-          
+
           // Edit Profile Button
           SizedBox(
             width: double.infinity,
@@ -384,10 +334,29 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
   }
 
+  String _formatBirthdate(DateTime? birthdate) {
+    if (birthdate == null) {
+      return 'Not set';
+    }
+    final year = birthdate.year.toString().padLeft(4, '0');
+    final month = birthdate.month.toString().padLeft(2, '0');
+    final day = birthdate.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  String _formatGender(String? gender) {
+    if (gender == null || gender.isEmpty) {
+      return 'Not set';
+    }
+    final normalizedGender = gender.toLowerCase();
+    return normalizedGender[0].toUpperCase() + normalizedGender.substring(1);
+  }
+
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 20, color: Colors.orange),
           const SizedBox(width: 12),
@@ -397,76 +366,20 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
               style: TextStyle(color: Colors.grey[300], fontSize: 14),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  void _showImagePicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Change Profile Picture',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.orange),
-              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.orange),
-              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: source, imageQuality: 80);
-    if (image != null && mounted) {
-      final viewModel = context.read<ProfileViewModel>();
-      await viewModel.uploadProfilePicture(image.path);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
   }
 
   Widget _buildWeightProgressSection(profile) {
@@ -801,7 +714,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
   }
 
-  void _showWeightUpdateDialog(BuildContext context, profile) {
+  Future<void> _showWeightUpdateDialog(BuildContext context, profile) async {
     final weightController = TextEditingController(
       text: profile?.currentWeight?.toString() ?? '',
     );
@@ -812,8 +725,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     final initialWeight = profileCopy?.initialWeight ?? 0.0;
     final weightGoal = profileCopy?.weightGoal ?? 0.0;
     final userId = profileCopy?.id ?? '';
+    final messenger = ScaffoldMessenger.of(context);
 
-    showDialog(
+    final newWeight = await showDialog<double>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: Colors.grey[900],
@@ -838,63 +752,84 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              weightController.dispose();
-              Navigator.pop(dialogContext);
-            },
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            onPressed: () async {
-              if (weightController.text.isNotEmpty) {
-                final newWeight = double.tryParse(weightController.text);
-                
-                // Validation using stored values (not context)
-                if (initialWeight > 0 && weightGoal > 0) {
-                  final minWeight = initialWeight < weightGoal ? initialWeight : weightGoal;
-                  final maxWeight = initialWeight > weightGoal ? initialWeight : weightGoal;
-                  
-                  if (newWeight == null || newWeight < minWeight || newWeight > maxWeight) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                        content: Text('Weight must be between ${minWeight.toStringAsFixed(1)} kg and ${maxWeight.toStringAsFixed(1)} kg'),
-                        backgroundColor: Colors.red,
+            onPressed: () {
+              final parsedWeight = double.tryParse(weightController.text.trim());
+
+              if (parsedWeight == null || parsedWeight <= 0) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid weight'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              // Validation using stored values (not context).
+              if (initialWeight > 0 && weightGoal > 0) {
+                final minWeight = initialWeight < weightGoal
+                    ? initialWeight
+                    : weightGoal;
+                final maxWeight = initialWeight > weightGoal
+                    ? initialWeight
+                    : weightGoal;
+
+                if (parsedWeight < minWeight || parsedWeight > maxWeight) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Weight must be between ${minWeight.toStringAsFixed(1)} kg and ${maxWeight.toStringAsFixed(1)} kg',
                       ),
-                    );
-                    return;
-                  }
-                }
-                
-                if (newWeight != null && newWeight > 0) {
-                  // Use stored provider reference
-                  await provider.updateProfile(currentWeight: newWeight);
-                  await provider.loadWeightHistory(userId);
-                  
-                  // Close dialog first
-                  Navigator.of(dialogContext).pop();
-                  weightController.dispose();
-                  
-                  // Then show success using original context
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Weight updated successfully!'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a valid weight'),
                       backgroundColor: Colors.red,
                     ),
                   );
+                  return;
                 }
               }
+
+              Navigator.of(dialogContext).pop(parsedWeight);
             },
             child: const Text('Update', style: TextStyle(color: Colors.orange)),
           ),
         ],
+      ),
+    );
+
+    weightController.dispose();
+
+    if (newWeight == null) {
+      return;
+    }
+
+    try {
+      await provider.updateCurrentWeightOnly(newWeight);
+      await provider.loadWeightHistory(userId);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to update current weight: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Weight updated successfully!'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
       ),
     );
   }

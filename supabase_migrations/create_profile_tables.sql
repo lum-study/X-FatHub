@@ -47,6 +47,52 @@ CREATE POLICY "Users can view their own weight history" ON weight_history
 CREATE POLICY "Users can insert their own weight history" ON weight_history
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+-- Storage bucket and policies for profile avatars
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Avatar upload own folder" ON storage.objects;
+CREATE POLICY "Avatar upload own folder"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS "Avatar update own folder" ON storage.objects;
+CREATE POLICY "Avatar update own folder"
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS "Avatar delete own folder" ON storage.objects;
+CREATE POLICY "Avatar delete own folder"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS "Avatar public read" ON storage.objects;
+CREATE POLICY "Avatar public read"
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'avatars');
+
 -- Trigger to create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
