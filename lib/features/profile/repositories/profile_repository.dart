@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
 import '../models/profile_model.dart';
 
 class ProfileRepository {
@@ -33,16 +34,17 @@ class ProfileRepository {
       if (response == null) return null;
       return ProfileModel.fromMap(response);
     } catch (e) {
-      print('Error fetching profile: $e');
       return null;
     }
   }
 
   Future<void> updateProfile(ProfileModel profile) async {
     try {
+      final data = profile.toMap();
+      data['updated_at'] = DateTime.now().toIso8601String();
       await _supabase
           .from('profiles')
-          .upsert(profile.toMap());
+          .upsert(data, onConflict: 'id');
     } catch (e) {
       throw Exception('Failed to update profile: $e');
     }
@@ -62,7 +64,6 @@ class ProfileRepository {
           await _supabase.auth.admin.deleteUser(userId);
         } catch (e) {
           // If admin delete fails, user can still be deleted from auth directly
-          print('Admin delete failed, signing out: $e');
         }
         
         // Step 3: Sign out locally
@@ -103,7 +104,26 @@ class ProfileRepository {
         'recorded_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
-      print('Error adding weight: $e');
+      // ignore
+    }
+  }
+
+  Future<String?> uploadProfilePicture(String userId, String imagePath) async {
+    try {
+      final file = File(imagePath);
+      final fileName = '$userId/profile_picture_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      await _supabase.storage.from('avatars').upload(fileName, file);
+      final url = _supabase.storage.from('avatars').getPublicUrl(fileName);
+      
+      // Update profile with URL
+      await _supabase.from('profiles').update({
+        'profile_picture_url': url
+      }).eq('id', userId);
+      
+      return url;
+    } catch (e) {
+      return null;
     }
   }
 }

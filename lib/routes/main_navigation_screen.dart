@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../features/home/views/home_screen.dart';
-import '../features/home/views/profile_dashboard_screen.dart';
+import '../features/profile/views/home_screen.dart';
+import '../features/profile/views/profile_dashboard_screen.dart';
 import '../features/community/views/feeds_screen.dart';
 import '../features/booking/views/packages_screen.dart';
 import '../features/activity_health/views/tracker_feature_list_screen.dart';
-import '../features/home/providers/profile_provider.dart';
+import '../features/community/providers/community_provider.dart';
+import '../features/profile/viewmodels/profile_viewmodel.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -26,8 +27,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
-    final isAuthenticated = profileProvider.isAuthenticated;
+    final profileViewModel = context.watch<ProfileViewModel>();
+    final isAuthenticated = profileViewModel.isAuthenticated;
 
     // If not authenticated, show only the Home (Login) screen without navigation
     if (!isAuthenticated) {
@@ -142,6 +143,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _selectedIndex = index;
     });
+
+    if (index == 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<CommunityProvider>().requestScrollToTop();
+      });
+    }
   }
 
   Future<bool> _handleBackPress() async {

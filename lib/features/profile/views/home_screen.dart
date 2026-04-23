@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/profile_provider.dart';
+import '../viewmodels/profile_viewmodel.dart';
 import 'login_screen.dart';
 import 'profile_dashboard_screen.dart';
 
@@ -16,13 +16,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfileProvider>().init();
+      context.read<ProfileViewModel>().init();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final profileProvider = context.watch<ProfileProvider>();
+    final profileProvider = context.watch<ProfileViewModel>();
 
     return profileProvider.isAuthenticated
         ? const ProfileDashboardScreen()
