@@ -237,6 +237,24 @@ class HydrationViewModel extends ChangeNotifier {
     }
   }
 
+  /// Clear all data in provider
+  /// Called on logout
+  void clearData() {
+    _hydrationData = HydrationTrackerModel(
+      todayConsumption: 0,
+      dailyGoal: 0,
+      progress: 0.0,
+      todayEntries: [],
+      timestamp: DateTime.now(),
+    );
+    _deletedEntries.clear();
+    _undoTimerIds.clear();
+    _initCompleter = null;
+    _errorMessage = null;
+    notifyListeners();
+    print('✓ HydrationViewModel data cleared');
+  }
+
   // Private helper methods
   void _setLoading(bool value) {
     _isLoading = value;
