@@ -101,7 +101,7 @@ class ActivityTrackingService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pendingIntent)
             .setOngoing(true) // Prevent user from swiping away
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(false)
             .build()
     }

@@ -13,16 +13,47 @@ class MainNavigationScreen extends StatefulWidget {
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+
+  /// Navigate to a specific route within the tracker tab
+  static void navigateToTrackerRoute(Widget screen) {
+    _MainNavigationScreenState._navigateToTrackerRoute(screen);
+  }
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 2;
   late List<GlobalKey<NavigatorState>> _navigatorKeys;
 
+  // Static reference to the current state for deep link navigation
+  static _MainNavigationScreenState? _instance;
+
   @override
   void initState() {
     super.initState();
     _navigatorKeys = List.generate(5, (_) => GlobalKey<NavigatorState>());
+    _instance = this;
+  }
+
+  @override
+  void dispose() {
+    _instance = null;
+    super.dispose();
+  }
+
+  /// Navigate to a specific route within a tab
+  static void _navigateToTrackerRoute(Widget screen) {
+    if (_instance != null) {
+      // Switch to tracker tab if not already there
+      if (_instance!._selectedIndex != 3) {
+        _instance!.setState(() {
+          _instance!._selectedIndex = 3;
+        });
+      }
+      // Push the screen onto the tracker tab's navigator
+      _instance!._navigatorKeys[3].currentState?.push(
+        MaterialPageRoute(builder: (_) => screen),
+      );
+    }
   }
 
   @override
