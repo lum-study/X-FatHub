@@ -44,13 +44,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               ..sort((a, b) => a.bookingDate.compareTo(b.bookingDate));
             
             final now = DateTime.now();
-            final missed = provider.userBookings
-                .where((b) => b.status == BookingStatus.upcoming && b.bookingDate.isBefore(now))
+            final completed = provider.userBookings
+                .where((b) => b.status == BookingStatus.completed)
                 .toList()
               ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
-            
-            final completed = provider.userBookings
-                .where((b) => b.status == BookingStatus.completed || b.status == BookingStatus.cancelled)
+
+            final missed = provider.userBookings
+                .where((b) => b.status == BookingStatus.missed || (b.status == BookingStatus.upcoming && b.bookingDate.isBefore(now)))
                 .toList()
               ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
 
@@ -219,22 +219,20 @@ class _BookingCard extends StatelessWidget {
     final isMissed = booking.status == BookingStatus.upcoming && bookingTime.isBefore(now);
 
     return GestureDetector(
-      onTap: isUpcoming
-          ? () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BookingDetailScreen(
-                    booking: booking,
-                    package: package,
-                    packageNameFallback: package?.name ?? 'Package',
-                    slotLocation: booking.slotLocation,
-                    slotCoach: booking.slotCoach,
-                  ),
-                ),
-              );
-            }
-          : null,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BookingDetailScreen(
+              booking: booking,
+              package: package,
+              packageNameFallback: package?.name ?? 'Package',
+              slotLocation: booking.slotLocation,
+              slotCoach: booking.slotCoach,
+            ),
+          ),
+        );
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),

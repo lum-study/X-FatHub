@@ -1,4 +1,4 @@
-enum BookingStatus { upcoming, completed, cancelled, pendingRefund }
+enum BookingStatus { upcoming, completed, missed }
 
 class BookingModel {
   final String id;

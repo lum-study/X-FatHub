@@ -140,7 +140,7 @@ class BookingViewModel extends ChangeNotifier {
   bool isSlotAlreadyBooked(String slotId) {
     return _userBookings.any(
       (booking) =>
-          booking.slotId == slotId && booking.status != BookingStatus.cancelled,
+          booking.slotId == slotId && (booking.status != BookingStatus.upcoming || booking.status != BookingStatus.missed || booking.status != BookingStatus.completed),
     );
   }
 
