@@ -62,49 +62,15 @@ class LocalBookingDatabase {
     );
   }
 
-  static Future<void> replaceUpcomingBookings({
-    required String userId,
-    required List<Map<String, dynamic>> rows,
-  }) async {
-    final db = await getDatabase();
-
-    await db.transaction((txn) async {
-      await txn.delete(
-        _tableName,
-        where: '$colUserId = ?',
-        whereArgs: [userId],
-      );
-
-      for (final row in rows) {
-        await txn.insert(
-          _tableName,
-          row,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-    });
-  }
-
-  static Future<List<Map<String, dynamic>>> getUpcomingBookingsByUser(
-    String userId,
-  ) async {
-    final db = await getDatabase();
-    return db.query(
-      _tableName,
-      where: '$colUserId = ?',
-      whereArgs: [userId],
-      orderBy: '$colBookingDate ASC',
-    );
-  }
-
-  static Future<void> cacheBookings({
+  static Future<void> saveBookings({
     required String userId,
     required List<Map<String, dynamic>> bookings,
   }) async {
     final db = await getDatabase();
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
 
     await db.transaction((txn) async {
+      // Clear old cache for this user to ensure we have a fresh sync
       await txn.delete(
         _tableName,
         where: '$colUserId = ?',
@@ -113,20 +79,20 @@ class LocalBookingDatabase {
 
       for (final booking in bookings) {
         final row = {
-          colBookingId: booking['id'],
-          colUserId: booking['user_id'],
-          colPackageId: booking['package_id'],
-          colPackageName: booking['package_name'],
-          colSlotId: booking['slot_id'],
-          colSlotName: booking['slot_name'],
-          colSlotLocation: booking['slot_location'],
-          colSlotCoach: booking['slot_coach'],
-          colSlotStartTime: booking['slot_start_time'],
-          colBookingDate: booking['booking_date'],
-          colStatus: booking['status'],
-          colQrCodeData: booking['qr_code_data'],
-          colSessionNumber: booking['session_number'] ?? 1,
-          colTotalPaid: booking['total_paid'] ?? 0,
+          colBookingId: booking['id'] ?? booking[colBookingId],
+          colUserId: userId,
+          colPackageId: booking['package_id'] ?? booking[colPackageId],
+          colPackageName: booking['package_name'] ?? booking[colPackageName],
+          colSlotId: booking['slot_id'] ?? booking[colSlotId],
+          colSlotName: booking['slot_name'] ?? booking[colSlotName],
+          colSlotLocation: booking['slot_location'] ?? booking[colSlotLocation],
+          colSlotCoach: booking['slot_coach'] ?? booking[colSlotCoach],
+          colSlotStartTime: booking['slot_start_time'] ?? booking[colSlotStartTime],
+          colBookingDate: booking['booking_date'] ?? booking[colBookingDate],
+          colStatus: booking['status'] ?? booking[colStatus],
+          colQrCodeData: booking['qr_code_data'] ?? booking[colQrCodeData],
+          colSessionNumber: booking['session_number'] ?? booking[colSessionNumber] ?? 1,
+          colTotalPaid: booking['total_paid'] ?? booking[colTotalPaid] ?? 0,
           colCachedAt: now,
         };
         await txn.insert(
@@ -148,19 +114,6 @@ class LocalBookingDatabase {
       whereArgs: [userId],
       orderBy: '$colBookingDate DESC',
     );
-  }
-
-  static Future<Map<String, dynamic>?> getCachedBookingById(
-    String bookingId,
-  ) async {
-    final db = await getDatabase();
-    final results = await db.query(
-      _tableName,
-      where: '$colBookingId = ?',
-      whereArgs: [bookingId],
-      limit: 1,
-    );
-    return results.isNotEmpty ? results.first : null;
   }
 
   static Future<void> updateCachedBookingStatus(

@@ -396,12 +396,18 @@ class BookingViewModel extends ChangeNotifier {
       _setLoading(true);
     }
     try {
-      _userBookings = await _repository.fetchUserBookings(userId);
+      final bookings = await _repository.fetchUserBookings(userId);
+      _userBookings = bookings;
       _errorMessage = null;
-      return true;
+      _isUsingLocalBookingCache = false;
+      await _syncAllBookingsToLocalCache(userId);
+      return bookings.isNotEmpty;
     } catch (e) {
       _errorMessage = e.toString();
-      return false;
+      if (_userBookings.isEmpty) {
+        await _loadBookingsFromLocalCache(userId);
+      }
+      return _userBookings.isNotEmpty;
     } finally {
       if (setLoading) {
         _setLoading(false);
@@ -493,68 +499,72 @@ class BookingViewModel extends ChangeNotifier {
       return;
     }
 
-    final bookingsFetched = await fetchUserBookings(userId, setLoading: false);
-    await fetchActivePackageCredits(setLoading: false);
-    await fetchCreditBalance(
-      packageId: _selectedPackage?.id,
-      setLoading: false,
-    );
-
-    if (bookingsFetched) {
+    try {
+      // Try fetching from remote first
+      final bookings = await _repository.fetchUserBookings(userId);
+      _userBookings = bookings;
       _isUsingLocalBookingCache = false;
-      _cachedPackageNameByBookingId.clear();
-      await _syncUpcomingBookingsToLocalCache(userId);
-    } else if (_userBookings.isEmpty) {
-      await _loadUpcomingBookingsFromLocalCache(userId);
+      
+      // Update local cache with fresh data
+      await _syncAllBookingsToLocalCache(userId);
+      
+      // Fetch other data if possible
+      try {
+        await fetchActivePackageCredits(setLoading: false);
+        await fetchCreditBalance(
+          packageId: _selectedPackage?.id,
+          setLoading: false,
+        );
+      } catch (_) {}
+    } catch (e) {
+      // If remote fails (e.g. offline), load from local cache
+      await _loadBookingsFromLocalCache(userId);
     }
 
     notifyListeners();
   }
 
-  Future<void> _syncUpcomingBookingsToLocalCache(String userId) async {
+  Future<void> _syncAllBookingsToLocalCache(String userId) async {
     try {
-      final now = DateTime.now();
       final packageNameById = {for (final p in _packages) p.id: p.name};
 
       final rows = _userBookings
-          .where(
-            (b) =>
-                b.status == BookingStatus.upcoming &&
-                !b.bookingDate.toLocal().isBefore(now),
-          )
           .map(
             (b) => {
-              LocalBookingDatabase.colBookingId: b.id,
-              LocalBookingDatabase.colUserId: b.userId,
-              LocalBookingDatabase.colPackageId: b.packageId,
-              LocalBookingDatabase.colPackageName:
-                  packageNameById[b.packageId] ?? '',
-              LocalBookingDatabase.colBookingDate: b.bookingDate
-                  .toUtc()
-                  .toIso8601String(),
-              LocalBookingDatabase.colStatus: b.status.name,
-              LocalBookingDatabase.colQrCodeData: b.qrCodeData,
-              LocalBookingDatabase.colSessionNumber: b.sessionNumber,
-              LocalBookingDatabase.colTotalPaid: b.totalPaid,
-              LocalBookingDatabase.colCachedAt: DateTime.now()
-                  .toUtc()
-                  .toIso8601String(),
+              'id': b.id,
+              'user_id': b.userId,
+              'package_id': b.packageId,
+              'package_name': packageNameById[b.packageId] ?? _cachedPackageNameByBookingId[b.id] ?? '',
+              'slot_id': b.slotId,
+              'slot_location': b.slotLocation,
+              'slot_coach': b.slotCoach,
+              'booking_date': b.bookingDate.toIso8601String(),
+              'status': b.status.name,
+              'qr_code_data': b.qrCodeData,
+              'session_number': b.sessionNumber,
+              'total_paid': b.totalPaid,
             },
           )
           .toList();
 
-      await LocalBookingDatabase.replaceUpcomingBookings(
+      await LocalBookingDatabase.saveBookings(
         userId: userId,
-        rows: rows,
+        bookings: rows,
       );
-    } catch (_) {
-      // Ignore cache sync failures to avoid disrupting online booking flow.
-    }
+      
+      // Also update the memory map for package names
+      for (final b in _userBookings) {
+        final name = packageNameById[b.packageId] ?? _cachedPackageNameByBookingId[b.id];
+        if (name != null) {
+          _cachedPackageNameByBookingId[b.id] = name;
+        }
+      }
+    } catch (_) {}
   }
 
-  Future<void> _loadUpcomingBookingsFromLocalCache(String userId) async {
+  Future<void> _loadBookingsFromLocalCache(String userId) async {
     try {
-      final rows = await LocalBookingDatabase.getUpcomingBookingsByUser(userId);
+      final rows = await LocalBookingDatabase.getCachedBookings(userId);
       _cachedPackageNameByBookingId.clear();
 
       final cached = <BookingModel>[];
@@ -568,18 +578,21 @@ class BookingViewModel extends ChangeNotifier {
           id: row[LocalBookingDatabase.colBookingId]?.toString() ?? '',
           userId: row[LocalBookingDatabase.colUserId]?.toString() ?? userId,
           packageId: row[LocalBookingDatabase.colPackageId]?.toString() ?? '',
+          slotId: row[LocalBookingDatabase.colSlotId]?.toString(),
+          slotLocation: row[LocalBookingDatabase.colSlotLocation]?.toString(),
+          slotCoach: row[LocalBookingDatabase.colSlotCoach]?.toString(),
           bookingDate:
               DateTime.tryParse(bookingDateRaw)?.toLocal() ?? DateTime.now(),
           status: status,
           totalPaid:
               double.tryParse(
-                row[LocalBookingDatabase.colTotalPaid].toString(),
+                row[LocalBookingDatabase.colTotalPaid]?.toString() ?? '0',
               ) ??
               0,
           qrCodeData: row[LocalBookingDatabase.colQrCodeData]?.toString(),
           sessionNumber:
               int.tryParse(
-                row[LocalBookingDatabase.colSessionNumber].toString(),
+                row[LocalBookingDatabase.colSessionNumber]?.toString() ?? '1',
               ) ??
               1,
         );
@@ -596,7 +609,7 @@ class BookingViewModel extends ChangeNotifier {
       _isUsingLocalBookingCache = cached.isNotEmpty;
       if (_isUsingLocalBookingCache) {
         _errorMessage =
-            'Offline mode: showing cached upcoming bookings with QR codes.';
+            'Offline mode: showing cached booking history.';
       }
     } catch (_) {
       _isUsingLocalBookingCache = false;

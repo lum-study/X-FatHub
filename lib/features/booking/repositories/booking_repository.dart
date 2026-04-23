@@ -339,112 +339,78 @@ class BookingRepository {
     }
   }
 
-Future<List<BookingModel>> fetchUserBookings(String userId) async {
+  Future<List<BookingModel>> fetchUserBookings(String userId) async {
     try {
+      // Use joined query to fetch booking and slot details in one go
       final response = await _supabase
           .from('bookings')
-          .select()
+          .select('*, gym_slots(class_name, location, coach_name, start_time)')
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
       final bookings = <BookingModel>[];
+      final rows = response as List;
 
-      for (final data in response) {
-        var booking = BookingModel.fromMap(data);
-        var qrCodeData = booking.qrCodeData;
-
+      for (final data in rows) {
+        final slotData = data['gym_slots'];
+        
+        var qrCodeData = data['qr_code_data']?.toString();
         if (qrCodeData == null || qrCodeData.isEmpty) {
           qrCodeData = 'QR-${const Uuid().v4()}';
           try {
             await _supabase
                 .from('bookings')
                 .update({'qr_code_data': qrCodeData})
-                .eq('id', booking.id)
+                .eq('id', data['id'])
                 .eq('user_id', userId);
           } catch (_) {}
         }
 
-        String? slotName;
         String? slotLocation;
         String? slotCoach;
         DateTime? slotStartTime;
 
-        if (booking.slotId != null && booking.slotId!.isNotEmpty) {
-          try {
-            final slotResponse = await _supabase
-                .from('gym_slots')
-                .select('class_name, location, coach_name, start_time')
-                .eq('id', booking.slotId!)
-                .single();
-            slotName = slotResponse['class_name'];
-            slotLocation = slotResponse['location'];
-            slotCoach = slotResponse['coach_name'];
-            slotStartTime = slotResponse['start_time'] != null
-                ? DateTime.parse(slotResponse['start_time']).toLocal()
-                : null;
-          } catch (_) {}
+        if (slotData != null) {
+          if (slotData is Map) {
+            slotLocation = slotData['location']?.toString();
+            slotCoach = slotData['coach_name']?.toString();
+            if (slotData['start_time'] != null) {
+              slotStartTime = DateTime.tryParse(slotData['start_time'].toString())?.toLocal();
+            }
+          } else if (slotData is List && slotData.isNotEmpty) {
+            final firstSlot = slotData.first as Map;
+            slotLocation = firstSlot['location']?.toString();
+            slotCoach = firstSlot['coach_name']?.toString();
+            if (firstSlot['start_time'] != null) {
+              slotStartTime = DateTime.tryParse(firstSlot['start_time'].toString())?.toLocal();
+            }
+          }
         }
 
-        final updatedBooking = BookingModel(
-          id: booking.id,
-          userId: booking.userId,
-          packageId: booking.packageId,
-          slotId: booking.slotId,
-          bookingDate: slotStartTime ?? booking.bookingDate.toLocal(),
-          status: booking.status,
-          totalPaid: booking.totalPaid,
-          receiptUrl: booking.receiptUrl,
+        final booking = BookingModel(
+          id: data['id']?.toString() ?? '',
+          userId: data['user_id']?.toString() ?? '',
+          packageId: data['package_id']?.toString() ?? '',
+          slotId: data['slot_id']?.toString(),
+          slotLocation: slotLocation,
+          slotCoach: slotCoach,
+          bookingDate: slotStartTime ?? DateTime.tryParse(data['booking_date']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+          status: BookingStatus.values.byName(data['status']?.toString() ?? 'upcoming'),
+          totalPaid: double.tryParse(data['total_paid']?.toString() ?? '0') ?? 0,
+          receiptUrl: data['receipt_url']?.toString(),
           qrCodeData: qrCodeData,
-          sessionNumber: booking.sessionNumber,
+          sessionNumber: int.tryParse(data['session_number']?.toString() ?? '1') ?? 1,
         );
-        bookings.add(updatedBooking);
-
-        try {
-          await LocalBookingDatabase.cacheBookings(
-            userId: userId,
-            bookings: [
-              {
-                'id': updatedBooking.id,
-                'user_id': updatedBooking.userId,
-                'package_id': updatedBooking.packageId,
-                'package_name': null,
-                'slot_id': updatedBooking.slotId,
-                'slot_name': slotName,
-                'slot_location': slotLocation,
-                'slot_coach': slotCoach,
-                'slot_start_time': slotStartTime?.toIso8601String(),
-                'booking_date': (slotStartTime ?? updatedBooking.bookingDate).toIso8601String(),
-                'status': updatedBooking.status.name,
-                'qr_code_data': qrCodeData,
-                'session_number': updatedBooking.sessionNumber,
-                'total_paid': updatedBooking.totalPaid,
-              }
-            ],
-          );
-        } catch (_) {}
+        bookings.add(booking);
       }
 
       return bookings;
     } catch (e) {
-      try {
-        final cached = await LocalBookingDatabase.getCachedBookings(userId);
-        if (cached.isNotEmpty) {
-          return cached.map((row) => BookingModel(
-            id: row['booking_id']?.toString() ?? '',
-            userId: row['user_id']?.toString() ?? '',
-            packageId: row['package_id']?.toString() ?? '',
-            slotId: row['slot_id']?.toString(),
-            bookingDate: DateTime.tryParse(row['booking_date']?.toString() ?? '') ?? DateTime.now(),
-            status: BookingStatus.values.byName(row['status']?.toString() ?? 'upcoming'),
-            totalPaid: double.tryParse(row['total_paid']?.toString() ?? '0') ?? 0,
-            qrCodeData: row['qr_code_data']?.toString(),
-            sessionNumber: int.tryParse(row['session_number']?.toString() ?? '1') ?? 1,
-          )).toList();
-        }
-      } catch (_) {}
+      // Re-throw so ViewModel can handle offline fallback
       rethrow;
-}
+    }
   }
+
 
   Future<void> cancelBookingWithRefund({
     required String bookingId,

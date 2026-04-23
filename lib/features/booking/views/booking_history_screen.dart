@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:xfathub/features/booking/models/booking_model.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/views/booking_detail_screen.dart';
-import 'package:xfathub/features/booking/repositories/booking_repository.dart';
-import 'package:xfathub/core/database/local_booking_db.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -18,6 +15,21 @@ class BookingHistoryScreen extends StatefulWidget {
 
 class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   String _selectedTab = 'upcoming';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDataIfNeeded();
+    });
+  }
+
+  Future<void> _loadDataIfNeeded() async {
+    final provider = Provider.of<BookingViewModel>(context, listen: false);
+    if (provider.userBookings.isEmpty) {
+      await provider.refreshCurrentUserBookingData();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,42 +220,19 @@ class _BookingCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: isUpcoming
-          ? () async {
-              String? cachedLocation;
-              String? cachedCoach;
-              
-              final connectivityResult = await Connectivity().checkConnectivity();
-              final isOffline = connectivityResult.contains(ConnectivityResult.none);
-              
-              if (isOffline) {
-                final cached = await LocalBookingDatabase.getCachedBookingById(booking.id);
-                if (cached != null) {
-                  cachedLocation = cached['slot_location']?.toString();
-                  cachedCoach = cached['slot_coach']?.toString();
-                }
-              } else if (booking.slotId != null && booking.slotId!.isNotEmpty) {
-                final repo = BookingRepository();
-                final slotDetails = await repo.getSlotDetails(booking.slotId!);
-                if (slotDetails != null) {
-                  cachedLocation = slotDetails['location'];
-                  cachedCoach = slotDetails['coachName'];
-                }
-              }
-              
-              if (context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => BookingDetailScreen(
-                      booking: booking,
-                      package: package,
-                      packageNameFallback: package?.name ?? 'Package',
-                      slotLocation: cachedLocation,
-                      slotCoach: cachedCoach,
-                    ),
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BookingDetailScreen(
+                    booking: booking,
+                    package: package,
+                    packageNameFallback: package?.name ?? 'Package',
+                    slotLocation: booking.slotLocation,
+                    slotCoach: booking.slotCoach,
                   ),
-                );
-              }
+                ),
+              );
             }
           : null,
       child: Container(
