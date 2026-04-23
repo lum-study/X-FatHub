@@ -5,15 +5,21 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/env_config.dart';
 import 'supabase_service.dart';
 import 'pedometer_service.dart';
-import '../../features/activity_health/repositories/step_tracker_repository.dart';
+import '../database/local_step_db.dart';
+import '../database/local_hydration_db.dart';
+import '../../features/activity_health/repositories/hydration_repository.dart';
 
 /// Service to handle WorkManager background tasks
-/// Provides reliable daily step data sync:
-/// - Once per day at 11:55 PM: Fetch and update final step count to Supabase
-/// - Automatic retry up to 2 times if sync fails
-/// - App launch: Quick one-time sync to ensure data is up-to-date
+/// Provides reliable scheduling for step data sync:
+/// - Every 15 min: Save steps to local DB
+/// - Every 60 min: Sync to Supabase
+/// - 23:55-23:59: Final daily save + baseline reset
+/// - App launch: Quick sync
 class WorkManagerService {
-  static const String dailyFinalStepsSaveTaskId = 'daily_final_steps_save_task';
+  static const String localSaveStepsTaskId = 'local_save_steps_task';
+  static const String supabaseSyncTaskId = 'supabase_sync_task';
+  static const String dailyHydrationSyncTaskId = 'daily_hydration_sync_task';
+  static const String unsyncedRecordsPushTaskId = 'unsynced_records_push_task';
 
   /// Initialize WorkManager and schedule background tasks
   static Future<void> initWorkManager() async {
@@ -24,8 +30,11 @@ class WorkManagerService {
 
       print('✓ WorkManager initialized successfully');
 
-      // Schedule daily final steps save task (at 11:55 PM)
-      await scheduleDailyFinalStepsSaveTask();
+      // Schedule all background tasks
+      await scheduleLocalSaveStepsTask();
+      await scheduleSupabaseSyncTask();
+      await scheduleDailyHydrationSyncTask();
+      await scheduleUnsyncedRecordsPushTask();
     } catch (e) {
       print('✗ Error initializing WorkManager: $e');
     }
@@ -52,8 +61,35 @@ class WorkManagerService {
           ? targetTime.add(const Duration(days: 1))
           : targetTime;
 
-      final delayUntilNextRun = nextRun.difference(now);
+  /// Schedule Supabase sync task: Every 1 hour sync to Supabase
+  /// Uploads today's accumulated steps to remote database with hourly retry
+  static Future<void> scheduleSupabaseSyncTask() async {
+    try {
+      await Workmanager().registerPeriodicTask(
+        supabaseSyncTaskId,
+        'supabase_sync',
+        frequency: const Duration(hours: 1),
+        constraints: Constraints(
+          networkType: NetworkType.connected,
+          requiresBatteryNotLow: false,
+          requiresCharging: false,
+          requiresDeviceIdle: false,
+        ),
+        backoffPolicy: BackoffPolicy.exponential,
+        backoffPolicyDelay: const Duration(minutes: 10),
+        initialDelay: const Duration(minutes: 10),
+      );
 
+      print('✓ Supabase sync task scheduled (every 1 hour)');
+    } catch (e) {
+      print('✗ Error scheduling Supabase sync task: $e');
+    }
+  }
+
+/// Schedule hydration sync task: Every 1 hour to sync hydration data to Supabase
+/// Increased frequency for more reliable data sync
+  static Future<void> scheduleDailyHydrationSyncTask() async {
+    try {
       await Workmanager().registerPeriodicTask(
         dailyFinalStepsSaveTaskId,
         'daily_final_steps_save',
@@ -61,16 +97,25 @@ class WorkManagerService {
         initialDelay: delayUntilNextRun,
         constraints: Constraints(networkType: NetworkType.connected),
         backoffPolicy: BackoffPolicy.exponential,
-        backoffPolicyDelay: const Duration(minutes: 5),
+        backoffPolicyDelay: const Duration(minutes: 10),
+        initialDelay: const Duration(minutes: 10),
       );
+      
+      print('✓ Hydration sync task scheduled (every 1 hour)');
+    } catch (e) {
+      print('✗ Error scheduling hydration sync task: $e');
+    }
+  }
 
       await prefs.setString('last_wm_schedule_date', todayStr);
 
       print(
         '✓ Daily task scheduled for 11:55 PM (first run in ${delayUntilNextRun.inHours}h ${delayUntilNextRun.inMinutes % 60}m)',
       );
+
+      print('✓ Unsynced records push task scheduled (every 30 minutes)');
     } catch (e) {
-      print('✗ Error scheduling task: $e');
+      print('✗ Error scheduling unsynced records push task: $e');
     }
   }
 
