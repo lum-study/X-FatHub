@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../activity_health/repositories/activity_repository.dart';
 import '../../activity_health/views/activity_summary_screen.dart';
+import '../../activity_health/models/activity_model.dart';
 import '../views/comments_screen.dart';
 import '../views/new_post_screen.dart';
 import '../models/post_model.dart';
@@ -100,6 +101,32 @@ class _PostCardState extends State<PostCard> {
     if (widget.onStarToggle != null) {
       widget.onStarToggle!();
     }
+  }
+
+  ActivityModel? _buildFallbackActivityFromPost() {
+    if (widget.post.activityType == null) return null;
+
+    final durationSeconds = widget.post.activityDurationSeconds ?? 0;
+    final distance = widget.post.activityDistance ?? 0.0;
+    final averagePace = durationSeconds > 0
+        ? distance / (durationSeconds / 3600)
+        : 0.0;
+
+    return ActivityModel(
+      id: widget.post.activityId ?? 'post-${widget.post.id}',
+      userId: widget.post.userId,
+      activityType: widget.post.activityType!,
+      title: widget.post.activityTitle,
+      startTime: widget.post.createdAt,
+      endTime: durationSeconds > 0
+          ? widget.post.createdAt.add(Duration(seconds: durationSeconds))
+          : widget.post.createdAt,
+      totalDuration: durationSeconds > 0 ? Duration(seconds: durationSeconds) : null,
+      distanceTraveled: distance,
+      averagePace: averagePace,
+      status: ActivityStatus.completed,
+      createdAt: widget.post.createdAt,
+    );
   }
 
   Future<void> _navigateToComments() async {
@@ -266,23 +293,26 @@ class _PostCardState extends State<PostCard> {
             if (widget.post.activityType != null)
               GestureDetector(
                 onTap: () async {
+                  ActivityModel? activity;
                   if (widget.post.activityId != null) {
-                    final activity = await ActivityRepository().getActivityById(widget.post.activityId!);
-                    if (activity != null && mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ActivitySummaryScreen(
-                            activity: activity,
-                            routePoints: activity.routePoints,
-                          ),
+                    activity = await ActivityRepository().getActivityById(widget.post.activityId!);
+                  }
+
+                  final activityToShow = activity ?? _buildFallbackActivityFromPost();
+                  if (activityToShow != null && mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ActivitySummaryScreen(
+                          activity: activityToShow!,
+                          routePoints: activityToShow.routePoints,
                         ),
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Activity details not found')),
-                      );
-                    }
+                      ),
+                    );
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Activity details not found')),
+                    );
                   }
                 },
                 child: Container(

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../activity_health/repositories/activity_repository.dart';
 import '../../activity_health/views/activity_summary_screen.dart';
+import '../../activity_health/models/activity_model.dart';
 import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import '../providers/community_provider.dart';
@@ -182,6 +183,32 @@ class _CommentsScreenState extends State<CommentsScreen> {
       _isLiked = !_isLiked;
     });
     context.read<CommunityProvider>().toggleLike(widget.post.id, _isLiked);
+  }
+
+  ActivityModel? _buildFallbackActivityFromPost(PostModel post) {
+    if (post.activityType == null) return null;
+
+    final durationSeconds = post.activityDurationSeconds ?? 0;
+    final distance = post.activityDistance ?? 0.0;
+    final averagePace = durationSeconds > 0
+        ? distance / (durationSeconds / 3600)
+        : 0.0;
+
+    return ActivityModel(
+      id: post.activityId ?? 'post-${post.id}',
+      userId: post.userId,
+      activityType: post.activityType!,
+      title: post.activityTitle,
+      startTime: post.createdAt,
+      endTime: durationSeconds > 0
+          ? post.createdAt.add(Duration(seconds: durationSeconds))
+          : post.createdAt,
+      totalDuration: durationSeconds > 0 ? Duration(seconds: durationSeconds) : null,
+      distanceTraveled: distance,
+      averagePace: averagePace,
+      status: ActivityStatus.completed,
+      createdAt: post.createdAt,
+    );
   }
 
   @override
@@ -400,23 +427,26 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       if (post.activityType != null)
                         GestureDetector(
                           onTap: () async {
+                            ActivityModel? activity;
                             if (post.activityId != null) {
-                              final activity = await ActivityRepository().getActivityById(post.activityId!);
-                              if (activity != null && mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ActivitySummaryScreen(
-                                      activity: activity,
-                                      routePoints: activity.routePoints,
-                                    ),
+                              activity = await ActivityRepository().getActivityById(post.activityId!);
+                            }
+
+                            final activityToShow = activity ?? _buildFallbackActivityFromPost(post);
+                            if (activityToShow != null && mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ActivitySummaryScreen(
+                                    activity: activityToShow!,
+                                    routePoints: activityToShow.routePoints,
                                   ),
-                                );
-                              } else if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Activity details not found')),
-                                );
-                              }
+                                ),
+                              );
+                            } else if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Activity details not found')),
+                              );
                             }
                           },
                           child: Container(
