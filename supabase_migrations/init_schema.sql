@@ -894,3 +894,52 @@ FOR DELETE USING (
   bucket_id = 'community_media'
   AND auth.uid()::text = (string_to_array(name, '/'))[1]
 );
+
+-- Avatar storage bucket + policies
+INSERT INTO storage.buckets (id, name, public, allowed_mime_types)
+VALUES (
+  'avatars',
+  'avatars',
+  true,
+  ARRAY['image/*']::text[]
+)
+ON CONFLICT (id) DO UPDATE
+SET public = true,
+    allowed_mime_types = ARRAY['image/*']::text[];
+
+DROP POLICY IF EXISTS "Avatar public read" ON storage.objects;
+CREATE POLICY "Avatar public read" ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'avatars');
+
+DROP POLICY IF EXISTS "Avatar upload own folder" ON storage.objects;
+CREATE POLICY "Avatar upload own folder" ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS "Avatar update own folder" ON storage.objects;
+CREATE POLICY "Avatar update own folder" ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS "Avatar delete own folder" ON storage.objects;
+CREATE POLICY "Avatar delete own folder" ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+);

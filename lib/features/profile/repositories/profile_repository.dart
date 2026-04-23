@@ -21,18 +21,6 @@ class ProfileRepository {
 
   User? get currentUser => _supabase.auth.currentUser;
 
-  Future<void> ensureProfileRecord(User user) async {
-    try {
-      await _supabase.from('profiles').upsert({
-        'id': user.id,
-        'email': user.email ?? '',
-        'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'id');
-    } catch (e) {
-      throw Exception('Failed to ensure profile record: $e');
-    }
-  }
-
   // --- Profile CRUD ---
 
   Future<ProfileModel?> getProfile(String userId) async {
@@ -122,20 +110,56 @@ class ProfileRepository {
 
   Future<String?> uploadProfilePicture(String userId, String imagePath) async {
     try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) {
+        throw Exception('User not authenticated');
+      }
+
       final file = File(imagePath);
       final fileName = '$userId/profile_picture_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
-      await _supabase.storage.from('avatars').upload(fileName, file);
+
+      await _supabase.storage.from('avatars').upload(
+        fileName,
+        file,
+        fileOptions: const FileOptions(upsert: true),
+      );
       final url = _supabase.storage.from('avatars').getPublicUrl(fileName);
-      
-      // Update profile with URL
-      await _supabase.from('profiles').update({
-        'profile_picture_url': url
-      }).eq('id', userId);
-      
+
+      // Upsert profile row so avatar save works even if the row is missing.
+      await _supabase
+          .from('profiles')
+          .upsert({
+            'id': userId,
+            'email': authUser.email,
+            'profile_picture_url': url,
+            'updated_at': DateTime.now().toIso8601String(),
+          }, onConflict: 'id');
+
       return url;
     } catch (e) {
-      return null;
+      throw Exception('Failed to upload profile picture: $e');
+    }
+  }
+
+  Future<void> updateCurrentWeight(String userId, double currentWeight) async {
+    try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _supabase
+          .from('profiles')
+          .upsert({
+            'id': userId,
+            'email': authUser.email,
+            'current_weight': currentWeight,
+            'updated_at': DateTime.now().toIso8601String(),
+          }, onConflict: 'id');
+
+      await addWeightEntry(userId, currentWeight);
+    } catch (e) {
+      throw Exception('Failed to update current weight: $e');
     }
   }
 }
