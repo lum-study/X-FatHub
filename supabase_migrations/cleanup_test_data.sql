@@ -4,24 +4,24 @@
 BEGIN;
 
 -- Delete in reverse dependency order (bookings depend on slots/subscriptions, etc.)
-DELETE FROM public.bookings;
-DELETE FROM public.user_subscriptions;
-DELETE FROM public.gym_slots;
-DELETE FROM public.package_gyms;
-DELETE FROM public.packages;
-DELETE FROM public.gyms;
+DELETE FROM bookings;
+DELETE FROM user_subscriptions;
+DELETE FROM gym_slots;
+DELETE FROM package_gyms;
+DELETE FROM packages;
+DELETE FROM gyms;
 
 COMMIT;
 
 -- Optional: Verify cleanup
-SELECT 'bookings' as table_name, COUNT(*) as remaining_rows FROM public.bookings
+SELECT 'bookings' as table_name, COUNT(*) as remaining_rows FROM bookings
 UNION ALL
-SELECT 'user_subscriptions', COUNT(*) FROM public.user_subscriptions
+SELECT 'user_subscriptions', COUNT(*) FROM user_subscriptions
 UNION ALL
-SELECT 'gym_slots', COUNT(*) FROM public.gym_slots
+SELECT 'gym_slots', COUNT(*) FROM gym_slots
 UNION ALL
-SELECT 'package_gyms', COUNT(*) FROM public.package_gyms
+SELECT 'package_gyms', COUNT(*) FROM package_gyms
 UNION ALL
-SELECT 'packages', COUNT(*) FROM public.packages
+SELECT 'packages', COUNT(*) FROM packages
 UNION ALL
-SELECT 'gyms', COUNT(*) FROM public.gyms;
+SELECT 'gyms', COUNT(*) FROM gyms;

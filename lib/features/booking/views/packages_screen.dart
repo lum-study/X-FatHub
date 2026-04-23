@@ -161,6 +161,30 @@ class _PackagesScreenState extends State<PackagesScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white54, fontSize: 12),
                       ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BookingHistoryScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.history),
+                        label: const Text('My Bookings'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFA500),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
