@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   name TEXT,
   bio TEXT,
   profile_picture_url TEXT,
+  gender TEXT,
+  birthdate DATE,
   age INT,
   current_weight DOUBLE PRECISION,
   initial_weight DOUBLE PRECISION,
