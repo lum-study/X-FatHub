@@ -501,6 +501,7 @@ class _FeedsScreenState extends State<FeedsScreen> {
               author: post.authorName, // This would require JOINs to profile tables
               time: timeStr,
               avatarIcon: Icons.person,
+              avatarUrl: post.authorAvatarUrl,
               content: post.content,
               hasMedia: post.mediaUrl != null && post.mediaUrl!.isNotEmpty,
               likes: post.likesCount,

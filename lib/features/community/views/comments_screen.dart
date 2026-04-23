@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../activity_health/repositories/activity_repository.dart';
 import '../../activity_health/views/activity_summary_screen.dart';
+import '../../activity_health/models/activity_model.dart';
 import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import '../providers/community_provider.dart';
@@ -184,6 +185,32 @@ class _CommentsScreenState extends State<CommentsScreen> {
     context.read<CommunityProvider>().toggleLike(widget.post.id, _isLiked);
   }
 
+  ActivityModel? _buildFallbackActivityFromPost(PostModel post) {
+    if (post.activityType == null) return null;
+
+    final durationSeconds = post.activityDurationSeconds ?? 0;
+    final distance = post.activityDistance ?? 0.0;
+    final averagePace = durationSeconds > 0
+        ? distance / (durationSeconds / 3600)
+        : 0.0;
+
+    return ActivityModel(
+      id: post.activityId ?? 'post-${post.id}',
+      userId: post.userId,
+      activityType: post.activityType!,
+      title: post.activityTitle,
+      startTime: post.createdAt,
+      endTime: durationSeconds > 0
+          ? post.createdAt.add(Duration(seconds: durationSeconds))
+          : post.createdAt,
+      totalDuration: durationSeconds > 0 ? Duration(seconds: durationSeconds) : null,
+      distanceTraveled: distance,
+      averagePace: averagePace,
+      status: ActivityStatus.completed,
+      createdAt: post.createdAt,
+    );
+  }
+
   @override
   void dispose() {
     _commentController.dispose();
@@ -296,9 +323,14 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         children: [
                           GestureDetector(
                             onTap: _navigateToProfile,
-                            child: const CircleAvatar(
+                            child: CircleAvatar(
                               backgroundColor: Color(0xFF1E1E1E),
-                              child: Icon(Icons.person, color: Colors.orange),
+                              backgroundImage: (post.authorAvatarUrl != null && post.authorAvatarUrl!.isNotEmpty)
+                                  ? NetworkImage(post.authorAvatarUrl!)
+                                  : null,
+                              child: (post.authorAvatarUrl == null || post.authorAvatarUrl!.isEmpty)
+                                  ? const Icon(Icons.person, color: Colors.orange)
+                                  : null,
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -395,23 +427,26 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       if (post.activityType != null)
                         GestureDetector(
                           onTap: () async {
+                            ActivityModel? activity;
                             if (post.activityId != null) {
-                              final activity = await ActivityRepository().getActivityById(post.activityId!);
-                              if (activity != null && mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ActivitySummaryScreen(
-                                      activity: activity,
-                                      routePoints: activity.routePoints,
-                                    ),
+                              activity = await ActivityRepository().getActivityById(post.activityId!);
+                            }
+
+                            final activityToShow = activity ?? _buildFallbackActivityFromPost(post);
+                            if (activityToShow != null && mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ActivitySummaryScreen(
+                                    activity: activityToShow!,
+                                    routePoints: activityToShow.routePoints,
                                   ),
-                                );
-                              } else if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Activity details not found')),
-                                );
-                              }
+                                ),
+                              );
+                            } else if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Activity details not found')),
+                              );
                             }
                           },
                           child: Container(
@@ -620,7 +655,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         author: comment.authorName,
                         time: commentTime,
                         text: comment.content,
-                        icon: Icons.person,
+                        avatarUrl: comment.authorAvatarUrl,
                         userId: comment.userId,
                       ),
                     );
@@ -699,7 +734,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
     required String author,
     required String time,
     required String text,
-    required IconData icon,
+    String? avatarUrl,
     required String userId,
   }) {
     return Row(
@@ -710,7 +745,12 @@ class _CommentsScreenState extends State<CommentsScreen> {
           child: CircleAvatar(
             radius: 15,
             backgroundColor: const Color(0xFF1E1E1E),
-            child: Icon(icon, color: const Color(0xFFAAAAAA), size: 16),
+            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: (avatarUrl == null || avatarUrl.isEmpty)
+                ? const Icon(Icons.person, color: Color(0xFFAAAAAA), size: 16)
+                : null,
           ),
         ),
         const SizedBox(width: 10),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../activity_health/repositories/activity_repository.dart';
 import '../../activity_health/views/activity_summary_screen.dart';
+import '../../activity_health/models/activity_model.dart';
 import '../views/comments_screen.dart';
 import '../views/new_post_screen.dart';
 import '../models/post_model.dart';
@@ -15,6 +16,7 @@ class PostCard extends StatefulWidget {
   final String author;
   final String time;
   final IconData avatarIcon;
+  final String? avatarUrl;
   final String content;
   final bool hasMedia;
   final int likes;
@@ -33,6 +35,7 @@ class PostCard extends StatefulWidget {
     required this.author,
     required this.time,
     required this.avatarIcon,
+    this.avatarUrl,
     required this.content,
     required this.hasMedia,
     required this.likes,
@@ -98,6 +101,32 @@ class _PostCardState extends State<PostCard> {
     if (widget.onStarToggle != null) {
       widget.onStarToggle!();
     }
+  }
+
+  ActivityModel? _buildFallbackActivityFromPost() {
+    if (widget.post.activityType == null) return null;
+
+    final durationSeconds = widget.post.activityDurationSeconds ?? 0;
+    final distance = widget.post.activityDistance ?? 0.0;
+    final averagePace = durationSeconds > 0
+        ? distance / (durationSeconds / 3600)
+        : 0.0;
+
+    return ActivityModel(
+      id: widget.post.activityId ?? 'post-${widget.post.id}',
+      userId: widget.post.userId,
+      activityType: widget.post.activityType!,
+      title: widget.post.activityTitle,
+      startTime: widget.post.createdAt,
+      endTime: durationSeconds > 0
+          ? widget.post.createdAt.add(Duration(seconds: durationSeconds))
+          : widget.post.createdAt,
+      totalDuration: durationSeconds > 0 ? Duration(seconds: durationSeconds) : null,
+      distanceTraveled: distance,
+      averagePace: averagePace,
+      status: ActivityStatus.completed,
+      createdAt: widget.post.createdAt,
+    );
   }
 
   Future<void> _navigateToComments() async {
@@ -174,7 +203,12 @@ class _PostCardState extends State<PostCard> {
                   onTap: widget.onProfileTap,
                   child: CircleAvatar(
                     backgroundColor: const Color(0xFF1E1E1E),
-                    child: Icon(widget.avatarIcon, color: Colors.orange),
+                    backgroundImage: (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(widget.avatarUrl!)
+                        : null,
+                    child: (widget.avatarUrl == null || widget.avatarUrl!.isEmpty)
+                        ? Icon(widget.avatarIcon, color: Colors.orange)
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -259,23 +293,26 @@ class _PostCardState extends State<PostCard> {
             if (widget.post.activityType != null)
               GestureDetector(
                 onTap: () async {
+                  ActivityModel? activity;
                   if (widget.post.activityId != null) {
-                    final activity = await ActivityRepository().getActivityById(widget.post.activityId!);
-                    if (activity != null && mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ActivitySummaryScreen(
-                            activity: activity,
-                            routePoints: activity.routePoints,
-                          ),
+                    activity = await ActivityRepository().getActivityById(widget.post.activityId!);
+                  }
+
+                  final activityToShow = activity ?? _buildFallbackActivityFromPost();
+                  if (activityToShow != null && mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ActivitySummaryScreen(
+                          activity: activityToShow!,
+                          routePoints: activityToShow.routePoints,
                         ),
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Activity details not found')),
-                      );
-                    }
+                      ),
+                    );
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Activity details not found')),
+                    );
                   }
                 },
                 child: Container(
@@ -453,7 +490,6 @@ class _PostCardState extends State<PostCard> {
                           isActive: _isStarred,
                         ),
                       ),
-                      _buildActionBtn(Icons.share, ''),
                     ],
                   ),
                 ],
