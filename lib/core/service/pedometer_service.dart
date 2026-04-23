@@ -67,7 +67,7 @@ class PedometerService {
   /// 1. Daily resets (new day starts at 0)
   /// 2. Device reboots (sensor resets to 0)
   /// 3. Continuous step accumulation
-  static void _handleStepUpdate(StepCount event) async {
+  static Future<void> _handleStepUpdate(StepCount event) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now();
@@ -138,10 +138,36 @@ class PedometerService {
     }
   }
 
+  /// Get today's steps using the shared calculation logic
+  /// Optionally refresh from the sensor before returning stored value
+  static Future<int> getTodayStepsCalculated({bool refreshFromSensor = false}) async {
+    try {
+      if (!_isInitialized) {
+        await initPedometer();
+      }
+
+      if (refreshFromSensor) {
+        try {
+          final event = await Pedometer.stepCountStream
+              .first
+              .timeout(const Duration(seconds: 2));
+          await _handleStepUpdate(event);
+        } catch (e) {
+          print('⚠ Sensor refresh unavailable: $e');
+        }
+      }
+
+      return await getTodaySteps();
+    } catch (e) {
+      print('Error getting calculated today steps: $e');
+      return 0;
+    }
+  }
+
   /// Get the distance walked (estimated from today's steps)
   static Future<double> getDistance() async {
     try {
-      final steps = await getTodaySteps();
+      final steps = await getTodayStepsCalculated(refreshFromSensor: false);
       const double strideLength = 0.762; // average meters per step
       return (steps * strideLength) / 1000; // km
     } catch (e) {
@@ -184,6 +210,33 @@ class PedometerService {
       print('🔄 Pedometer reset - will reinitialize on next call');
     } catch (e) {
       print('Error resetting pedometer: $e');
+    }
+  }
+
+  /// Reset today's step count and baseline to the current sensor value
+  /// Used when user explicitly resets step data
+  static Future<void> resetTodaySteps() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayStr = "${now.year}-${now.month}-${now.day}";
+
+      int baseline = prefs.getInt(_lastSensorValueKey) ?? 0;
+      try {
+        final event = await Pedometer.stepCountStream
+            .first
+            .timeout(const Duration(seconds: 2));
+        baseline = event.steps;
+      } catch (e) {
+        print('⚠ Could not read current sensor baseline: $e');
+      }
+
+      await prefs.setString(_lastUpdateDateKey, todayStr);
+      await prefs.setInt(_todayStepsKey, 0);
+      await prefs.setInt(_lastSensorValueKey, baseline);
+      print('✓ Today steps reset to 0 with baseline $baseline');
+    } catch (e) {
+      print('Error resetting today steps: $e');
     }
   }
 }

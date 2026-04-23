@@ -182,7 +182,9 @@ class StepTrackerRepository {
   /// Get current step count from device hardware
   Future<int> getStepCount() async {
     try {
-      return await PedometerService.getTodaySteps();
+      return await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: false,
+      );
     } catch (e) {
       print('Error getting step count from hardware: $e');
       return 0;
@@ -220,7 +222,9 @@ class StepTrackerRepository {
       }
       
       // Fall back to pedometer if Supabase doesn't have data or network unavailable
-      return await PedometerService.getTodaySteps();
+      return await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: false,
+      );
     } catch (e) {
       print('Error getting today\'s steps: $e');
       return 0;
@@ -373,6 +377,27 @@ class StepTrackerRepository {
           .eq(_dateColumn, dateStr);
     } catch (e) {
       print('Error deleting step record from Supabase: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete ALL step records for the current user from Supabase
+  /// This is called when user resets all step data
+  Future<void> deleteAllStepRecords() async {
+    try {
+      final userId = _currentUserId;
+      if (userId == null) {
+        throw Exception('No authenticated user');
+      }
+
+      await _supabaseClient
+          .from(_dailyTableName)
+          .delete()
+          .eq(_userIdColumn, userId);
+      
+      print('✓ All step records deleted for user: $userId');
+    } catch (e) {
+      print('Error deleting all step records from Supabase: $e');
       rethrow;
     }
   }

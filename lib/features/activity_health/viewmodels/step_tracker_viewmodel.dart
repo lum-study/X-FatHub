@@ -99,7 +99,9 @@ class StepTrackerViewModel extends ChangeNotifier {
       
       // Sync current steps to remote on app launch
       try {
-        final currentSteps = await PedometerService.getTodaySteps();
+        final currentSteps = await PedometerService.getTodayStepsCalculated(
+          refreshFromSensor: true,
+        );
         if (currentSteps > 0) {
           await _repository.saveTodaySteps(currentSteps);
           print('✓ Synced initial steps ($currentSteps) to Supabase on app launch');
@@ -216,7 +218,9 @@ class StepTrackerViewModel extends ChangeNotifier {
         await Future.delayed(const Duration(seconds: 2));
         
         // Reset activity tracking for fresh data
-        _previousStepCount = await PedometerService.getTodaySteps();
+        _previousStepCount = await PedometerService.getTodayStepsCalculated(
+          refreshFromSensor: true,
+        );
         _lastActivityTime = DateTime.now();
         
         // Sync current steps to Supabase
@@ -317,11 +321,19 @@ class StepTrackerViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reset all step tracker UI state
-  /// Note: This only resets the local UI state, does not delete remote data
+  /// Reset all step tracker data - deletes ALL records from Supabase
+  /// This is a destructive operation that removes all historical step data
   Future<void> resetData() async {
     try {
       _setLoading(true);
+      _clearError();
+      
+      // Delete all step records from Supabase for current user
+      await _repository.deleteAllStepRecords();
+
+      // Reset local pedometer baseline and persist today's zero steps
+      await PedometerService.resetTodaySteps();
+      await _repository.saveTodaySteps(0);
       
       // Reset UI state to today with 0 steps
       _stepTrackerData = _stepTrackerData.copyWith(
@@ -338,10 +350,11 @@ class StepTrackerViewModel extends ChangeNotifier {
       
       _setLoading(false);
       notifyListeners();
-      print('✓ Step tracker data reset successfully');
+      print('✓ All step tracker data reset successfully - remote records deleted');
     } catch (e) {
       _setError('Failed to reset data: $e');
       _setLoading(false);
+      rethrow;
     }
   }
 
@@ -430,7 +443,9 @@ class StepTrackerViewModel extends ChangeNotifier {
       _clearError();
       
       // Get current pedometer reading
-      final currentSteps = await PedometerService.getTodaySteps();
+      final currentSteps = await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: true,
+      );
       
       // Sync to Supabase
       await _repository.saveTodaySteps(currentSteps);
