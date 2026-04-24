@@ -36,6 +36,15 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     await bookingViewModel.refreshCurrentUserBookingData();
   }
 
+  int _calculatePurchaseCount(BookingViewModel bookingVM) {
+    // Union of unique package IDs from bookings history and current active packages
+    // This avoids double counting packages that have both bookings and remaining sessions
+    return {
+      ...bookingVM.userBookings.map((b) => b.packageId),
+      ...bookingVM.activePackages.map((p) => p.id)
+    }.where((id) => id.isNotEmpty).length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileViewModel = context.watch<ProfileViewModel>();
@@ -374,9 +383,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   }
 
   Widget _buildMembershipCard(BookingViewModel bookingVM) {
-    // Reward levels: Basic: 0, Silver: 2, Gold: 5, Diamond: 10
-    final purchaseCount = bookingVM.userBookings.map((b) => b.packageId).toSet().length + 
-                           bookingVM.activePackages.length;
+    final purchaseCount = _calculatePurchaseCount(bookingVM);
     
     String level = 'Basic';
     Color levelColor = Colors.grey;
@@ -535,20 +542,24 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
   Widget _buildProfileHeader(profile, BuildContext context) {
     final bookingVM = Provider.of<BookingViewModel>(context, listen: false);
-    final purchaseCount = bookingVM.userBookings.map((b) => b.packageId).toSet().length + 
-                           bookingVM.activePackages.length;
+    final purchaseCount = _calculatePurchaseCount(bookingVM);
     
-    Color badgeColor = Colors.transparent;
+    Color tierColor = Colors.orange; // Default orange for Basic
     IconData? badgeIcon;
+    bool hasPremiumEffect = false;
+
     if (purchaseCount >= 10) {
-      badgeColor = const Color(0xFFB9F2FF);
+      tierColor = const Color(0xFFB9F2FF);
       badgeIcon = Icons.diamond;
+      hasPremiumEffect = true;
     } else if (purchaseCount >= 5) {
-      badgeColor = const Color(0xFFFFD700);
+      tierColor = const Color(0xFFFFD700);
       badgeIcon = Icons.military_tech;
+      hasPremiumEffect = true;
     } else if (purchaseCount >= 2) {
-      badgeColor = const Color(0xFFC0C0C0);
+      tierColor = const Color(0xFFC0C0C0);
       badgeIcon = Icons.shield;
+      hasPremiumEffect = false; // No special border/glow for silver
     }
 
     return Container(
@@ -560,17 +571,36 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       ),
       child: Column(
         children: [
-          // Profile picture with badge
+          // Profile picture logic
           Stack(
             alignment: Alignment.center,
+            clipBehavior: Clip.none,
             children: [
+              if (hasPremiumEffect)
+                Container(
+                  width: 140, // Larger aura
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: tierColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                ),
               Container(
-                width: 100,
-                height: 100,
+                width: 120, // Profile picture size increased from 100
+                height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.orange.withOpacity(0.2),
-                  border: Border.all(color: Colors.orange, width: 3),
+                  border: Border.all(
+                    color: hasPremiumEffect ? tierColor : Colors.orange,
+                    width: 3
+                  ),
                   image: (profile?.profilePictureUrl != null &&
                           profile!.profilePictureUrl!.isNotEmpty)
                       ? DecorationImage(
@@ -581,36 +611,56 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 ),
                 child: (profile?.profilePictureUrl == null ||
                         profile!.profilePictureUrl!.isEmpty)
-                    ? const Icon(Icons.person, size: 50, color: Colors.orange)
+                    ? const Icon(Icons.person, size: 60, color: Colors.orange)
                     : null,
               ),
               if (badgeIcon != null)
                 Positioned(
-                  right: 0,
-                  bottom: 0,
+                  right: -4,
+                  bottom: -4,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(8), // Increased padding
                     decoration: BoxDecoration(
                       color: Colors.grey[900],
                       shape: BoxShape.circle,
-                      border: Border.all(color: badgeColor, width: 2),
+                      border: Border.all(color: tierColor, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Icon(badgeIcon, color: badgeColor, size: 18),
+                    child: Icon(badgeIcon, color: tierColor, size: 24), // Increased icon size from 20
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           Text(
             (profile?.name?.isNotEmpty == true) ? profile!.name! : 'Unknown User',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: 22, // Slightly larger font
               fontWeight: FontWeight.bold,
             ),
           ),
+          if (purchaseCount >= 2)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                purchaseCount >= 10 ? 'DIAMOND MEMBER' : (purchaseCount >= 5 ? 'GOLD MEMBER' : 'SILVER MEMBER'),
+                style: TextStyle(
+                  color: tierColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
-          const Divider(color: Colors.grey),
+          const Divider(color: Color(0xFF333333)),
           const SizedBox(height: 16),
 
           // Personal Info Section
