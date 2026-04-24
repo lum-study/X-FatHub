@@ -202,7 +202,7 @@ class ProfileViewModel extends ChangeNotifier {
   String _getReadableErrorMessage(dynamic e) {
     String msg = e.toString();
     if (msg.contains('invalid_credentials')) return 'Invalid email or password';
-    if (msg.contains('email_not_confirmed')) return 'Please confirm your email first';
+    if (msg.contains('email_not_confirmed')) return 'Please verify your email first';
     if (msg.contains('user_already_exists')) return 'This email is already registered';
     return msg;
   }
