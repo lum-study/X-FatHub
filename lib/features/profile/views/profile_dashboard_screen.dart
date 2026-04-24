@@ -28,19 +28,46 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     });
   }
 
+  Future<void> _handleRefresh() async {
+    final profileViewModel = context.read<ProfileViewModel>();
+    final bookingViewModel = context.read<BookingViewModel>();
+    
+    await profileViewModel.init();
+    await bookingViewModel.refreshCurrentUserBookingData();
+  }
+
+  int _calculatePurchaseCount(BookingViewModel bookingVM) {
+    // Union of unique package IDs from bookings history and current active packages
+    // This avoids double counting packages that have both bookings and remaining sessions
+    return {
+      ...bookingVM.userBookings.map((b) => b.packageId),
+      ...bookingVM.activePackages.map((p) => p.id)
+    }.where((id) => id.isNotEmpty).length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileViewModel = context.watch<ProfileViewModel>();
     final profile = profileViewModel.profile;
 
     return Scaffold(
-      backgroundColor: Colors.black87,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black87,
+        backgroundColor: Colors.black,
         elevation: 0,
-        title: const Text(
-          'Health Dashboard',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.person, color: Colors.orange),
+            SizedBox(width: 8),
+            Text(
+              'Profile',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
@@ -65,177 +92,476 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           ),
         ],
       ),
-      body: profileViewModel.isLoading
+      body: profileViewModel.isLoading && profile == null
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Profile Header
-                  _buildProfileHeader(profile),
-                  const SizedBox(height: 24),
+          : RefreshIndicator(
+              onRefresh: _handleRefresh,
+              color: Colors.orange,
+              backgroundColor: const Color(0xFF1E1E1E),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile Header
+                    _buildProfileHeader(profile, context),
+                    const SizedBox(height: 24),
 
-                  // Weight Progress Section - Always show
-                  GestureDetector(
-                    onTap: () => _showWeightUpdateDialog(context, profile),
-                    child: _buildWeightProgressSection(profile),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Health Stats Section
-                  const Text(
-                    'Today\'s Activity',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    // Membership Section
+                    const Text(
+                      'Membership Status',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    Consumer<BookingViewModel>(
+                      builder: (context, bookingVM, _) {
+                        return _buildMembershipCard(bookingVM);
+                      },
+                    ),
+                    const SizedBox(height: 24),
 
-                  // Stats Grid
-                  Consumer3<
-                    StepTrackerViewModel,
-                    HydrationViewModel,
-                    BookingViewModel
-                  >(
-                    builder: (context, stepVM, hydrationVM, bookingVM, _) {
-                      // Calculate progress (0.0 - 1.0)
-                      final stepsProgress = stepVM.goalSteps > 0 
-                          ? (stepVM.steps / stepVM.goalSteps).clamp(0.0, 1.0)
-                          : 0.0;
-                      
-                      final hydrationProgress = hydrationVM.goalInLiters > 0
-                          ? (hydrationVM.consumptionInLiters / hydrationVM.goalInLiters).clamp(0.0, 1.0)
-                          : 0.0;
-
-                      return Column(
-                        children: [
-                          // Steps & Hydration in row with circular progress
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              // Steps Card with Circle
-                              Expanded(
-                                child: _buildCircularProgressCard(
-                                  title: 'Steps',
-                                  current: stepVM.steps.toString(),
-                                  goal: stepVM.goalSteps.toString(),
-                                  progress: stepsProgress,
-                                  color: const Color(0xFFFFA500),
-                                  icon: Icons.directions_walk,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Hydration Card with Circle
-                              Expanded(
-                                child: _buildCircularProgressCard(
-                                  title: 'Hydration',
-                                  current: hydrationVM.consumptionInLiters.toStringAsFixed(1),
-                                  goal: hydrationVM.goalInLiters.toStringAsFixed(1),
-                                  progress: hydrationProgress,
-                                  color: const Color(0xFF2196F3),
-                                  icon: Icons.local_drink_outlined,
-                                  unit: 'L',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Sessions Card
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[900],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    // Weight Progress Section
+                    const Text(
+                      'Weight Goal Progress',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () {
+                        final height = profile?.height ?? 0.0;
+                        final initialWeight = profile?.initialWeight ?? 0.0;
+                        final weightGoal = profile?.weightGoal ?? 0.0;
+                        
+                        if (height > 0 && initialWeight > 0 && weightGoal > 0) {
+                          _showWeightUpdateDialog(context, profile);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please complete your Body Information first (Height, Initial & Goal Weight)'),
+                              backgroundColor: Colors.orange,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          );
+                        }
+                      },
+                      child: _buildWeightProgressSection(profile),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Health Stats Section
+                    const Text(
+                      'Today\'s Activity',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Stats Grid
+                    Consumer3<
+                      StepTrackerViewModel,
+                      HydrationViewModel,
+                      BookingViewModel
+                    >(
+                      builder: (context, stepVM, hydrationVM, bookingVM, _) {
+                        final stepsProgress = stepVM.goalSteps > 0 
+                            ? (stepVM.steps / stepVM.goalSteps).clamp(0.0, 1.0)
+                            : 0.0;
+                        
+                        final hydrationProgress = hydrationVM.goalInLiters > 0
+                            ? (hydrationVM.consumptionInLiters / hydrationVM.goalInLiters).clamp(0.0, 1.0)
+                            : 0.0;
+
+                        final totalSessions = bookingVM.sessionsRemainingByPackage.values.fold(0, (sum, s) => sum + s);
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      'Sessions Left',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    Icon(Icons.fitness_center, color: Colors.green, size: 20),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  bookingVM.sessionsRemaining.toString(),
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
+                                Expanded(
+                                  child: _buildCircularProgressCard(
+                                    title: 'Steps',
+                                    current: stepVM.steps.toString(),
+                                    goal: stepVM.goalSteps.toString(),
+                                    progress: stepsProgress,
+                                    color: const Color(0xFFFFA500),
+                                    icon: Icons.directions_walk,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  bookingVM.nextExpiryDate == null ? 'No pack' : 'Active package',
-                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildCircularProgressCard(
+                                    title: 'Hydration',
+                                    current: hydrationVM.consumptionInLiters.toStringAsFixed(1),
+                                    goal: hydrationVM.goalInLiters.toStringAsFixed(1),
+                                    progress: hydrationProgress,
+                                    color: const Color(0xFF2196F3),
+                                    icon: Icons.local_drink_outlined,
+                                    unit: 'L',
+                                  ),
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Total Sessions Left',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Sessions Card
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[900],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Sessions Overview',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const Icon(Icons.fitness_center, color: Colors.green, size: 20),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    totalSessions.toString(),
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                  if (bookingVM.activePackages.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    const Divider(color: Color(0xFF333333)),
+                                    const SizedBox(height: 8),
+                                    ...bookingVM.activePackages.map((pkg) {
+                                      final sessions = bookingVM.sessionsRemainingByPackage[pkg.id] ?? 0;
+                                      final expiry = bookingVM.expiryByPackage[pkg.id];
+                                      String expiryText = 'No expiry';
+                                      Color expiryColor = Colors.grey[500]!;
+                                      
+                                      if (expiry != null) {
+                                        final daysLeft = expiry.difference(DateTime.now()).inDays;
+                                        if (daysLeft < 0) {
+                                          expiryText = 'Expired';
+                                          expiryColor = Colors.red;
+                                        } else {
+                                          expiryText = '$daysLeft days left';
+                                          if (daysLeft < 30) {
+                                            expiryColor = Colors.red;
+                                          }
+                                        }
+                                      }
+
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    pkg.name,
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    '$sessions sessions left',
+                                                    style: const TextStyle(
+                                                      color: Colors.green,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Text(
+                                              expiryText,
+                                              style: TextStyle(
+                                                color: expiryColor,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ] else ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'No active packages',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Account Management
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Account',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(
+                              Icons.logout,
+                              color: Colors.orange,
+                            ),
+                            title: const Text(
+                              'Sign Out',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            onTap: () {
+                              _showLogoutDialog(context);
+                            },
                           ),
                         ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Account Management
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[900],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Account',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(
-                            Icons.logout,
-                            color: Colors.orange,
-                          ),
-                          title: const Text(
-                            'Sign Out',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            _showLogoutDialog(context);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
     );
   }
 
-  Widget _buildProfileHeader(profile) {
+  Widget _buildMembershipCard(BookingViewModel bookingVM) {
+    final purchaseCount = _calculatePurchaseCount(bookingVM);
+    
+    String level = 'Basic';
+    Color levelColor = Colors.grey;
+    IconData levelIcon = Icons.stars_outlined;
+
+    if (purchaseCount >= 10) {
+      level = 'Diamond';
+      levelColor = const Color(0xFFB9F2FF);
+      levelIcon = Icons.diamond;
+    } else if (purchaseCount >= 5) {
+      level = 'Gold';
+      levelColor = const Color(0xFFFFD700);
+      levelIcon = Icons.military_tech;
+    } else if (purchaseCount >= 2) {
+      level = 'Silver';
+      levelColor = const Color(0xFFC0C0C0);
+      levelIcon = Icons.shield;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [levelColor.withOpacity(0.2), Colors.grey[900]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: levelColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: levelColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(levelIcon, color: levelColor, size: 28),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tier Level',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    Text(
+                      level,
+                      style: TextStyle(
+                        color: levelColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => _showMembershipInfo(context, level, purchaseCount),
+                icon: const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: (purchaseCount / 10).clamp(0.0, 1.0),
+              backgroundColor: Colors.black26,
+              color: levelColor,
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$purchaseCount Packages purchased',
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+              if (purchaseCount < 10)
+                Text(
+                  '${(purchaseCount < 2 ? 2 : (purchaseCount < 5 ? 5 : 10)) - purchaseCount} more to next level',
+                  style: TextStyle(color: levelColor.withOpacity(0.7), fontSize: 11),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMembershipInfo(BuildContext context, String currentLevel, int count) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Membership Tiers', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTierRow('Basic', '0-1 Packages', 'Standard access to all facilities.', Colors.grey, currentLevel == 'Basic'),
+            _buildTierRow('Silver', '2-4 Packages', 'Free access to exclusive lockers.', const Color(0xFFC0C0C0), currentLevel == 'Silver'),
+            _buildTierRow('Gold', '5-9 Packages', 'Free 1x Personal Trainer session monthly.', const Color(0xFFFFD700), currentLevel == 'Gold'),
+            _buildTierRow('Diamond', '10+ Packages', 'Free 2x Guest pass monthly + Priority booking.', const Color(0xFFB9F2FF), currentLevel == 'Diamond'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierRow(String name, String req, String welfare, Color color, bool isCurrent) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isCurrent ? color.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isCurrent ? color : Colors.grey.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(name, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+              if (isCurrent) 
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+                  child: const Text('CURRENT', style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.bold)),
+                ),
+            ],
+          ),
+          Text(req, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+          const SizedBox(height: 4),
+          Text(welfare, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader(profile, BuildContext context) {
+    final bookingVM = Provider.of<BookingViewModel>(context, listen: false);
+    final purchaseCount = _calculatePurchaseCount(bookingVM);
+    
+    Color tierColor = Colors.orange; // Default orange for Basic
+    IconData? badgeIcon;
+    bool hasPremiumEffect = false;
+
+    if (purchaseCount >= 10) {
+      tierColor = const Color(0xFFB9F2FF);
+      badgeIcon = Icons.diamond;
+      hasPremiumEffect = true;
+    } else if (purchaseCount >= 5) {
+      tierColor = const Color(0xFFFFD700);
+      badgeIcon = Icons.military_tech;
+      hasPremiumEffect = true;
+    } else if (purchaseCount >= 2) {
+      tierColor = const Color(0xFFC0C0C0);
+      badgeIcon = Icons.shield;
+      hasPremiumEffect = false; // No special border/glow for silver
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -245,48 +571,112 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       ),
       child: Column(
         children: [
-          // Profile picture is view-only on dashboard.
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.orange.withOpacity(0.2),
-              border: Border.all(color: Colors.orange, width: 3),
-              image: (profile?.profilePictureUrl != null &&
-                      profile!.profilePictureUrl!.isNotEmpty)
-                  ? DecorationImage(
-                      image: NetworkImage(profile.profilePictureUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: (profile?.profilePictureUrl == null ||
-                    profile!.profilePictureUrl!.isEmpty)
-                ? const Icon(Icons.person, size: 50, color: Colors.orange)
-                : null,
+          // Profile picture logic
+          Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              if (hasPremiumEffect)
+                Container(
+                  width: 140, // Larger aura
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: tierColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                ),
+              Container(
+                width: 120, // Profile picture size increased from 100
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.orange.withOpacity(0.2),
+                  border: Border.all(
+                    color: hasPremiumEffect ? tierColor : Colors.orange,
+                    width: 3
+                  ),
+                  image: (profile?.profilePictureUrl != null &&
+                          profile!.profilePictureUrl!.isNotEmpty)
+                      ? DecorationImage(
+                          image: NetworkImage(profile.profilePictureUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: (profile?.profilePictureUrl == null ||
+                        profile!.profilePictureUrl!.isEmpty)
+                    ? const Icon(Icons.person, size: 60, color: Colors.orange)
+                    : null,
+              ),
+              if (badgeIcon != null)
+                Positioned(
+                  right: -4,
+                  bottom: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(8), // Increased padding
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900],
+                      shape: BoxShape.circle,
+                      border: Border.all(color: tierColor, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(badgeIcon, color: tierColor, size: 24), // Increased icon size from 20
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
-
-          const SizedBox(height: 20),
-          const Divider(color: Colors.grey),
+          Text(
+            (profile?.name?.isNotEmpty == true) ? profile!.name! : 'Unknown User',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22, // Slightly larger font
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (purchaseCount >= 2)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                purchaseCount >= 10 ? 'DIAMOND MEMBER' : (purchaseCount >= 5 ? 'GOLD MEMBER' : 'SILVER MEMBER'),
+                style: TextStyle(
+                  color: tierColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          const Divider(color: Color(0xFF333333)),
           const SizedBox(height: 16),
 
           // Personal Info Section
           _buildInfoSection('Personal Information', [
-            _buildInfoRow(Icons.person, 'Name', profile?.name ?? 'Not set'),
             _buildInfoRow(Icons.email, 'Email', profile?.email ?? 'Not set'),
             _buildInfoRow(Icons.info_outline, 'Bio', profile?.bio?.isNotEmpty == true ? profile!.bio! : 'Not set'),
-            _buildInfoRow(Icons.cake, 'Age', profile?.age != null ? '${profile.age} years old' : 'Not set'),
+            _buildInfoRow(Icons.cake, 'Age', profile?.birthdate != null ? '${_calculateAge(profile.birthdate)} years old' : 'Not set'),
             _buildInfoRow(Icons.event, 'Birthdate', _formatBirthdate(profile?.birthdate)),
             _buildInfoRow(Icons.wc, 'Gender', _formatGender(profile?.gender)),
-            _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : 'Not set'),
           ]),
 
           const SizedBox(height: 16),
 
-          // Weight Info Section
-          _buildInfoSection('Weight Information', [
+          // Body Info Section
+          _buildInfoSection('Body Information', [
+            _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : 'Not set'),
             _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : 'Not set'),
             _buildInfoRow(Icons.monitor_weight, 'Current Weight', profile?.currentWeight != null ? '${profile.currentWeight} kg' : 'Not set'),
             _buildInfoRow(Icons.flag_circle, 'Goal Weight', profile?.weightGoal != null ? '${profile.weightGoal} kg' : 'Not set'),
@@ -298,11 +688,15 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
                 );
+                // Refresh after returning from edit
+                if (mounted) {
+                  _handleRefresh();
+                }
               },
               icon: const Icon(Icons.edit),
               label: const Text('Edit Profile'),
@@ -319,6 +713,15 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         ],
       ),
     );
+  }
+
+  int _calculateAge(DateTime birthdate) {
+    DateTime now = DateTime.now();
+    int age = now.year - birthdate.year;
+    if (now.month < birthdate.month || (now.month == birthdate.month && now.day < birthdate.day)) {
+      age--;
+    }
+    return age;
   }
 
   Widget _buildInfoSection(String title, List<Widget> children) {
@@ -361,6 +764,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       return 'Not set';
     }
     final normalizedGender = gender.toLowerCase();
+    if (normalizedGender == 'prefer not to say') return 'Prefer not to say';
     return normalizedGender[0].toUpperCase() + normalizedGender.substring(1);
   }
 
@@ -398,13 +802,35 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     final currentWeight = profile?.currentWeight ?? 0.0;
     final initialWeight = profile?.initialWeight ?? 0.0;
     final weightGoal = profile?.weightGoal ?? 0.0;
+    final height = profile?.height ?? 0.0;
 
     // Calculate progress percentage (0-100)
     double progressPercent = 0.0;
-    String progressText = 'Add weight and goal to start tracking';
-    bool hasWeightData = currentWeight > 0 && weightGoal > 0 && initialWeight > 0;
+    String progressText = 'Please Complete Body Information before Tracking';
+    bool hasBodyData = currentWeight > 0 && weightGoal > 0 && initialWeight > 0 && height > 0;
+    
+    double bmi = 0.0;
+    String bmiCategory = '';
+    Color bmiColor = Colors.grey;
 
-    if (hasWeightData) {
+    if (hasBodyData) {
+      // BMI Calculation: weight / (height/100)^2
+      bmi = currentWeight / ((height / 100) * (height / 100));
+      
+      if (bmi < 18.5) {
+        bmiCategory = 'Underweight';
+        bmiColor = Colors.blue;
+      } else if (bmi < 25) {
+        bmiCategory = 'Normal';
+        bmiColor = Colors.green;
+      } else if (bmi < 30) {
+        bmiCategory = 'Overweight';
+        bmiColor = Colors.yellow;
+      } else {
+        bmiCategory = 'Obese';
+        bmiColor = Colors.red;
+      }
+
       final totalChange = (initialWeight - weightGoal).abs();
       final achieved = (initialWeight - currentWeight).abs();
       
@@ -424,137 +850,245 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        border: Border.all(
+          color: hasBodyData ? Colors.orange.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Weight Goal Progress',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              Icon(Icons.monitor_weight_outlined, color: Colors.orange),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // All three weights display
-          if (hasWeightData)
+      child: Opacity(
+        opacity: hasBodyData ? 1.0 : 0.6,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Initial Weight
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Initial',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${initialWeight.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(Icons.arrow_downward, size: 16, color: Colors.blue.withOpacity(0.7)),
-                  ],
-                ),
-                // Current Weight (center, highlighted)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Current',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${currentWeight.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(Icons.arrow_forward, size: 16, color: Colors.orange.withOpacity(0.7)),
-                  ],
-                ),
-                // Goal Weight
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Goal',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${weightGoal.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(Icons.flag, size: 16, color: Colors.green.withOpacity(0.7)),
-                  ],
-                ),
-              ],
-            )
-          else
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                child: Text(
-                  'Click profile to add weight',
+                const Text(
+                  'Overview',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[400],
-                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
+                ),
+                Icon(
+                  hasBodyData ? Icons.monitor_weight_outlined : Icons.lock_outline,
+                  color: hasBodyData ? Colors.orange : Colors.grey,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            if (hasBodyData) ...[
+              // BMI Display
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: bmiColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: bmiColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Current BMI',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          bmi.toStringAsFixed(1),
+                          style: TextStyle(
+                            color: bmiColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '($bmiCategory)',
+                          style: TextStyle(
+                            color: bmiColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => _showBMILimitsDialog(context),
+                          child: Icon(Icons.info_outline, color: bmiColor, size: 20),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // All three weights display
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Initial Weight
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Initial',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${initialWeight.toStringAsFixed(1)} kg',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Icon(Icons.arrow_downward, size: 16, color: Colors.blue.withOpacity(0.7)),
+                    ],
+                  ),
+                  // Current Weight (center, highlighted)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Current',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${currentWeight.toStringAsFixed(1)} kg',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Icon(Icons.arrow_forward, size: 16, color: Colors.orange.withOpacity(0.7)),
+                    ],
+                  ),
+                  // Goal Weight
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Goal',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${weightGoal.toStringAsFixed(1)} kg',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Icon(Icons.flag, size: 16, color: Colors.green.withOpacity(0.7)),
+                    ],
+                  ),
+                ],
+              ),
+            ] else
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.grey, size: 30),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Body Information incomplete',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[400],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Set Height and Weight Information to unlock',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          
-          const SizedBox(height: 12),
+            
+            const SizedBox(height: 12),
 
-          // Progress bar
-          if (hasWeightData) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: (progressPercent / 100).clamp(0.0, 1.0),
-                minHeight: 8,
-                backgroundColor: Colors.grey[800],
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
+            // Progress bar
+            if (hasBodyData) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: (progressPercent / 100).clamp(0.0, 1.0),
+                  minHeight: 8,
+                  backgroundColor: Colors.grey[800],
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Progress text
+            Text(
+              progressText,
+              style: TextStyle(
+                fontSize: 12,
+                color: hasBodyData ? Colors.grey[300] : Colors.red[300],
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
 
-          // Progress text
-          Text(
-            progressText,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[300],
-              fontWeight: FontWeight.w500,
-            ),
+  void _showBMILimitsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('BMI Categories', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildBMILimitRow('Underweight', '< 18.5', Colors.blue),
+            _buildBMILimitRow('Normal', '18.5 - 24.9', Colors.green),
+            _buildBMILimitRow('Overweight', '25.0 - 29.9', Colors.yellow),
+            _buildBMILimitRow('Obese', '≥ 30.0', Colors.red),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.orange)),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBMILimitRow(String label, String range, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          Text(range, style: const TextStyle(color: Colors.white70)),
         ],
       ),
     );
@@ -808,6 +1342,14 @@ class _WeightUpdateDialogState extends State<WeightUpdateDialog> {
     super.dispose();
   }
 
+  void _adjustWeight(double delta) {
+    final currentVal = double.tryParse(_weightController.text) ?? 0.0;
+    final newVal = (currentVal + delta).clamp(0.1, 500.0);
+    setState(() {
+      _weightController.text = newVal.toStringAsFixed(1);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -816,20 +1358,35 @@ class _WeightUpdateDialogState extends State<WeightUpdateDialog> {
         'Update Current Weight',
         style: TextStyle(color: Colors.white),
       ),
-      content: TextField(
-        controller: _weightController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: 'Enter weight in kg',
-          hintStyle: TextStyle(color: Colors.grey[600]),
-          filled: true,
-          fillColor: Colors.grey[800],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+      content: Row(
+        children: [
+          IconButton(
+            onPressed: () => _adjustWeight(-0.1),
+            icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
           ),
-        ),
+          Expanded(
+            child: TextField(
+              controller: _weightController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                hintText: 'kg',
+                hintStyle: TextStyle(color: Colors.grey[600]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => _adjustWeight(0.1),
+            icon: const Icon(Icons.add_circle_outline, color: Colors.orange),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -858,11 +1415,12 @@ class _WeightUpdateDialogState extends State<WeightUpdateDialog> {
                   ? widget.initialWeight
                   : widget.weightGoal;
 
+              // Enforce strict range validation: current weight must be between initial and goal.
               if (parsedWeight < minWeight || parsedWeight > maxWeight) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Weight must be between ${minWeight.toStringAsFixed(1)} kg and ${maxWeight.toStringAsFixed(1)} kg',
+                      'Weight must be between your initial (${minWeight.toStringAsFixed(1)}kg) and goal (${maxWeight.toStringAsFixed(1)}kg).',
                     ),
                     backgroundColor: Colors.red,
                   ),
@@ -914,4 +1472,3 @@ class _CircleProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-

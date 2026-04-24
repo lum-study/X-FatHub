@@ -15,7 +15,6 @@ class ProfileEditScreen extends StatefulWidget {
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
-  late final TextEditingController _ageController;
   late final TextEditingController _birthdateController;
   late final TextEditingController _heightController;
   late final TextEditingController _initialWeightController;
@@ -35,18 +34,25 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _pickBirthdate() async {
     final now = DateTime.now();
-    final initialDate = _selectedBirthdate ??
-        DateTime(
-          now.year - 18,
-          now.month,
-          now.day,
-        );
+    // Validate: only ensure above 12 age
+    final firstDate = DateTime(1900);
+    final lastDate = DateTime(now.year - 12, now.month, now.day);
+
+    if (firstDate.isAfter(lastDate)) {
+      return;
+    }
+
+    final initialDate = _selectedBirthdate != null && 
+                        _selectedBirthdate!.isAfter(firstDate) && 
+                        _selectedBirthdate!.isBefore(lastDate)
+        ? _selectedBirthdate!
+        : lastDate;
 
     final pickedDate = await showDatePicker(
       context: context,
       initialDate: initialDate,
-      firstDate: DateTime(1900),
-      lastDate: now,
+      firstDate: firstDate,
+      lastDate: lastDate,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -138,7 +144,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     
     _nameController = TextEditingController(text: profile?.name ?? '');
     _bioController = TextEditingController(text: profile?.bio ?? '');
-    _ageController = TextEditingController(text: profile?.age?.toString() ?? '');
     _birthdateController = TextEditingController(
       text: profile?.birthdate != null ? _formatDateForInput(profile!.birthdate!) : '',
     );
@@ -153,7 +158,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _initialWeightController = TextEditingController(text: profile?.initialWeight?.toString() ?? '');
     _goalWeightController = TextEditingController(text: profile?.weightGoal?.toString() ?? '');
     final normalizedGender = profile?.gender?.toLowerCase();
-    _selectedGender = const ['male', 'female', 'other'].contains(normalizedGender)
+    _selectedGender = const ['male', 'female', 'other', 'prefer not to say'].contains(normalizedGender)
         ? normalizedGender
         : null;
   }
@@ -162,7 +167,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
-    _ageController.dispose();
     _birthdateController.dispose();
     _heightController.dispose();
     _initialWeightController.dispose();
@@ -174,22 +178,50 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final nameText = _nameController.text.trim();
+      if (nameText.isEmpty) {
+        throw Exception('Name cannot be empty');
+      }
+      if (nameText.length > 15) {
+        throw Exception('Name must be 15 characters or less');
+      }
+
       final bioText = _bioController.text.trim();
       if (bioText.length > 30) {
         throw Exception('Bio must be 30 characters or less');
       }
 
-      final age = _ageController.text.isNotEmpty ? int.parse(_ageController.text) : null;
-      final height = _heightController.text.isNotEmpty ? double.parse(_heightController.text) : null;
-      final initialWeight = _initialWeightController.text.isNotEmpty ? double.parse(_initialWeightController.text) : null;
-      final goalWeight = _goalWeightController.text.isNotEmpty ? double.parse(_goalWeightController.text) : null;
+      final height = _heightController.text.isNotEmpty ? double.tryParse(_heightController.text) : null;
+      if (height != null && height <= 0) {
+         throw Exception('Height must be greater than 0');
+      }
+
+      final initialWeight = _initialWeightController.text.isNotEmpty ? double.tryParse(_initialWeightController.text) : null;
+      if (initialWeight != null && initialWeight <= 0) {
+         throw Exception('Initial Weight must be greater than 0');
+      }
+
+      final goalWeight = _goalWeightController.text.isNotEmpty ? double.tryParse(_goalWeightController.text) : null;
+      if (goalWeight != null && goalWeight <= 0) {
+         throw Exception('Goal Weight must be greater than 0');
+      }
 
       final provider = context.read<ProfileViewModel>();
       
+      // Calculate age from birthdate
+      int? calculatedAge;
+      if (_selectedBirthdate != null) {
+        final now = DateTime.now();
+        calculatedAge = now.year - _selectedBirthdate!.year;
+        if (now.month < _selectedBirthdate!.month || (now.month == _selectedBirthdate!.month && now.day < _selectedBirthdate!.day)) {
+          calculatedAge--;
+        }
+      }
+
       await provider.updateProfile(
-        name: _nameController.text.isEmpty ? null : _nameController.text,
+        name: nameText,
         bio: bioText.isEmpty ? null : bioText,
-        age: age,
+        age: calculatedAge,
         gender: _selectedGender,
         birthdate: _selectedBirthdate,
         height: height,
@@ -215,7 +247,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -225,15 +260,29 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.orange,
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileViewModel = context.watch<ProfileViewModel>();
     final profile = profileViewModel.profile;
 
     return Scaffold(
-      backgroundColor: Colors.black87,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black87,
+        backgroundColor: Colors.black,
         elevation: 0,
         title: const Text(
           'Edit Profile',
@@ -299,6 +348,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
             const SizedBox(height: 24),
 
+            _buildSectionTitle('Personal Information'),
+            
             // Name Field
             Text(
               'Name',
@@ -312,11 +363,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),
+              maxLength: 15,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(15),
+              ],
               decoration: InputDecoration(
                 hintText: 'Enter your name',
                 hintStyle: TextStyle(color: Colors.grey[600]),
                 filled: true,
                 fillColor: Colors.grey[900],
+                counterText: "", // Hide counter
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -350,38 +406,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               ],
               decoration: InputDecoration(
                 hintText: 'Tell us about yourself',
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                filled: true,
-                fillColor: Colors.grey[900],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Age Field
-            Text(
-              'Age',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[400],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _ageController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Enter your age',
                 hintStyle: TextStyle(color: Colors.grey[600]),
                 filled: true,
                 fillColor: Colors.grey[900],
@@ -468,6 +492,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 DropdownMenuItem(value: 'male', child: Text('Male')),
                 DropdownMenuItem(value: 'female', child: Text('Female')),
                 DropdownMenuItem(value: 'other', child: Text('Other')),
+                DropdownMenuItem(value: 'prefer not to say', child: Text('Prefer not to say')),
               ],
               onChanged: (value) {
                 setState(() {
@@ -475,7 +500,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 });
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+
+            _buildSectionTitle('Body Information'),
 
             // Height Field
             Text(
