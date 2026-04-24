@@ -12,6 +12,7 @@ class PackageModel {
   final List<String> rules;
   final List<String> gymNames;
   final String category;
+  final bool isActive;
 
   PackageModel({
     required this.id,
@@ -27,6 +28,7 @@ class PackageModel {
     this.rules = const [],
     this.gymNames = const [],
     this.category = 'Gym',
+    this.isActive = true,
   });
 
   factory PackageModel.fromMap(Map<String, dynamic> map) {
@@ -45,6 +47,7 @@ class PackageModel {
       rules: _parseStringList(map['rules']),
       gymNames: _parseStringList(map['gym_names']),
       category: map['category']?.toString() ?? 'Gym',
+      isActive: map['is_active'] != false,
     );
   }
 
@@ -87,6 +90,7 @@ class PackageModel {
       'rules': rules,
       'gym_names': gymNames,
       'category': category,
+      'is_active': isActive,
     };
   }
 }

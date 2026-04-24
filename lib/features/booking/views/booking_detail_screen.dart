@@ -98,7 +98,9 @@ class BookingDetailScreen extends StatelessWidget {
                             ? const Color(0xFFFFA500)
                             : isMissed
                                 ? Colors.red.withValues(alpha: 0.8)
-                                : const Color(0xFF333333),
+                                : booking.status == BookingStatus.completed
+                                    ? Colors.green.withValues(alpha: 0.8)
+                                    : const Color(0xFF333333),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -108,7 +110,7 @@ class BookingDetailScreen extends StatelessWidget {
                                 ? 'MISSED' 
                                 : booking.status.name.toUpperCase(),
                         style: TextStyle(
-                          color: isUpcoming ? Colors.black : Colors.white,
+                          color: (isUpcoming) ? Colors.black : Colors.white,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),

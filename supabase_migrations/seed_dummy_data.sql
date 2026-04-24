@@ -51,7 +51,8 @@ INSERT INTO packages (
   allowed_class_names,
   benefits,
   rules,
-  gym_names
+  gym_names,
+  is_active
 )
 VALUES
   (
@@ -69,7 +70,8 @@ VALUES
     ARRAY['Morning Strength', 'Lunch Burn', 'Recovery Yoga'],
     ARRAY['4 guided sessions', 'Entry-level package for new users', 'Flexible slot booking'],
     ARRAY['Valid for 30 days after purchase', 'Applicable to eligible classes only'],
-    ARRAY['X-Fit Central', 'X-Fit North']
+    ARRAY['X-Fit Central', 'X-Fit North'],
+    true
   ),
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
@@ -86,7 +88,8 @@ VALUES
     ARRAY['Morning Strength', 'Strength Circuit', 'Push Pull Legs', 'Sunday Strength'],
     ARRAY['8 sessions included', 'Best for strength progression', 'Priority access to peak slots'],
     ARRAY['Valid for 45 days after purchase', 'Session is deducted only on confirmed booking'],
-    ARRAY['X-Fit Central', 'X-Fit South']
+    ARRAY['X-Fit Central', 'X-Fit South'],
+    true
   ),
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
@@ -103,7 +106,8 @@ VALUES
     ARRAY['Evening HIIT', 'Weekend HIIT', 'HIIT Start', 'MetCon Madness', 'Sprint Intervals', 'Cardio Clash'],
     ARRAY['12 sessions included', 'Designed for cardio and metabolic training', 'Coach-led progression blocks'],
     ARRAY['Valid for 60 days after purchase', 'Only HIIT-linked classes are selectable'],
-    ARRAY['X-Fit North', 'X-Fit South']
+    ARRAY['X-Fit North', 'X-Fit South'],
+    true
   ),
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4',
@@ -120,7 +124,8 @@ VALUES
     ARRAY['Recovery Yoga', 'Power Mobility', 'Sunday Flow'],
     ARRAY['6 sessions included', 'Great for recovery and flexibility', 'Beginner-friendly pace'],
     ARRAY['Valid for 40 days after purchase', 'Yoga classes only'],
-    ARRAY['X-Fit South']
+    ARRAY['X-Fit South'],
+    true
   ),
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5',
@@ -137,7 +142,8 @@ VALUES
     ARRAY['Swim Intervals', 'Swim Endurance', 'Aqua Recovery'],
     ARRAY['6 sessions included', 'Structured swim progression', 'Coach-assisted drills'],
     ARRAY['Valid for 45 days after purchase', 'Swim classes only'],
-    ARRAY['X-Fit North']
+    ARRAY['X-Fit North'],
+    true
   )
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
@@ -153,7 +159,8 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_class_names = EXCLUDED.allowed_class_names,
   benefits = EXCLUDED.benefits,
   rules = EXCLUDED.rules,
-  gym_names = EXCLUDED.gym_names;
+  gym_names = EXCLUDED.gym_names,
+  is_active = EXCLUDED.is_active;
 
 -- Package to gym mapping
 INSERT INTO package_gyms (id, package_id, gym_id, is_active)
