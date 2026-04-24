@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS packages (
   allowed_class_names TEXT[] NOT NULL DEFAULT '{}',
   benefits TEXT[] NOT NULL DEFAULT '{}',
   rules TEXT[] NOT NULL DEFAULT '{}',
-  gym_names TEXT[] NOT NULL DEFAULT '{}'
+  gym_names TEXT[] NOT NULL DEFAULT '{}',
+  is_active BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS gyms (

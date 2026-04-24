@@ -217,7 +217,8 @@ class _BookingCard extends StatelessWidget {
       }
     }
 
-    final isMissed = booking.status == BookingStatus.upcoming && bookingTime.isBefore(now);
+    final isMissed = booking.status == BookingStatus.missed || (booking.status == BookingStatus.upcoming && bookingTime.isBefore(now));
+    final isCompleted = booking.status == BookingStatus.completed;
 
     return GestureDetector(
       onTap: () {
@@ -245,7 +246,9 @@ class _BookingCard extends StatelessWidget {
               ? Colors.red.withValues(alpha: 0.3)
               : isUpcoming 
                   ? const Color(0xFFFFA500).withValues(alpha: 0.3)
-                  : const Color(0xFF2A2A2A),
+                  : isCompleted
+                      ? Colors.green.withValues(alpha: 0.3)
+                      : const Color(0xFF2A2A2A),
         ),
       ),
       child: Column(
@@ -260,7 +263,9 @@ class _BookingCard extends StatelessWidget {
                       ? Colors.red.withValues(alpha: 0.2)
                       : isUpcoming 
                           ? const Color(0xFFFFA500).withValues(alpha: 0.2)
-                          : const Color(0xFF2A2A2A),
+                          : isCompleted
+                              ? Colors.green.withValues(alpha: 0.2)
+                              : const Color(0xFF2A2A2A),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -270,7 +275,9 @@ class _BookingCard extends StatelessWidget {
                         ? Colors.red
                         : isUpcoming 
                             ? const Color(0xFFFFA500)
-                            : const Color(0xFF888888),
+                            : isCompleted
+                                ? Colors.green
+                                : const Color(0xFF888888),
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),

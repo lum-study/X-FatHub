@@ -87,10 +87,20 @@ serve(async (req) => {
 
       const validityDays = Number(packageRow.validity_days ?? 30);
       const addSessions = Number(packageRow.sessions_count ?? 0);
+
       const today = new Date();
-      const currentExpiry = existingSub?.expiry_date ? new Date(existingSub.expiry_date) : today;
-      const baseline = currentExpiry > today ? currentExpiry : today;
-      const nextExpiry = new Date(baseline);
+      const todayStr = today.toISOString().slice(0, 10);
+
+      const currentExpiryStr = existingSub?.expiry_date;
+      const isExpired = currentExpiryStr ? currentExpiryStr < todayStr : false;
+
+      // If existing sub is expired, we ignore its remaining sessions and start expiry from today
+      const currentSessions = (existingSub && !isExpired) ? Number(existingSub.sessions_remaining ?? 0) : 0;
+
+      // Baseline for next expiry: if not expired, extend from current expiry. Otherwise start from today.
+      const baselineDate = (existingSub && !isExpired) ? new Date(currentExpiryStr!) : today;
+
+      const nextExpiry = new Date(baselineDate);
       nextExpiry.setDate(nextExpiry.getDate() + validityDays);
 
       if (!existingSub) {
@@ -109,7 +119,7 @@ serve(async (req) => {
         const { error: updateSubError } = await adminClient
           .from("user_subscriptions")
           .update({
-            sessions_remaining: Number(existingSub.sessions_remaining ?? 0) + addSessions,
+            sessions_remaining: currentSessions + addSessions,
             expiry_date: nextExpiry.toISOString().slice(0, 10),
             last_payment_intent_id: session.payment_intent?.toString(),
           })

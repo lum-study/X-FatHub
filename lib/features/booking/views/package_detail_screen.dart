@@ -106,8 +106,38 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
                   _buildGymMapping(provider),
                   const SizedBox(height: 14),
                   _buildAllowedSlots(),
-                  const SizedBox(height: 18),
-                  _buildActionButtons(provider, hasCredits),
+                  if (widget.package.isActive &&
+                      !((provider.expiryForPackage(widget.package.id))
+                              ?.isBefore(DateTime.now()) ??
+                          false)) ...[
+                    const SizedBox(height: 18),
+                    _buildActionButtons(provider, hasCredits),
+                  ] else ...[
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1A1A),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.info_outline, color: Colors.redAccent, size: 20),
+                            const SizedBox(width: 10),
+                            Text(
+                              !widget.package.isActive 
+                                  ? 'This package is currently deactivated.' 
+                                  : 'This package has expired.',
+                              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -164,6 +194,9 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
   }
 
   Widget _buildSummary(int packageCredits, DateTime? packageExpiry) {
+    final isExpired = packageExpiry != null && packageExpiry.isBefore(DateTime.now());
+    final isDeactivated = !widget.package.isActive;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -175,19 +208,44 @@ class _PackageDetailScreenState extends State<PackageDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Your Package Balance',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Your Package Balance',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (isExpired || isDeactivated)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isExpired ? Colors.red.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isExpired ? Colors.redAccent : Colors.grey,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    isExpired ? 'EXPIRED' : 'DEACTIVATED',
+                    style: TextStyle(
+                      color: isExpired ? Colors.redAccent : Colors.grey,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(
             '$packageCredits sessions remaining',
-            style: const TextStyle(
-              color: Color(0xFFFFA500),
+            style: TextStyle(
+              color: (isExpired || isDeactivated) ? Colors.grey : const Color(0xFFFFA500),
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),

@@ -6,6 +6,8 @@ import '../../profile/viewmodels/profile_viewmodel.dart';
 import '../../booking/viewmodels/booking_viewmodel.dart';
 import '../../community/providers/community_provider.dart';
 import '../../community/models/post_model.dart';
+import '../../activity_health/viewmodels/step_tracker_viewmodel.dart';
+import '../../activity_health/viewmodels/hydration_viewmodel.dart';
 import '../../booking/models/booking_model.dart';
 import '../../booking/views/booking_detail_screen.dart';
 
@@ -33,10 +35,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // Refresh Booking data
     final bookingVM = context.read<BookingViewModel>();
     final profileVM = context.read<ProfileViewModel>();
+    final stepVM = context.read<StepTrackerViewModel>();
+    final hydrationVM = context.read<HydrationViewModel>();
     
     await Future.wait([
       bookingVM.refreshCurrentUserBookingData(),
       profileVM.init(),
+      stepVM.init(),
+      hydrationVM.init(),
     ]);
 
     if (mounted) {
@@ -78,6 +84,8 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 30),
               _buildUpcomingSessions(),
               const SizedBox(height: 30),
+              _buildTodayActivity(),
+              const SizedBox(height: 30),
               _buildCommunityHighlights(),
               const SizedBox(height: 50), // Extra space at bottom
             ],
@@ -117,6 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, bookingVM, profileVM, _) {
         final currentWeight = profileVM.profile?.currentWeight?.toStringAsFixed(1) ?? '0.0';
         final weightGoal = profileVM.profile?.weightGoal?.toStringAsFixed(1) ?? '0.0';
+        final activePackageIds = bookingVM.activePackages.map((p) => p.id).toSet();
+        final totalSessions = bookingVM.sessionsRemainingByPackage.entries
+            .where((entry) => activePackageIds.contains(entry.key))
+            .fold(0, (sum, entry) => sum + entry.value);
         
         return Container(
           padding: const EdgeInsets.all(20),
@@ -134,13 +146,152 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _statItem('Weight', currentWeight, 'kg'),
               _divider(),
-              _statItem('Sessions', '${bookingVM.sessionsRemaining}', 'left'),
+              _statItem('Sessions', totalSessions.toString(), 'left'),
               _divider(),
               _statItem('Goal', weightGoal, 'kg'),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTodayActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Today\'s Activity',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 15),
+        Consumer2<StepTrackerViewModel, HydrationViewModel>(
+          builder: (context, stepVM, hydrationVM, _) {
+            final stepsProgress = stepVM.goalSteps > 0 
+                ? (stepVM.steps / stepVM.goalSteps).clamp(0.0, 1.0)
+                : 0.0;
+            
+            final hydrationProgress = hydrationVM.goalInLiters > 0
+                ? (hydrationVM.consumptionInLiters / hydrationVM.goalInLiters).clamp(0.0, 1.0)
+                : 0.0;
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: _buildCircularProgressCard(
+                    title: 'Steps',
+                    current: stepVM.steps.toString(),
+                    goal: stepVM.goalSteps.toString(),
+                    progress: stepsProgress,
+                    color: const Color(0xFFFFA500),
+                    icon: Icons.directions_walk,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCircularProgressCard(
+                    title: 'Hydration',
+                    current: hydrationVM.consumptionInLiters.toStringAsFixed(1),
+                    goal: hydrationVM.goalInLiters.toStringAsFixed(1),
+                    progress: hydrationProgress,
+                    color: const Color(0xFF2196F3),
+                    icon: Icons.local_drink_outlined,
+                    unit: 'L',
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCircularProgressCard({
+    required String title,
+    required String current,
+    required String goal,
+    required double progress,
+    required Color color,
+    required IconData icon,
+    String unit = '',
+  }) {
+    final displayProgress = (progress * 100).clamp(0.0, 100.0);
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 70,
+                height: 70,
+                child: CustomPaint(
+                  painter: _CircleProgressPainter(progress: progress, color: color),
+                ),
+              ),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '$current$unit',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${displayProgress.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Goal: $goal$unit',
+            style: const TextStyle(
+              fontSize: 10,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -415,4 +566,37 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+}
+
+class _CircleProgressPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  _CircleProgressPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final backgroundPaint = Paint()
+      ..color = const Color(0xFF262626)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8;
+
+    canvas.drawArc(rect, -3.142 / 2, 2 * 3.142, false, backgroundPaint);
+
+    final progressPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+
+    final sweepAngle = 2 * 3.142 * progress;
+    canvas.drawArc(rect, -3.142 / 2, sweepAngle, false, progressPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

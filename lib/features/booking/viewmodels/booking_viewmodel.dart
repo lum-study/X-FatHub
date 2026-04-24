@@ -95,9 +95,13 @@ class BookingViewModel extends ChangeNotifier {
   }
 
   List<PackageModel> get activePackages {
-    final list = _packages
-        .where((p) => (_sessionsRemainingByPackage[p.id] ?? 0) > 0)
-        .toList();
+    final now = DateTime.now();
+    final list = _packages.where((p) {
+      final sessions = _sessionsRemainingByPackage[p.id] ?? 0;
+      final expiry = _expiryByPackage[p.id];
+      final isExpired = expiry != null && expiry.isBefore(now);
+      return sessions > 0 && !isExpired && p.isActive;
+    }).toList();
 
     list.sort((a, b) {
       final aExpiry = _expiryByPackage[a.id];
@@ -111,8 +115,37 @@ class BookingViewModel extends ChangeNotifier {
   }
 
   List<PackageModel> get availablePackages => _packages
-      .where((p) => (_sessionsRemainingByPackage[p.id] ?? 0) <= 0)
+      .where((p) {
+        final sessions = _sessionsRemainingByPackage[p.id] ?? 0;
+        final expiry = _expiryByPackage[p.id];
+        final isExpired = expiry != null && expiry.isBefore(DateTime.now());
+        // Buyable if: no sessions remaining, NOT expired, and IS active in store
+        return sessions <= 0 && !isExpired && p.isActive;
+      })
       .toList();
+
+  List<PackageModel> get inactivePackages {
+    final now = DateTime.now();
+    return _packages.where((p) {
+      final sessions = _sessionsRemainingByPackage[p.id] ?? 0;
+      final expiry = _expiryByPackage[p.id];
+      final isExpired = expiry != null && expiry.isBefore(now);
+
+      // Inactive if:
+      // 1. It is expired (even if it has sessions)
+      // 2. OR it is deactivated in the store (isActive == false)
+      return isExpired || !p.isActive;
+    }).toList();
+  }
+
+  // Helper to check if a package is active (has credits and not expired)
+  bool isPackageActive(String packageId) {
+    final sessions = _sessionsRemainingByPackage[packageId] ?? 0;
+    final expiry = _expiryByPackage[packageId];
+    final isExpired = expiry != null && expiry.isBefore(DateTime.now());
+    return sessions > 0 && !isExpired;
+  }
+
 
   PackageModel? get selectedPackage => _selectedPackage;
   DateTime get selectedDate => _selectedDate;

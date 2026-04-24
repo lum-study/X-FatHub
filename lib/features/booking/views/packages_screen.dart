@@ -19,6 +19,8 @@ class _PackagesScreenState extends State<PackagesScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
+  bool _showInactive = false;
+
 
   @override
   void initState() {
@@ -209,6 +211,13 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     _buildCategoryPills(),
                     const SizedBox(height: 14),
                     ..._buildPackagesList(provider),
+                    const SizedBox(height: 24),
+                    _buildInactiveToggle(provider),
+                    if (_showInactive) ...[
+                      const SizedBox(height: 16),
+                      ..._buildInactivePackagesList(provider),
+                    ],
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -218,6 +227,126 @@ class _PackagesScreenState extends State<PackagesScreen> {
       ),
     );
   }
+
+  Widget _buildInactiveToggle(BookingViewModel provider) {
+    final inactiveCount = _filterPackages(provider.inactivePackages).length;
+    if (inactiveCount == 0 && !provider.isLoading) return const SizedBox.shrink();
+
+    return Center(
+      child: TextButton.icon(
+        onPressed: () => setState(() => _showInactive = !_showInactive),
+        icon: Icon(
+          _showInactive ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+          color: Colors.grey,
+        ),
+        label: Text(
+          _showInactive 
+              ? 'Hide Expired/Inactive' 
+              : 'Show Expired/Inactive ($inactiveCount)',
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildInactivePackagesList(BookingViewModel provider) {
+    final inactiveFiltered = _filterPackages(provider.inactivePackages);
+    if (inactiveFiltered.isEmpty) return [];
+
+    return inactiveFiltered.map((pkg) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: _buildInactivePackageCard(
+          package: pkg,
+          onDetailsTap: () => _openPackageDetail(context, provider, pkg),
+        ),
+      );
+    }).toList();
+  }
+
+  Widget _buildInactivePackageCard({
+    required PackageModel package,
+    required VoidCallback onDetailsTap,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0A),
+        border: Border.all(color: Colors.grey[900]!),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                package.name,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Text(
+                  'INACTIVE',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            package.description,
+            style: const TextStyle(color: Color(0xFF444444), fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Expired or Deactivated',
+                style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w500),
+              ),
+              GestureDetector(
+                onTap: onDetailsTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Text(
+                    "View Details",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
 
   List<Widget> _buildPackagesList(BookingViewModel provider) {
     final widgets = <Widget>[];
