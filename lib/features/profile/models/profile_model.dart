@@ -12,7 +12,7 @@ class ProfileModel {
   final double? weightGoal; // in kg - renamed from goalWeight for consistency
   final double? height; // in cm
   final int? stepsGoal; // steps per day - renamed from stepGoal for consistency
-  final double? hydrationGoal; // in liters
+  final int? hydrationGoal; // in ML (integer for DB)
   final bool profileCompleted; // flag to track if user completed initial setup
   final DateTime? createdAt;
 
@@ -51,8 +51,8 @@ class ProfileModel {
       initialWeight: (map['initial_weight'] as num?)?.toDouble(),
       weightGoal: (map['weight_goal'] as num?)?.toDouble() ?? (map['goal_weight'] as num?)?.toDouble(),
       height: (map['height'] as num?)?.toDouble(),
-      stepsGoal: map['step_goal'] as int? ?? map['steps_goal'] as int?, // step_goal is primary (DB column)
-      hydrationGoal: (map['hydration_goal'] as num?)?.toDouble(),
+      stepsGoal: map['step_goal'] as int? ?? map['steps_goal'] as int?,
+      hydrationGoal: map['hydration_goal'] as int?,
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at'] as String) : null,
     );
   }
@@ -73,7 +73,7 @@ class ProfileModel {
       'initial_weight': initialWeight,
       'weight_goal': weightGoal,
       'height': height,
-      'step_goal': stepsGoal, // Match Supabase column name
+      'step_goal': stepsGoal,
       'hydration_goal': hydrationGoal,
       'created_at': createdAt?.toIso8601String(),
     };
@@ -93,7 +93,7 @@ class ProfileModel {
     double? weightGoal,
     double? height,
     int? stepsGoal,
-    double? hydrationGoal,
+    int? hydrationGoal,
     bool? profileCompleted,
     DateTime? createdAt,
   }) {

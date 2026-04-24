@@ -81,7 +81,7 @@ class ProfileViewModel extends ChangeNotifier {
     double? weightGoal,
     double? height,
     int? stepsGoal,
-    double? hydrationGoal,
+    int? hydrationGoal, // Changed to int (ML) to match ProfileModel
     String? profilePictureUrl,
     bool? profileCompleted,
   }) async {
@@ -89,41 +89,47 @@ class ProfileViewModel extends ChangeNotifier {
     if (user == null) return;
 
     final currentProfile = _profile ?? ProfileModel(id: user.id, email: user.email!);
-    final resolvedCurrentWeight = currentWeight ??
-        (initialWeight != null ? initialWeight : currentProfile.currentWeight);
+    
+    // Logic: Only update currentWeight to initialWeight if initialWeight has actually changed.
+    double? resolvedCurrentWeight = currentWeight;
+    if (resolvedCurrentWeight == null) {
+      if (initialWeight != null && initialWeight != currentProfile.initialWeight) {
+        // Initial weight changed, so we also update current weight to the new starting point
+        resolvedCurrentWeight = initialWeight;
+      } else {
+        // Keep existing current weight progress
+        resolvedCurrentWeight = currentProfile.currentWeight ?? initialWeight;
+      }
+    }
 
+    // Ensure values are passed correctly to copyWith
     final updatedProfile = currentProfile.copyWith(
-      name: name ?? currentProfile.name,
-      bio: bio ?? currentProfile.bio,
-      age: age ?? currentProfile.age,
-      gender: gender ?? currentProfile.gender,
-      birthdate: birthdate ?? currentProfile.birthdate,
+      name: name,
+      bio: bio,
+      age: age,
+      gender: gender,
+      birthdate: birthdate,
       currentWeight: resolvedCurrentWeight,
-      // Only update initial weight when explicitly passed in.
-      initialWeight: initialWeight ?? currentProfile.initialWeight,
-      weightGoal: weightGoal ?? currentProfile.weightGoal,
-      height: height ?? currentProfile.height,
-      stepsGoal: stepsGoal ?? currentProfile.stepsGoal,
-      hydrationGoal: hydrationGoal ?? currentProfile.hydrationGoal,
-      profilePictureUrl: profilePictureUrl ?? currentProfile.profilePictureUrl,
-      profileCompleted: profileCompleted ?? currentProfile.profileCompleted,
+      initialWeight: initialWeight,
+      weightGoal: weightGoal,
+      height: height,
+      stepsGoal: stepsGoal,
+      hydrationGoal: hydrationGoal,
+      profilePictureUrl: profilePictureUrl,
+      profileCompleted: profileCompleted,
     );
 
     _setLoading(true);
+    _error = null;
     try {
       // Save to local first (offline support)
       await LocalProfileDatabase.saveProfile(updatedProfile.toMap(), synced: false);
       
       // Then try to sync to remote
-      try {
-        await _repository.updateProfile(updatedProfile);
-        await LocalProfileDatabase.updateSyncStatus(user.id, true);
-      } catch (e) {
-        // Keep local version, will sync later
-      }
+      await _repository.updateProfile(updatedProfile);
+      await LocalProfileDatabase.updateSyncStatus(user.id, true);
       
       _profile = updatedProfile;
-      _error = null;
       notifyListeners();
 
       try {
@@ -132,13 +138,17 @@ class ProfileViewModel extends ChangeNotifier {
         }
 
         if (updatedProfile.hydrationGoal != null) {
-          final ml = (updatedProfile.hydrationGoal! * 1000).round();
-          await HydrationRepository().setGoalMl(ml);
+          // Already in ML now
+          await HydrationRepository().setGoalMl(updatedProfile.hydrationGoal!);
         }
       } catch (_) {
       }
     } catch (e) {
       _error = e.toString();
+      // Even if sync fails, update local state if possible
+      _profile = updatedProfile;
+      notifyListeners();
+      rethrow;
     } finally {
       _setLoading(false);
     }
