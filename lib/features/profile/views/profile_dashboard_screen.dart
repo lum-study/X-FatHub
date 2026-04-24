@@ -146,7 +146,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Please complete your Body Information first (Height, Initial & Goal Weight)'),
+                              content: Text('Please complete your Body Information first'),
                               backgroundColor: Colors.orange,
                             ),
                           );
