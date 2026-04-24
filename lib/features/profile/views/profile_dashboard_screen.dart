@@ -16,6 +16,11 @@ class ProfileDashboardScreen extends StatefulWidget {
 }
 
 class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
+  bool _isSessionsExpanded = false;
+  bool _isActivitiesExpanded = false;
+  bool _isMembershipExpanded = false;
+  bool _isWeightExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,8 +42,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   }
 
   int _calculatePurchaseCount(BookingViewModel bookingVM) {
-    // Union of unique package IDs from bookings history and current active packages
-    // This avoids double counting packages that have both bookings and remaining sessions
     return {
       ...bookingVM.userBookings.map((b) => b.packageId),
       ...bookingVM.activePackages.map((p) => p.id)
@@ -108,230 +111,290 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                     _buildProfileHeader(profile, context),
                     const SizedBox(height: 24),
 
-                    // Membership Section
-                    const Text(
-                      'Membership Status',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    // Membership Section (Expandable)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Membership Status',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _isMembershipExpanded = !_isMembershipExpanded),
+                          icon: Icon(
+                            _isMembershipExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox(width: double.infinity),
+                      secondChild: Consumer<BookingViewModel>(
+                        builder: (context, bookingVM, _) {
+                          return _buildMembershipCard(bookingVM);
+                        },
+                      ),
+                      crossFadeState: _isMembershipExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 300),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Weight Goal Section (Expandable)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Weight Goal Progress',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _isWeightExpanded = !_isWeightExpanded),
+                          icon: Icon(
+                            _isWeightExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox(width: double.infinity),
+                      secondChild: GestureDetector(
+                        onTap: () {
+                          final height = profile?.height ?? 0.0;
+                          final initialWeight = profile?.initialWeight ?? 0.0;
+                          final weightGoal = profile?.weightGoal ?? 0.0;
+                          
+                          if (height > 0 && initialWeight > 0 && weightGoal > 0) {
+                            _showWeightUpdateDialog(context, profile);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please complete your Body Information first (Height, Initial & Goal Weight)'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        },
+                        child: _buildWeightProgressSection(profile),
+                      ),
+                      crossFadeState: _isWeightExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 300),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Total Sessions Section (Expandable)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Total Sessions Left',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _isSessionsExpanded = !_isSessionsExpanded),
+                          icon: Icon(
+                            _isSessionsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     Consumer<BookingViewModel>(
                       builder: (context, bookingVM, _) {
-                        return _buildMembershipCard(bookingVM);
+                        final totalSessions = bookingVM.sessionsRemainingByPackage.values.fold(0, (sum, s) => sum + s);
+                        return AnimatedCrossFade(
+                          firstChild: const SizedBox(width: double.infinity),
+                          secondChild: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[900],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Sessions Overview',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    const Icon(Icons.fitness_center, color: Colors.green, size: 20),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  totalSessions.toString(),
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                if (bookingVM.activePackages.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  const Divider(color: Color(0xFF333333)),
+                                  const SizedBox(height: 8),
+                                  ...bookingVM.activePackages.map((pkg) {
+                                    final sessions = bookingVM.sessionsRemainingByPackage[pkg.id] ?? 0;
+                                    final expiry = bookingVM.expiryByPackage[pkg.id];
+                                    String expiryText = 'No expiry';
+                                    Color expiryColor = Colors.grey[500]!;
+                                    
+                                    if (expiry != null) {
+                                      final daysLeft = expiry.difference(DateTime.now()).inDays;
+                                      if (daysLeft < 0) {
+                                        expiryText = 'Expired';
+                                        expiryColor = Colors.red;
+                                      } else {
+                                        expiryText = '$daysLeft days left';
+                                        if (daysLeft < 30) {
+                                          expiryColor = Colors.red;
+                                        }
+                                      }
+                                    }
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  pkg.name,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '$sessions sessions left',
+                                                  style: const TextStyle(
+                                                    color: Colors.green,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Text(
+                                            expiryText,
+                                            style: TextStyle(
+                                              color: expiryColor,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ] else ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'No active packages',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          crossFadeState: _isSessionsExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 300),
+                        );
                       },
                     ),
                     const SizedBox(height: 24),
 
-                    // Weight Progress Section
-                    const Text(
-                      'Weight Goal Progress',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    // Today's Activity Section (Expandable)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Today\'s Activity',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _isActivitiesExpanded = !_isActivitiesExpanded),
+                          icon: Icon(
+                            _isActivitiesExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: () {
-                        final height = profile?.height ?? 0.0;
-                        final initialWeight = profile?.initialWeight ?? 0.0;
-                        final weightGoal = profile?.weightGoal ?? 0.0;
-                        
-                        if (height > 0 && initialWeight > 0 && weightGoal > 0) {
-                          _showWeightUpdateDialog(context, profile);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please complete your Body Information first'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
-                      },
-                      child: _buildWeightProgressSection(profile),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Health Stats Section
-                    const Text(
-                      'Today\'s Activity',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Stats Grid
-                    Consumer3<
-                      StepTrackerViewModel,
-                      HydrationViewModel,
-                      BookingViewModel
-                    >(
-                      builder: (context, stepVM, hydrationVM, bookingVM, _) {
+                    const SizedBox(height: 8),
+                    Consumer2<StepTrackerViewModel, HydrationViewModel>(
+                      builder: (context, stepVM, hydrationVM, _) {
                         final stepsProgress = stepVM.goalSteps > 0 
                             ? (stepVM.steps / stepVM.goalSteps).clamp(0.0, 1.0)
                             : 0.0;
-                        
                         final hydrationProgress = hydrationVM.goalInLiters > 0
                             ? (hydrationVM.consumptionInLiters / hydrationVM.goalInLiters).clamp(0.0, 1.0)
                             : 0.0;
 
-                        final totalSessions = bookingVM.sessionsRemainingByPackage.values.fold(0, (sum, s) => sum + s);
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                Expanded(
-                                  child: _buildCircularProgressCard(
-                                    title: 'Steps',
-                                    current: stepVM.steps.toString(),
-                                    goal: stepVM.goalSteps.toString(),
-                                    progress: stepsProgress,
-                                    color: const Color(0xFFFFA500),
-                                    icon: Icons.directions_walk,
-                                  ),
+                        return AnimatedCrossFade(
+                          firstChild: const SizedBox(width: double.infinity),
+                          secondChild: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              Expanded(
+                                child: _buildCircularProgressCard(
+                                  title: 'Steps',
+                                  current: stepVM.steps.toString(),
+                                  goal: stepVM.goalSteps.toString(),
+                                  progress: stepsProgress,
+                                  color: const Color(0xFFFFA500),
+                                  icon: Icons.directions_walk,
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildCircularProgressCard(
-                                    title: 'Hydration',
-                                    current: hydrationVM.consumptionInLiters.toStringAsFixed(1),
-                                    goal: hydrationVM.goalInLiters.toStringAsFixed(1),
-                                    progress: hydrationProgress,
-                                    color: const Color(0xFF2196F3),
-                                    icon: Icons.local_drink_outlined,
-                                    unit: 'L',
-                                  ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildCircularProgressCard(
+                                  title: 'Hydration',
+                                  current: hydrationVM.consumptionInLiters.toStringAsFixed(1),
+                                  goal: hydrationVM.goalInLiters.toStringAsFixed(1),
+                                  progress: hydrationProgress,
+                                  color: const Color(0xFF2196F3),
+                                  icon: Icons.local_drink_outlined,
+                                  unit: 'L',
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            const Text(
-                              'Total Sessions Left',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Sessions Card
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[900],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.green.withOpacity(0.3)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'Sessions Overview',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      const Icon(Icons.fitness_center, color: Colors.green, size: 20),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    totalSessions.toString(),
-                                    style: const TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                  if (bookingVM.activePackages.isNotEmpty) ...[
-                                    const SizedBox(height: 16),
-                                    const Divider(color: Color(0xFF333333)),
-                                    const SizedBox(height: 8),
-                                    ...bookingVM.activePackages.map((pkg) {
-                                      final sessions = bookingVM.sessionsRemainingByPackage[pkg.id] ?? 0;
-                                      final expiry = bookingVM.expiryByPackage[pkg.id];
-                                      String expiryText = 'No expiry';
-                                      Color expiryColor = Colors.grey[500]!;
-                                      
-                                      if (expiry != null) {
-                                        final daysLeft = expiry.difference(DateTime.now()).inDays;
-                                        if (daysLeft < 0) {
-                                          expiryText = 'Expired';
-                                          expiryColor = Colors.red;
-                                        } else {
-                                          expiryText = '$daysLeft days left';
-                                          if (daysLeft < 30) {
-                                            expiryColor = Colors.red;
-                                          }
-                                        }
-                                      }
-
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    pkg.name,
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    '$sessions sessions left',
-                                                    style: const TextStyle(
-                                                      color: Colors.green,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Text(
-                                              expiryText,
-                                              style: TextStyle(
-                                                color: expiryColor,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ] else ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'No active packages',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          crossFadeState: _isActivitiesExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 300),
                         );
                       },
                     ),
@@ -490,7 +553,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text('Membership Tiers', style: TextStyle(color: Colors.white)),
         content: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: Map<String, dynamic>.from({}).length > 0 ? MainAxisSize.max : MainAxisSize.min,
           children: [
             _buildTierRow('Basic', '0-1 Packages', 'Standard access to all facilities.', Colors.grey, currentLevel == 'Basic'),
             _buildTierRow('Silver', '2-4 Packages', 'Free access to exclusive lockers.', const Color(0xFFC0C0C0), currentLevel == 'Silver'),
