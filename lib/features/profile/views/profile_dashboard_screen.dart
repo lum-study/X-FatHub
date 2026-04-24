@@ -42,6 +42,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   }
 
   int _calculatePurchaseCount(BookingViewModel bookingVM) {
+    // Union of unique package IDs from bookings history and current active packages
     return {
       ...bookingVM.userBookings.map((b) => b.packageId),
       ...bookingVM.activePackages.map((p) => p.id)
@@ -51,6 +52,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final profileViewModel = context.watch<ProfileViewModel>();
+    final bookingViewModel = context.watch<BookingViewModel>();
     final profile = profileViewModel.profile;
 
     return Scaffold(
@@ -107,8 +109,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Profile Header
-                    _buildProfileHeader(profile, context),
+                    // Profile Header - Passing bookingViewModel to make it reactive
+                    _buildProfileHeader(profile, bookingViewModel),
                     const SizedBox(height: 24),
 
                     // Membership Section (Expandable)
@@ -135,11 +137,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                     const SizedBox(height: 8),
                     AnimatedCrossFade(
                       firstChild: const SizedBox(width: double.infinity),
-                      secondChild: Consumer<BookingViewModel>(
-                        builder: (context, bookingVM, _) {
-                          return _buildMembershipCard(bookingVM);
-                        },
-                      ),
+                      secondChild: _buildMembershipCard(bookingViewModel),
                       crossFadeState: _isMembershipExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                       duration: const Duration(milliseconds: 300),
                     ),
@@ -215,9 +213,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Consumer<BookingViewModel>(
-                      builder: (context, bookingVM, _) {
-                        final totalSessions = bookingVM.sessionsRemainingByPackage.values.fold(0, (sum, s) => sum + s);
+                    Builder(
+                      builder: (context) {
+                        final totalSessions = bookingViewModel.sessionsRemainingByPackage.values.fold(0, (sum, s) => sum + s);
                         return AnimatedCrossFade(
                           firstChild: const SizedBox(width: double.infinity),
                           secondChild: Container(
@@ -254,13 +252,13 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                                     color: Colors.green,
                                   ),
                                 ),
-                                if (bookingVM.activePackages.isNotEmpty) ...[
+                                if (bookingViewModel.activePackages.isNotEmpty) ...[
                                   const SizedBox(height: 16),
                                   const Divider(color: Color(0xFF333333)),
                                   const SizedBox(height: 8),
-                                  ...bookingVM.activePackages.map((pkg) {
-                                    final sessions = bookingVM.sessionsRemainingByPackage[pkg.id] ?? 0;
-                                    final expiry = bookingVM.expiryByPackage[pkg.id];
+                                  ...bookingViewModel.activePackages.map((pkg) {
+                                    final sessions = bookingViewModel.sessionsRemainingByPackage[pkg.id] ?? 0;
+                                    final expiry = bookingViewModel.expiryByPackage[pkg.id];
                                     String expiryText = 'No expiry';
                                     Color expiryColor = Colors.grey[500]!;
                                     
@@ -292,6 +290,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                                                     color: Colors.white,
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w500,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 Text(
@@ -452,15 +451,15 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     Color levelColor = Colors.grey;
     IconData levelIcon = Icons.stars_outlined;
 
-    if (purchaseCount >= 10) {
+    if (purchaseCount >= 5) {
       level = 'Diamond';
       levelColor = const Color(0xFFB9F2FF);
       levelIcon = Icons.diamond;
-    } else if (purchaseCount >= 5) {
+    } else if (purchaseCount >= 3) {
       level = 'Gold';
       levelColor = const Color(0xFFFFD700);
       levelIcon = Icons.military_tech;
-    } else if (purchaseCount >= 2) {
+    } else if (purchaseCount >= 1) {
       level = 'Silver';
       levelColor = const Color(0xFFC0C0C0);
       levelIcon = Icons.shield;
@@ -520,7 +519,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
-              value: (purchaseCount / 10).clamp(0.0, 1.0),
+              value: (purchaseCount / 5).clamp(0.0, 1.0),
               backgroundColor: Colors.black26,
               color: levelColor,
               minHeight: 6,
@@ -534,9 +533,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 '$purchaseCount Packages purchased',
                 style: const TextStyle(color: Colors.grey, fontSize: 11),
               ),
-              if (purchaseCount < 10)
+              if (purchaseCount < 5)
                 Text(
-                  '${(purchaseCount < 2 ? 2 : (purchaseCount < 5 ? 5 : 10)) - purchaseCount} more to next level',
+                  '${(purchaseCount < 1 ? 1 : (purchaseCount < 3 ? 3 : 5)) - purchaseCount} more to next level',
                   style: TextStyle(color: levelColor.withOpacity(0.7), fontSize: 11),
                 ),
             ],
@@ -553,12 +552,12 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text('Membership Tiers', style: TextStyle(color: Colors.white)),
         content: Column(
-          mainAxisSize: Map<String, dynamic>.from({}).length > 0 ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildTierRow('Basic', '0-1 Packages', 'Standard access to all facilities.', Colors.grey, currentLevel == 'Basic'),
-            _buildTierRow('Silver', '2-4 Packages', 'Free access to exclusive lockers.', const Color(0xFFC0C0C0), currentLevel == 'Silver'),
-            _buildTierRow('Gold', '5-9 Packages', 'Free 1x Personal Trainer session monthly.', const Color(0xFFFFD700), currentLevel == 'Gold'),
-            _buildTierRow('Diamond', '10+ Packages', 'Free 2x Guest pass monthly + Priority booking.', const Color(0xFFB9F2FF), currentLevel == 'Diamond'),
+            _buildTierRow('Basic', '0 Packages', 'Standard access to all facilities.', Colors.grey, currentLevel == 'Basic'),
+            _buildTierRow('Silver', '1-2 Packages', 'Free access to exclusive lockers.', const Color(0xFFC0C0C0), currentLevel == 'Silver'),
+            _buildTierRow('Gold', '3-4 Packages', 'Free 1x Personal Trainer session monthly.', const Color(0xFFFFD700), currentLevel == 'Gold'),
+            _buildTierRow('Diamond', '5+ Packages', 'Free 2x Guest pass monthly + Priority booking.', const Color(0xFFB9F2FF), currentLevel == 'Diamond'),
           ],
         ),
         actions: [
@@ -603,26 +602,21 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
   }
 
-  Widget _buildProfileHeader(profile, BuildContext context) {
-    final bookingVM = Provider.of<BookingViewModel>(context, listen: false);
+  Widget _buildProfileHeader(profile, BookingViewModel bookingVM) {
     final purchaseCount = _calculatePurchaseCount(bookingVM);
     
     Color tierColor = Colors.orange; // Default orange for Basic
     IconData? badgeIcon;
-    bool hasPremiumEffect = false;
 
-    if (purchaseCount >= 10) {
+    if (purchaseCount >= 5) {
       tierColor = const Color(0xFFB9F2FF);
       badgeIcon = Icons.diamond;
-      hasPremiumEffect = true;
-    } else if (purchaseCount >= 5) {
+    } else if (purchaseCount >= 3) {
       tierColor = const Color(0xFFFFD700);
       badgeIcon = Icons.military_tech;
-      hasPremiumEffect = true;
-    } else if (purchaseCount >= 2) {
+    } else if (purchaseCount >= 1) {
       tierColor = const Color(0xFFC0C0C0);
       badgeIcon = Icons.shield;
-      hasPremiumEffect = false; // No special border/glow for silver
     }
 
     return Container(
@@ -639,29 +633,14 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              if (hasPremiumEffect)
-                Container(
-                  width: 140, // Larger aura
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: tierColor.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                ),
               Container(
-                width: 120, // Profile picture size increased from 100
+                width: 120, 
                 height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.orange.withOpacity(0.2),
                   border: Border.all(
-                    color: hasPremiumEffect ? tierColor : Colors.orange,
+                    color: Colors.orange, // Standard orange for everyone
                     width: 3
                   ),
                   image: (profile?.profilePictureUrl != null &&
@@ -682,7 +661,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   right: -4,
                   bottom: -4,
                   child: Container(
-                    padding: const EdgeInsets.all(8), // Increased padding
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.grey[900],
                       shape: BoxShape.circle,
@@ -695,7 +674,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                         ),
                       ],
                     ),
-                    child: Icon(badgeIcon, color: tierColor, size: 24), // Increased icon size from 20
+                    child: Icon(badgeIcon, color: tierColor, size: 24),
                   ),
                 ),
             ],
@@ -705,15 +684,15 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             (profile?.name?.isNotEmpty == true) ? profile!.name! : 'Unknown User',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22, // Slightly larger font
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
-          if (purchaseCount >= 2)
+          if (purchaseCount >= 1)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                purchaseCount >= 10 ? 'DIAMOND MEMBER' : (purchaseCount >= 5 ? 'GOLD MEMBER' : 'SILVER MEMBER'),
+                purchaseCount >= 5 ? 'DIAMOND MEMBER' : (purchaseCount >= 3 ? 'GOLD MEMBER' : 'SILVER MEMBER'),
                 style: TextStyle(
                   color: tierColor,
                   fontSize: 12,
