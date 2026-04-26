@@ -17,7 +17,6 @@ class StepTrackerRepository {
   static const String _dateColumn = 'date';
   static const String _createdAtColumn = 'created_at';
   DateTime? _lastRemoteTodaySyncAt;
-
   StepTrackerRepository({SupabaseClient? supabaseClient})
       : _supabaseClient = supabaseClient ?? Supabase.instance.client;
 
@@ -60,8 +59,6 @@ class StepTrackerRepository {
       return false;
     }
   }
-
-  String? get _currentUserId => _supabaseClient.auth.currentUser?.id;
 
   Future<void> _upsertTodayStepsRemote({
     required String userId,
@@ -107,7 +104,7 @@ class StepTrackerRepository {
       return;
     }
 
-    final userId = _currentUserId;
+    final userId = _supabaseClient.auth.currentUser?.id;
     if (userId == null) {
       return;
     }
@@ -228,7 +225,7 @@ class StepTrackerRepository {
   /// Get today's steps directly from Supabase
   Future<int> getTodayStepsFromRemote() async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId != null) {
         final today = DateTime.now();
         final todayDate = DateTime(today.year, today.month, today.day)
@@ -258,7 +255,7 @@ class StepTrackerRepository {
   /// Used during initialization to safely load cached steps without resetting logic conflicts
   Future<int> getTodayStepsFromRemoteChecked() async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId != null) {
         final today = DateTime.now();
         final todayDate = DateTime(today.year, today.month, today.day)
@@ -354,7 +351,7 @@ class StepTrackerRepository {
   /// Last element (today) is replaced with live pedometer data instead of database
   Future<List<int>> getSevenDaySteps() async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
@@ -401,7 +398,7 @@ class StepTrackerRepository {
   /// Save today's steps to local database
   Future<void> saveTodaySteps(int steps) async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) throw Exception('No authenticated user');
 
       // Save local sync point with current sensor value
@@ -426,7 +423,7 @@ class StepTrackerRepository {
         .split('T')[0];
 
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
@@ -446,7 +443,7 @@ class StepTrackerRepository {
   /// This is called when user resets all step data
   Future<void> deleteAllStepRecords() async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
