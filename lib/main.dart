@@ -75,6 +75,13 @@ class _MyAppState extends State<MyApp> {
         initialRoute: AppRoutes.home,
         routes: AppRoutes.routes,
         theme: ThemeData(
+          // Set canvasColor and colorScheme surface to black to prevent white flashes
+          canvasColor: Colors.black,
+          colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.orange).copyWith(
+            surface: Colors.black,
+            onSurface: Colors.orange,
+            background: Colors.black,
+          ),
           primarySwatch: Colors.orange,
           primaryColor: Colors.orange,
           scaffoldBackgroundColor: Colors.black,
@@ -82,6 +89,14 @@ class _MyAppState extends State<MyApp> {
           appBarTheme: const AppBarTheme(
             backgroundColor: Colors.black,   // AppBar background
             foregroundColor: Colors.orange,   // AppBar text & icon color
+            elevation: 0,
+          ),
+
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+              TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            },
           ),
 
           bottomNavigationBarTheme: const BottomNavigationBarThemeData(

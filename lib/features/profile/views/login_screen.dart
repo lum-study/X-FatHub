@@ -50,9 +50,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration successful! Please login with your credentials.'),
+              content: Text('Verification email sent! Please check your inbox and verify your account before logging in.'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+              duration: Duration(seconds: 6),
             ),
           );
         }
