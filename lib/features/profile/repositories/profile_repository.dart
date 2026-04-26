@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import '../models/profile_model.dart';
+import 'package:flutter/foundation.dart';
 
 class ProfileRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -8,7 +9,13 @@ class ProfileRepository {
   // --- Authentication ---
   
   Future<AuthResponse> signUp({required String email, required String password}) async {
-    return await _supabase.auth.signUp(email: email, password: password);
+    // We tell Supabase to redirect back to the app scheme directly
+    // This avoids needing a real website during testing
+    return await _supabase.auth.signUp(
+      email: email, 
+      password: password,
+      emailRedirectTo: kIsWeb ? null : 'xfathub://auth/verified',
+    );
   }
 
   Future<AuthResponse> signIn({required String email, required String password}) async {
@@ -54,19 +61,11 @@ class ProfileRepository {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId != null) {
-        // Step 1: Delete profile data first
         await _supabase.from('profiles').delete().eq('id', userId);
-        
-        // Step 2: Delete auth user using admin API
-        // Note: You'll need to set up an edge function or use admin key
-        // For now, we attempt to delete via the auth API
         try {
           await _supabase.auth.admin.deleteUser(userId);
         } catch (e) {
-          // If admin delete fails, user can still be deleted from auth directly
         }
-        
-        // Step 3: Sign out locally
         await _supabase.auth.signOut();
       }
     } catch (e) {
@@ -74,7 +73,7 @@ class ProfileRepository {
     }
   }
 
-  // --- Weight Progress (for Charts) ---
+  // --- Weight Progress ---
   
   Future<List<Map<String, dynamic>>> getWeightHistory(String userId) async {
     try {
@@ -86,7 +85,6 @@ class ProfileRepository {
       
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      // Mock data for demo if table doesn't exist
       return [
         {'recorded_at': DateTime.now().subtract(const Duration(days: 30)).toIso8601String(), 'weight': 85.0},
         {'recorded_at': DateTime.now().subtract(const Duration(days: 20)).toIso8601String(), 'weight': 83.5},
@@ -104,7 +102,6 @@ class ProfileRepository {
         'recorded_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
-      // ignore
     }
   }
 
@@ -125,7 +122,6 @@ class ProfileRepository {
       );
       final url = _supabase.storage.from('avatars').getPublicUrl(fileName);
 
-      // Upsert profile row so avatar save works even if the row is missing.
       await _supabase
           .from('profiles')
           .upsert({
