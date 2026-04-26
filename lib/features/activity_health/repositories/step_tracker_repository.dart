@@ -211,6 +211,20 @@ class StepTrackerRepository {
     }
   }
 
+  /// Get today's steps with fresh sensor read (used at app initialization)
+  /// Always forces a refresh from the device sensor to get the absolute latest value
+  /// This bypasses Supabase cache to ensure UI shows the newest step count
+  Future<int> getTodayStepsWithFreshRead() async {
+    try {
+      return await PedometerService.getTodayStepsCalculated(
+        refreshFromSensor: true,
+      );
+    } catch (e) {
+      print('Error getting today\'s steps with fresh read: $e');
+      return 0;
+    }
+  }
+
   /// Get today's steps directly from Supabase
   Future<int> getTodayStepsFromRemote() async {
     try {
@@ -471,10 +485,14 @@ class StepTrackerRepository {
   /// - Calculates kcal burned: distance(km) × bodyWeight(kg) × 0.75
   /// - Retrieves last 6 days from local SQLite + today's live data from pedometer
   /// - Background service saves today's final steps to SQLite only at 8:20 AM
-  Future<StepTrackerModel> getStepTrackerData() async {
+  /// 
+  /// [forceRefresh] if true, forces a fresh sensor read instead of using cached values
+  Future<StepTrackerModel> getStepTrackerData({bool forceRefresh = false}) async {
     try {
       // Get today's steps using baseline calculation (real-time from pedometer, not DB)
-      final steps = await getTodaySteps();
+      final steps = forceRefresh 
+        ? await getTodayStepsWithFreshRead()
+        : await getTodaySteps();
       await _syncTodayStepsIfNeeded(steps);
       final goalSteps = await getGoalSteps();
       final distance = await getDistance();

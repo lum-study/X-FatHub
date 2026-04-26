@@ -82,6 +82,13 @@ class StepTrackerViewModel extends ChangeNotifier {
       final pedometerInitialized = await PedometerService.initPedometer();
       await _checkSensorAvailability();
 
+      // 2a. Force fresh sensor read immediately after initialization
+      // This ensures we get the latest value from the device, not cached data
+      if (pedometerInitialized) {
+        await PedometerService.getTodayStepsCalculated(refreshFromSensor: true);
+        print('✓ Fresh sensor read completed during initialization');
+      }
+
       // 3. Get today's steps from Supabase (remote source of truth)
       final supabaseSteps = await _repository.getTodayStepsFromRemoteChecked();
 
@@ -104,7 +111,7 @@ class StepTrackerViewModel extends ChangeNotifier {
       }
 
       // 5. Load full UI data and sync goal
-      await loadStepTrackerData();
+      await loadStepTrackerData(forceRefresh: true);
       await _repository.syncGoalToRemote();
 
       // 6. Mark as complete
@@ -147,12 +154,13 @@ class StepTrackerViewModel extends ChangeNotifier {
 
   /// Load step tracker data from repository
   /// [silent] if true, won't trigger the loading state (used for real-time updates)
-  Future<void> loadStepTrackerData({bool silent = false}) async {
+  /// [forceRefresh] if true, forces fresh sensor reads instead of using cached values
+  Future<void> loadStepTrackerData({bool silent = false, bool forceRefresh = false}) async {
     if (!silent) _setLoading(true);
     _clearError();
 
     try {
-      _stepTrackerData = await _repository.getStepTrackerData();
+      _stepTrackerData = await _repository.getStepTrackerData(forceRefresh: forceRefresh);
       notifyListeners();
     } catch (e) {
       _setError('Failed to load step tracker data: $e');
@@ -224,7 +232,7 @@ class StepTrackerViewModel extends ChangeNotifier {
       }
       
       // Load fresh data from pedometer and Supabase
-      await loadStepTrackerData(silent: false);
+      await loadStepTrackerData(silent: false, forceRefresh: true);
       
       _setLoading(false);
     } catch (e) {
