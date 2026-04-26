@@ -238,6 +238,46 @@ class StepTrackerRepository {
     return 0;
   }
 
+  /// Get today's steps from Supabase only if the record is from TODAY
+  /// This is critical to prevent loading old step data from previous days
+  /// Returns 0 if there's no record OR if the record is from a previous day
+  /// Used during initialization to safely load cached steps without resetting logic conflicts
+  Future<int> getTodayStepsFromRemoteChecked() async {
+    try {
+      final userId = _currentUserId;
+      if (userId != null) {
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day)
+            .toIso8601String()
+            .split('T')[0];
+        
+        final response = await _supabaseClient
+            .from(_dailyTableName)
+            .select('$_stepsColumn,$_dateColumn')
+            .eq(_userIdColumn, userId)
+            .eq(_dateColumn, todayDate)  // CRITICAL: Only fetch TODAY's date
+            .maybeSingle();
+        
+        if (response != null) {
+          final recordDate = response[_dateColumn] as String?;
+          final steps = (response[_stepsColumn] as num?)?.toInt() ?? 0;
+          
+          // Verify the record is actually from today (extra safety check)
+          if (recordDate == todayDate) {
+            print('✓ Found today\'s steps in Supabase: $steps steps');
+            return steps;
+          } else {
+            print('⚠️ Found old record from $recordDate (expected $todayDate), ignoring for safety');
+            return 0;
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠ Error fetching today\'s steps from Supabase (with date check): $e');
+    }
+    return 0;
+  }
+
   /// Get distance walked in kilometers
   Future<double> getDistance() async {
     try {
@@ -348,17 +388,17 @@ class StepTrackerRepository {
   Future<void> saveTodaySteps(int steps) async {
     try {
       final userId = _currentUserId;
-      if (userId == null) {
-        throw Exception('No authenticated user');
-      }
+      if (userId == null) throw Exception('No authenticated user');
+
+      // Save local sync point with current sensor value
+      await PedometerService.saveSyncPoint(steps);
 
       final now = DateTime.now();
       final todayDate = DateTime(now.year, now.month, now.day)
           .toIso8601String()
           .split('T')[0];
-
       await _upsertTodayStepsRemote(userId: userId, date: todayDate, steps: steps);
-      print('Today\'s steps ($steps) saved to Supabase');
+      print('Today\'s steps ($steps) saved to Supabase with sync point');
     } catch (e) {
       print('Error saving today\'s steps: $e');
       rethrow;
