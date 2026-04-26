@@ -375,9 +375,7 @@ class StepTrackerViewModel extends ChangeNotifier {
     } catch(e){
       print('Pedometer already cancel');
     }
-
-    // Reset local pedometer baseline
-    await PedometerService.hardReset();
+    
     _stepTrackerData = StepTrackerModel(
       steps: 0,
       goalSteps: 0,
