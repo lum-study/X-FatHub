@@ -58,6 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
+      // Error is handled by the ViewModel and displayed in the UI
       if (_isLoginMode) {
         _passwordController.clear();
       }
@@ -154,7 +155,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Email is required';
                       }
-                      if (!value.contains('@')) {
+                      final emailRegExp = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                      if (!emailRegExp.hasMatch(value)) {
                         return 'Enter a valid email address';
                       }
                       return null;
@@ -244,6 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Error Message
                   if (profileProvider.error != null)
                     Container(
+                      width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),

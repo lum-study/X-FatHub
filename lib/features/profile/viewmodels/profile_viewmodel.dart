@@ -142,9 +142,19 @@ class ProfileViewModel extends ChangeNotifier {
 
   Future<void> signUp(String email, String password) async {
     _setLoading(true);
+    _error = null;
     try {
+      // 1. Check if email is already registered in profiles table
+      final isRegistered = await _repository.isEmailRegistered(email);
+      if (isRegistered) {
+        throw Exception('user_already_exists');
+      }
+
+      // 2. Proceed with Supabase sign up
       await _repository.signUp(email: email, password: password);
-      _error = null;
+      
+      // We sign out immediately because we want them to verify first 
+      // and then sign in manually
       await _repository.signOut();
     } catch (e) {
       _error = _getReadableErrorMessage(e);
@@ -172,7 +182,7 @@ class ProfileViewModel extends ChangeNotifier {
     String msg = e.toString();
     if (msg.contains('invalid_credentials')) return 'Invalid email or password';
     if (msg.contains('email_not_confirmed')) return 'Please verify your email first';
-    if (msg.contains('user_already_exists')) return 'This email is already registered';
+    if (msg.contains('user_already_exists')) return 'This email is already registered. PLease Proceed to Login';
     if (msg.contains('over_email_send_rate_limit')) {
       return 'Too many requests. Please wait a few minutes before trying again.';
     }

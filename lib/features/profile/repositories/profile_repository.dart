@@ -9,13 +9,55 @@ class ProfileRepository {
   // --- Authentication ---
   
   Future<AuthResponse> signUp({required String email, required String password}) async {
-    // We tell Supabase to redirect back to the app scheme directly
-    // This avoids needing a real website during testing
-    return await _supabase.auth.signUp(
+    // Replace with your actual hosted URL when you deploy
+    const String webUrl = 'https://xfathub.vercel.app/verified.html';
+
+    final response = await _supabase.auth.signUp(
       email: email, 
       password: password,
-      emailRedirectTo: kIsWeb ? null : 'xfathub://auth/verified',
+      emailRedirectTo: kIsWeb ? null : webUrl,
     );
+
+    // Supabase returns a user but empty identities if the email is already taken
+    if (response.user != null && 
+        response.user!.identities != null && 
+        response.user!.identities!.isEmpty) {
+      throw const AuthException('User already registered', statusCode: '400');
+    }
+
+    return response;
+  }
+
+  Future<bool> isEmailRegistered(String email) async {
+    try {
+      // 1. Check if user exists in the profiles table (public)
+      final profileResponse = await _supabase
+          .from('profiles')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+      
+      if (profileResponse != null) return true;
+
+      // 2. Check Auth identities via a dummy signup
+      final res = await _supabase.auth.signUp(
+        email: email,
+        password: 'check_only_password_12345',
+      );
+      
+      if (res.user != null && 
+          res.user!.identities != null && 
+          res.user!.identities!.isEmpty) {
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      if (e.toString().contains('already registered') || e.toString().contains('user_already_exists')) {
+        return true;
+      }
+      return false;
+    }
   }
 
   Future<AuthResponse> signIn({required String email, required String password}) async {

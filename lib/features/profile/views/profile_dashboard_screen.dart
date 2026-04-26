@@ -259,7 +259,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                                   ...bookingViewModel.activePackages.map((pkg) {
                                     final sessions = bookingViewModel.sessionsRemainingByPackage[pkg.id] ?? 0;
                                     final expiry = bookingViewModel.expiryByPackage[pkg.id];
-                                    String expiryText = 'No expiry';
+                                    String expiryText = '-';
                                     Color expiryColor = Colors.grey[500]!;
                                     
                                     if (expiry != null) {
@@ -372,7 +372,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                                 child: _buildCircularProgressCard(
                                   title: 'Steps',
                                   current: stepVM.steps.toString(),
-                                  goal: stepVM.goalSteps.toString(),
+                                  goal: stepVM.goalSteps > 0 ? stepVM.goalSteps.toString() : '-',
                                   progress: stepsProgress,
                                   color: const Color(0xFFFFA500),
                                   icon: Icons.directions_walk,
@@ -382,8 +382,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                               Expanded(
                                 child: _buildCircularProgressCard(
                                   title: 'Hydration',
-                                  current: hydrationVM.consumptionInLiters.toStringAsFixed(1),
-                                  goal: hydrationVM.goalInLiters.toStringAsFixed(1),
+                                  current: hydrationVM.consumptionInLiters > 0 ? hydrationVM.consumptionInLiters.toStringAsFixed(1) : '0.0',
+                                  goal: hydrationVM.goalInLiters > 0 ? hydrationVM.goalInLiters.toStringAsFixed(1) : '-',
                                   progress: hydrationProgress,
                                   color: const Color(0xFF2196F3),
                                   icon: Icons.local_drink_outlined,
@@ -707,9 +707,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
           // Personal Info Section
           _buildInfoSection('Personal Information', [
-            _buildInfoRow(Icons.email, 'Email', profile?.email ?? 'Not set'),
-            _buildInfoRow(Icons.info_outline, 'Bio', profile?.bio?.isNotEmpty == true ? profile!.bio! : 'Not set'),
-            _buildInfoRow(Icons.cake, 'Age', profile?.birthdate != null ? '${_calculateAge(profile.birthdate)} years old' : 'Not set'),
+            _buildInfoRow(Icons.email, 'Email', profile?.email ?? '-'),
+            _buildInfoRow(Icons.info_outline, 'Bio', profile?.bio?.isNotEmpty == true ? profile!.bio! : '-'),
+            _buildInfoRow(Icons.cake, 'Age', profile?.birthdate != null ? '${_calculateAge(profile.birthdate)} years old' : '-'),
             _buildInfoRow(Icons.event, 'Birthdate', _formatBirthdate(profile?.birthdate)),
             _buildInfoRow(Icons.wc, 'Gender', _formatGender(profile?.gender)),
           ]),
@@ -718,10 +718,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
           // Body Info Section
           _buildInfoSection('Body Information', [
-            _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : 'Not set'),
-            _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : 'Not set'),
-            _buildInfoRow(Icons.monitor_weight, 'Current Weight', profile?.currentWeight != null ? '${profile.currentWeight} kg' : 'Not set'),
-            _buildInfoRow(Icons.flag_circle, 'Goal Weight', profile?.weightGoal != null ? '${profile.weightGoal} kg' : 'Not set'),
+            _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : '-'),
+            _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : '-'),
+            _buildInfoRow(Icons.monitor_weight, 'Current Weight', profile?.currentWeight != null ? '${profile.currentWeight} kg' : '-'),
+            _buildInfoRow(Icons.flag_circle, 'Goal Weight', profile?.weightGoal != null ? '${profile.weightGoal} kg' : '-'),
           ]),
 
           const SizedBox(height: 20),
@@ -793,7 +793,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
   String _formatBirthdate(DateTime? birthdate) {
     if (birthdate == null) {
-      return 'Not set';
+      return '-';
     }
     final year = birthdate.year.toString().padLeft(4, '0');
     final month = birthdate.month.toString().padLeft(2, '0');
@@ -803,7 +803,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
   String _formatGender(String? gender) {
     if (gender == null || gender.isEmpty) {
-      return 'Not set';
+      return '-';
     }
     final normalizedGender = gender.toLowerCase();
     if (normalizedGender == 'prefer not to say') return 'Prefer not to say';
