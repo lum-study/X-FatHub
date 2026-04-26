@@ -239,7 +239,7 @@ class HydrationViewModel extends ChangeNotifier {
 
   /// Clear all data in provider
   /// Called on logout
-  void clearData() {
+  Future<void> clearData() async {
     _hydrationData = HydrationTrackerModel(
       todayConsumption: 0,
       dailyGoal: 0,

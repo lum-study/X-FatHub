@@ -215,6 +215,25 @@ class PedometerService {
     }
   }
 
+  /// Reinitialize the internal stream listener after baseline setup
+  /// Call this after restoreFromSyncPoint() or hardReset() to ensure listener uses correct baseline
+  /// Prevents race conditions where stream events fire before baseline is set
+  static Future<void> reinitializeStreamListener() async {
+    try {
+      _stepCountSubscription?.cancel();
+      _stepCountSubscription = _stepCountStream.listen(
+        _handleStepUpdate,
+        onError: (error) {
+          print('Step stream error: $error');
+        },
+        cancelOnError: false,
+      );
+      print('✓ Stream listener reinitialized with correct baseline');
+    } catch (e) {
+      print('Error reinitializing stream listener: $e');
+    }
+  }
+
   /// Initialize today's step count with a specific value and reset baseline.
   /// Used during login to "add" supabase steps to pedometer.
   /// CRITICAL: Includes date validation to prevent loading old data across day boundaries
@@ -316,10 +335,20 @@ class PedometerService {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     final todayStr = "${now.year}-${now.month}-${now.day}";
+    
+    // Get current sensor value to set as baseline
+    int currentSensor = prefs.getInt(_lastSensorValueKey) ?? 0;
+    try {
+      final event = await Pedometer.stepCountStream.first.timeout(const Duration(seconds: 2));
+      currentSensor = event.steps;
+    } catch (e) {
+      print('⚠ Could not read current sensor for baseline in hardReset: $e');
+    }
+    
     await prefs.setString(_lastUpdateDateKey, todayStr);
     await prefs.setInt(_todayStepsKey, 0);
-    // Do NOT reset sensor value – keep it to avoid future diffs
+    await prefs.setInt(_lastSensorValueKey, currentSensor);
     await prefs.setInt(_lastSyncedSensorValueKey, 0);
-    print('✓ Hard reset – steps set to 0');
+    print('✓ Hard reset – steps set to 0, baseline set to $currentSensor');
   }
 }
