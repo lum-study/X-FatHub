@@ -1294,6 +1294,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             onPressed: () {
               Navigator.pop(context);
               context.read<ProfileViewModel>().signOut();
+              context.read<StepTrackerViewModel>().clearData();
+              context.read<HydrationViewModel>().clearData();
             },
             child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
           ),

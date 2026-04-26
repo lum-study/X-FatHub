@@ -82,13 +82,6 @@ class StepTrackerViewModel extends ChangeNotifier {
       final pedometerInitialized = await PedometerService.initPedometer();
       await _checkSensorAvailability();
 
-      // 2a. Force fresh sensor read immediately after initialization
-      // This ensures we get the latest value from the device, not cached data
-      if (pedometerInitialized) {
-        await PedometerService.getTodayStepsCalculated(refreshFromSensor: true);
-        print('✓ Fresh sensor read completed during initialization');
-      }
-
       // 3. Get today's steps from Supabase (remote source of truth)
       final supabaseSteps = await _repository.getTodayStepsFromRemoteChecked();
 
@@ -104,14 +97,18 @@ class StepTrackerViewModel extends ChangeNotifier {
         print('✓ No remote steps found – pedometer reset to 0');
       }
 
+      // Reinitialize the stream listener now that baseline is set
+      // This prevents race conditions where events fired before baseline was ready
+      await PedometerService.reinitializeStreamListener();
+
       // 4. Set up real-time listener (if sensor available)
       if (pedometerInitialized) {
         await Future.delayed(const Duration(seconds: 2));
         _setupStepCountListener();
       }
 
-      // 5. Load full UI data and sync goal
-      await loadStepTrackerData(forceRefresh: true);
+      // 5. Load full UI data and sync goal (baseline already set via restore/reset above)
+      await loadStepTrackerData(forceRefresh: false);
       await _repository.syncGoalToRemote();
 
       // 6. Mark as complete
@@ -372,12 +369,15 @@ class StepTrackerViewModel extends ChangeNotifier {
       print('⚠ Failed to save final steps: $e');
     }
 
-    _stepCountStreamSubscription?.cancel();
-    _stepCountStreamSubscription = null;
-    
+    try {
+      _stepCountStreamSubscription?.cancel();
+      _stepCountStreamSubscription = null;
+    } catch(e){
+      print('Pedometer already cancel');
+    }
+
     // Reset local pedometer baseline
     await PedometerService.hardReset();
-    
     _stepTrackerData = StepTrackerModel(
       steps: 0,
       goalSteps: 0,

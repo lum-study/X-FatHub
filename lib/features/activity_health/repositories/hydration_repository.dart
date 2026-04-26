@@ -137,8 +137,6 @@ class HydrationRepository {
     }
   }
 
-  String? get _currentUserId => _supabaseClient.auth.currentUser?.id;
-
   HydrationEntry _entryFromRemote(Map<String, dynamic> row) {
     final amount = (row[_amountMlColumn] as num?)?.toInt() ?? 0;
     return HydrationEntry(
@@ -157,7 +155,7 @@ class HydrationRepository {
     required int amountMl,
   }) async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
@@ -193,7 +191,7 @@ class HydrationRepository {
     required int amountMl,
   }) async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
@@ -212,7 +210,7 @@ class HydrationRepository {
   /// Delete a hydration entry from Supabase (fallback to local)
   Future<int> deleteEntry(int entryId) async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
@@ -231,7 +229,7 @@ class HydrationRepository {
   /// Get today's hydration entries from Supabase (fallback to local)
   Future<List<HydrationEntry>> getTodayEntries() async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
@@ -335,7 +333,7 @@ class HydrationRepository {
   /// Get entry by ID
   Future<HydrationEntry?> getEntryById(int id) async {
     try {
-      final userId = _currentUserId;
+      final userId = _supabaseClient.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('No authenticated user');
       }
