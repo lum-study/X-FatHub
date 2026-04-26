@@ -9,10 +9,12 @@ class PedometerService {
   static late Stream<StepCount> _stepCountStream;
   static StreamSubscription<StepCount>? _stepCountSubscription;
   static bool _isInitialized = false;
+  static const String lastSyncedSensorValueKey = _lastSyncedSensorValueKey;
 
   static const String _lastSensorValueKey = 'last_sensor_step_count';
   static const String _todayStepsKey = 'today_steps_accumulated';
   static const String _lastUpdateDateKey = 'last_step_update_date';
+  static const String _lastSyncedSensorValueKey = 'last_synced_sensor_value';
 
   /// Initialize the pedometer and set up persistent stream listener
   static Future<bool> initPedometer() async {
@@ -215,11 +217,23 @@ class PedometerService {
 
   /// Initialize today's step count with a specific value and reset baseline.
   /// Used during login to "add" supabase steps to pedometer.
+  /// CRITICAL: Includes date validation to prevent loading old data across day boundaries
   static Future<void> initializeTodaySteps(int steps) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now();
       final todayStr = "${now.year}-${now.month}-${now.day}";
+
+      // SAFETY CHECK: If a different date is already stored, don't override it
+      // This prevents breaking the daily reset logic
+      final lastDate = prefs.getString(_lastUpdateDateKey) ?? "";
+      if (lastDate.isNotEmpty && lastDate != todayStr) {
+        print('⚠️ Date mismatch detected: Stored=$lastDate, Today=$todayStr');
+        print('   Skipping initialization to protect daily reset logic');
+        // Force today's date and let _handleStepUpdate manage the reset
+        await _initializeTodayData();
+        return;
+      }
 
       int currentSensorValue = prefs.getInt(_lastSensorValueKey) ?? 0;
       try {
@@ -235,7 +249,7 @@ class PedometerService {
       await prefs.setString(_lastUpdateDateKey, todayStr);
       await prefs.setInt(_todayStepsKey, steps);
       await prefs.setInt(_lastSensorValueKey, currentSensorValue);
-      print('✓ Today steps initialized to $steps with baseline $currentSensorValue');
+      print('✓ Today steps initialized to $steps with baseline $currentSensorValue (date validated)');
     } catch (e) {
       print('Error initializing today steps: $e');
     }
@@ -245,5 +259,67 @@ class PedometerService {
   /// Used when user explicitly resets step data or logs out
   static Future<void> resetTodaySteps() async {
     await initializeTodaySteps(0);
+  }
+
+  /// Save the current steps and the current sensor value as a sync point.
+  /// Call this before uploading steps to Supabase.
+  static Future<void> saveSyncPoint(int stepsToSave) async {
+    final prefs = await SharedPreferences.getInstance();
+    int currentSensor = 0;
+    try {
+      final event = await Pedometer.stepCountStream.first.timeout(const Duration(seconds: 2));
+      currentSensor = event.steps;
+    } catch (e) {
+      // Use stored sensor value if event not available
+      currentSensor = prefs.getInt(_lastSensorValueKey) ?? 0;
+    }
+    await prefs.setInt(_todayStepsKey, stepsToSave);
+    await prefs.setInt(_lastSyncedSensorValueKey, currentSensor);
+    // Also update the baseline for future diffs
+    await prefs.setInt(_lastSensorValueKey, currentSensor);
+    print('✓ Sync point saved: steps=$stepsToSave, sensor=$currentSensor');
+  }
+
+  /// Restore steps from a previous sync point and add any new sensor steps.
+  static Future<void> restoreFromSyncPoint(int savedSteps, int savedSensorValue) async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final todayStr = "${now.year}-${now.month}-${now.day}";
+
+    // Check for day change
+    final lastDate = prefs.getString(_lastUpdateDateKey) ?? "";
+    if (lastDate != todayStr) {
+      // New day – ignore saved steps
+      await _initializeTodayData();
+      return;
+    }
+
+    int currentSensor = 0;
+    try {
+      final event = await Pedometer.stepCountStream.first.timeout(const Duration(seconds: 2));
+      currentSensor = event.steps;
+    } catch (e) {
+      currentSensor = prefs.getInt(_lastSensorValueKey) ?? savedSensorValue;
+    }
+
+    final additionalSteps = (currentSensor - savedSensorValue).clamp(0, 100000);
+    final totalSteps = savedSteps + additionalSteps;
+
+    await prefs.setString(_lastUpdateDateKey, todayStr);
+    await prefs.setInt(_todayStepsKey, totalSteps);
+    await prefs.setInt(_lastSensorValueKey, currentSensor);
+    print('✓ Restored from sync point: saved=$savedSteps, sensor=$savedSensorValue → current=$currentSensor, added=$additionalSteps, total=$totalSteps');
+  }
+
+  /// Reset all pedometer data (used after logout or manual reset).
+  static Future<void> hardReset() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final todayStr = "${now.year}-${now.month}-${now.day}";
+    await prefs.setString(_lastUpdateDateKey, todayStr);
+    await prefs.setInt(_todayStepsKey, 0);
+    // Do NOT reset sensor value – keep it to avoid future diffs
+    await prefs.setInt(_lastSyncedSensorValueKey, 0);
+    print('✓ Hard reset – steps set to 0');
   }
 }
