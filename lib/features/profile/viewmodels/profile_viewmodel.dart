@@ -39,17 +39,12 @@ class ProfileViewModel extends ChangeNotifier {
   Future<void> loadProfile(String userId) async {
     _setLoading(true);
     try {
-      // Try to get from local first
       final localProfile = await LocalProfileDatabase.getProfile(userId);
-      
-      // Then try to get from remote
       _profile = await _repository.getProfile(userId);
       
-      // Save to local
       if (_profile != null) {
         await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
       } else if (localProfile != null) {
-        // Use local if remote fails
         _profile = ProfileModel.fromMap(localProfile);
       }
       
@@ -81,7 +76,7 @@ class ProfileViewModel extends ChangeNotifier {
     double? weightGoal,
     double? height,
     int? stepsGoal,
-    int? hydrationGoal, // Changed to int (ML) to match ProfileModel
+    int? hydrationGoal,
     String? profilePictureUrl,
     bool? profileCompleted,
   }) async {
@@ -90,19 +85,15 @@ class ProfileViewModel extends ChangeNotifier {
 
     final currentProfile = _profile ?? ProfileModel(id: user.id, email: user.email!);
     
-    // Logic: Only update currentWeight to initialWeight if initialWeight has actually changed.
     double? resolvedCurrentWeight = currentWeight;
     if (resolvedCurrentWeight == null) {
       if (initialWeight != null && initialWeight != currentProfile.initialWeight) {
-        // Initial weight changed, so we also update current weight to the new starting point
         resolvedCurrentWeight = initialWeight;
       } else {
-        // Keep existing current weight progress
         resolvedCurrentWeight = currentProfile.currentWeight ?? initialWeight;
       }
     }
 
-    // Ensure values are passed correctly to copyWith
     final updatedProfile = currentProfile.copyWith(
       name: name,
       bio: bio,
@@ -122,10 +113,7 @@ class ProfileViewModel extends ChangeNotifier {
     _setLoading(true);
     _error = null;
     try {
-      // Save to local first (offline support)
       await LocalProfileDatabase.saveProfile(updatedProfile.toMap(), synced: false);
-      
-      // Then try to sync to remote
       await _repository.updateProfile(updatedProfile);
       await LocalProfileDatabase.updateSyncStatus(user.id, true);
       
@@ -138,14 +126,12 @@ class ProfileViewModel extends ChangeNotifier {
         }
 
         if (updatedProfile.hydrationGoal != null) {
-          // Already in ML now
           await HydrationRepository().setGoalMl(updatedProfile.hydrationGoal!);
         }
       } catch (_) {
       }
     } catch (e) {
       _error = e.toString();
-      // Even if sync fails, update local state if possible
       _profile = updatedProfile;
       notifyListeners();
       rethrow;
@@ -154,23 +140,6 @@ class ProfileViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> syncPendingUpdates() async {
-    try {
-      final unsyncedProfiles = await LocalProfileDatabase.getUnsyncedProfiles();
-      for (final profileData in unsyncedProfiles) {
-        try {
-          await _repository.updateProfile(ProfileModel.fromMap(profileData));
-          await LocalProfileDatabase.updateSyncStatus(profileData['id'], true);
-        } catch (e) {
-          // Skip this one, will try again later
-        }
-      }
-    } catch (e) {
-      // Ignore sync errors
-    }
-  }
-
-  // Authentication methods
   Future<void> signUp(String email, String password) async {
     _setLoading(true);
     try {
@@ -204,6 +173,9 @@ class ProfileViewModel extends ChangeNotifier {
     if (msg.contains('invalid_credentials')) return 'Invalid email or password';
     if (msg.contains('email_not_confirmed')) return 'Please verify your email first';
     if (msg.contains('user_already_exists')) return 'This email is already registered';
+    if (msg.contains('over_email_send_rate_limit')) {
+      return 'Too many requests. Please wait a few minutes before trying again.';
+    }
     return msg;
   }
 

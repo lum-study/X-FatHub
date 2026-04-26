@@ -59,6 +59,8 @@ class _MyAppState extends State<MyApp> {
           navigatorKey.currentState?.pushNamed(AppRoutes.paymentSuccess);
         } else if (route == '/payment/cancel') {
           navigatorKey.currentState?.pushNamed(AppRoutes.paymentCancel);
+        } else if (route.contains('/auth/verified')) {
+          navigatorKey.currentState?.pushNamed(AppRoutes.emailVerified);
         }
       }
     });
