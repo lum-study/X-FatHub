@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verified - X-FatHub</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        .container {
+            padding: 40px;
+            max-width: 400px;
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 2px solid #4CAF50;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 24px;
+        }
+        .icon svg {
+            fill: #4CAF50;
+            width: 40px;
+            height: 40px;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        p {
+            color: #AAAAAA;
+            line-height: 1.5;
+            margin-bottom: 40px;
+        }
+        .btn {
+            background-color: #FFA500;
+            color: black;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-weight: bold;
+            display: inline-block;
+            transition: opacity 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .app-link {
+            display: block;
+            margin-top: 24px;
+            color: #FFA500;
+            text-decoration: underline;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+        </div>
+        <h1>Email Verified!</h1>
+        <p>Your email has been successfully verified. You can now return to the X-FatHub app and sign in to your account.</p>
+
+        <a href="xfathub://auth/verified" class="btn">Open X-FatHub App</a>
+
+        <a href="/" class="app-link">Go to Website</a>
+    </div>
+</body>
+</html>
