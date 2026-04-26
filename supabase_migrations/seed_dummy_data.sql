@@ -144,6 +144,42 @@ VALUES
     ARRAY['Valid for 45 days after purchase', 'Swim classes only'],
     ARRAY['X-Fit North'],
     true
+  ),
+  (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6',
+    'Elite Performance 20 Pack',
+    'Comprehensive high-performance training for the dedicated.',
+    249.00,
+    20,
+    'Elite',
+    'ultimate',
+    true,
+    'star',
+    'price_1TQOrQ2MwtvIP2Xlry8Gtpts',
+    90,
+    ARRAY['Morning Strength', 'Push Pull Legs', 'Evening HIIT', 'MetCon Madness', 'Sprint Intervals'],
+    ARRAY['20 sessions included', 'Access to all high-performance zones', 'Personalized progress tracking'],
+    ARRAY['Valid for 90 days after purchase', 'Focuses on strength and conditioning'],
+    ARRAY['X-Fit Central', 'X-Fit North', 'X-Fit South'],
+    true
+  ),
+  (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
+    'Weekend Warrior 4 Pack',
+    'Perfect for those who can only train on weekends.',
+    69.00,
+    4,
+    'Gym',
+    'weekend',
+    false,
+    'event',
+    'price_1TQOsr2MwtvIP2XlXkRqXzcP',
+    30,
+    ARRAY['Weekend HIIT', 'Sunday Flow', 'Sunday Strength'],
+    ARRAY['4 weekend-only sessions', 'Great for busy professionals', 'High energy group classes'],
+    ARRAY['Valid for 30 days after purchase', 'Can only be used for Saturday and Sunday slots'],
+    ARRAY['X-Fit North', 'X-Fit South'],
+    true
   )
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
@@ -172,16 +208,22 @@ VALUES
   (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', '22222222-2222-2222-2222-222222222222', true),
   (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', '33333333-3333-3333-3333-333333333333', true),
   (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', '33333333-3333-3333-3333-333333333333', true),
-  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5', '22222222-2222-2222-2222-222222222222', true)
+  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5', '22222222-2222-2222-2222-222222222222', true),
+  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6', '11111111-1111-1111-1111-111111111111', true),
+  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6', '22222222-2222-2222-2222-222222222222', true),
+  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6', '33333333-3333-3333-3333-333333333333', true),
+  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7', '22222222-2222-2222-2222-222222222222', true),
+  (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7', '33333333-3333-3333-3333-333333333333', true)
 ON CONFLICT (package_id, gym_id) DO UPDATE
 SET is_active = EXCLUDED.is_active;
 
 -- Reset only the target window to keep seed idempotent and predictable.
 DELETE FROM gym_slots
 WHERE start_time >= '2026-04-23 00:00:00+08'::timestamptz
-  AND start_time < '2026-05-01 00:00:00+08'::timestamptz;
+  AND start_time < '2026-06-01 00:00:00+08'::timestamptz;
 
--- Gym slots for 23 Apr 2026 - 30 Apr 2026 (+08)
+-- Gym slots for 23 Apr 2026 - 31 May 2026 (+08)
+-- Generated to ensure every package has at least 3 slots per day.
 INSERT INTO gym_slots (
   id,
   gym_id,
@@ -193,39 +235,36 @@ INSERT INTO gym_slots (
   total_spots,
   occupied_spots
 )
-VALUES
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-23 07:00:00+08', '2026-04-23 08:00:00+08', 'Morning Strength', 'Coach Rafi', 'Zone A', 20, 8),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-23 09:00:00+08', '2026-04-23 10:00:00+08', 'Power Mobility', 'Coach Aina', 'Studio 1', 14, 6),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-23 18:00:00+08', '2026-04-23 19:00:00+08', 'Evening HIIT', 'Coach Ben', 'Zone B', 25, 16),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-24 08:00:00+08', '2026-04-24 09:00:00+08', 'Recovery Yoga', 'Coach Aina', 'Studio 2', 15, 5),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-24 17:00:00+08', '2026-04-24 18:00:00+08', 'Push Pull Legs', 'Coach Rafi', 'Zone A', 20, 11),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-24 20:00:00+08', '2026-04-24 21:00:00+08', 'Sprint Intervals', 'Coach Ben', 'Track 1', 22, 9),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-25 07:30:00+08', '2026-04-25 08:30:00+08', 'Strength Circuit', 'Coach Rafi', 'Zone A', 20, 10),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-25 11:00:00+08', '2026-04-25 12:00:00+08', 'Weekend HIIT', 'Coach Ben', 'Zone B', 25, 18),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-25 17:00:00+08', '2026-04-25 18:00:00+08', 'Sunday Flow', 'Coach Aina', 'Studio 2', 15, 7),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-26 08:00:00+08', '2026-04-26 09:00:00+08', 'Swim Intervals', 'Coach Lina', 'Pool Lane 2', 16, 9),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-26 12:00:00+08', '2026-04-26 13:00:00+08', 'Lunch Burn', 'Coach Rafi', 'Zone A', 20, 12),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-26 19:00:00+08', '2026-04-26 20:00:00+08', 'Recovery Yoga', 'Coach Aina', 'Studio 2', 15, 6),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-27 07:00:00+08', '2026-04-27 08:00:00+08', 'Morning Strength', 'Coach Rafi', 'Zone A', 20, 9),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-27 14:00:00+08', '2026-04-27 15:00:00+08', 'Power Mobility', 'Coach Aina', 'Studio 1', 14, 7),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-27 18:00:00+08', '2026-04-27 19:00:00+08', 'Evening HIIT', 'Coach Ben', 'Zone B', 25, 15),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-28 08:30:00+08', '2026-04-28 09:30:00+08', 'Swim Endurance', 'Coach Lina', 'Pool Lane 1', 16, 8),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-28 17:30:00+08', '2026-04-28 18:30:00+08', 'Push Pull Legs', 'Coach Rafi', 'Zone A', 20, 10),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-28 20:00:00+08', '2026-04-28 21:00:00+08', 'Sunday Flow', 'Coach Aina', 'Studio 2', 15, 8),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-29 07:00:00+08', '2026-04-29 08:00:00+08', 'Strength Circuit', 'Coach Rafi', 'Zone A', 20, 9),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-29 09:30:00+08', '2026-04-29 10:30:00+08', 'Sprint Intervals', 'Coach Ben', 'Track 1', 22, 11),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-29 19:00:00+08', '2026-04-29 20:00:00+08', 'Recovery Yoga', 'Coach Aina', 'Studio 2', 15, 6),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-30 07:00:00+08', '2026-04-30 08:00:00+08', 'Swim Intervals', 'Coach Lina', 'Pool Lane 2', 16, 7),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-30 12:00:00+08', '2026-04-30 13:00:00+08', 'Lunch Burn', 'Coach Rafi', 'Zone A', 20, 13),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-30 18:00:00+08', '2026-04-30 19:00:00+08', 'Evening HIIT', 'Coach Ben', 'Zone B', 25, 17),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-23 12:00:00+08', '2026-04-23 13:00:00+08', 'Lunch Burn', 'Coach Sarah', 'Zone C', 15, 5),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-24 19:00:00+08', '2026-04-24 20:00:00+08', 'MetCon Madness', 'Coach Ben', 'Track 2', 20, 12),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-25 09:00:00+08', '2026-04-25 10:00:00+08', 'HIIT Start', 'Coach Aina', 'Studio 1', 12, 10),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-26 18:00:00+08', '2026-04-26 19:00:00+08', 'Cardio Clash', 'Coach Rafi', 'Zone B', 25, 20),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-27 10:00:00+08', '2026-04-27 11:00:00+08', 'Aqua Recovery', 'Coach Lina', 'Pool Lane 1', 10, 4),
-  (gen_random_uuid(), '33333333-3333-3333-3333-333333333333', '2026-04-28 12:00:00+08', '2026-04-28 13:00:00+08', 'Recovery Yoga', 'Coach Aina', 'Studio 2', 15, 14),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', '2026-04-29 18:00:00+08', '2026-04-29 19:00:00+08', 'Push Pull Legs', 'Coach Sarah', 'Zone A', 20, 18),
-  (gen_random_uuid(), '22222222-2222-2222-2222-222222222222', '2026-04-30 20:00:00+08', '2026-04-30 21:00:00+08', 'Sprint Intervals', 'Coach Ben', 'Track 1', 20, 8);
+SELECT
+  gen_random_uuid(),
+  c.gym_id::uuid,
+  (d.day::date || ' ' || c.start_time)::timestamptz,
+  (d.day::date || ' ' || c.end_time)::timestamptz,
+  c.class_name,
+  c.coach_name,
+  c.location,
+  c.total_spots,
+  floor(random() * (c.total_spots - 5))
+FROM
+  generate_series('2026-04-23'::date, '2026-05-31'::date, '1 day'::interval) AS d(day)
+CROSS JOIN (
+  VALUES
+    ('11111111-1111-1111-1111-111111111111', '07:00:00+08', '08:00:00+08', 'Morning Strength', 'Coach Rafi', 'Zone A', 20),
+    ('11111111-1111-1111-1111-111111111111', '12:00:00+08', '13:00:00+08', 'Lunch Burn', 'Coach Sarah', 'Zone C', 15),
+    ('11111111-1111-1111-1111-111111111111', '17:00:00+08', '18:00:00+08', 'Push Pull Legs', 'Coach Rafi', 'Zone A', 20),
+    ('11111111-1111-1111-1111-111111111111', '10:00:00+08', '11:00:00+08', 'Strength Circuit', 'Coach Rafi', 'Zone A', 20),
+    ('11111111-1111-1111-1111-111111111111', '15:00:00+08', '16:00:00+08', 'Sunday Strength', 'Coach Sarah', 'Zone B', 15),
+    ('22222222-2222-2222-2222-222222222222', '08:00:00+08', '09:00:00+08', 'Swim Intervals', 'Coach Lina', 'Pool Lane 2', 16),
+    ('22222222-2222-2222-2222-222222222222', '10:00:00+08', '11:00:00+08', 'Sprint Intervals', 'Coach Ben', 'Track 1', 22),
+    ('22222222-2222-2222-2222-222222222222', '18:00:00+08', '19:00:00+08', 'Evening HIIT', 'Coach Ben', 'Zone B', 25),
+    ('22222222-2222-2222-2222-222222222222', '20:00:00+08', '21:00:00+08', 'MetCon Madness', 'Coach Ben', 'Track 2', 20),
+    ('22222222-2222-2222-2222-222222222222', '14:00:00+08', '15:00:00+08', 'Weekend HIIT', 'Coach Ben', 'Zone B', 25),
+    ('22222222-2222-2222-2222-222222222222', '11:00:00+08', '12:00:00+08', 'Swim Endurance', 'Coach Lina', 'Pool Lane 1', 16),
+    ('22222222-2222-2222-2222-222222222222', '16:00:00+08', '17:00:00+08', 'Aqua Recovery', 'Coach Lina', 'Pool Lane 1', 10),
+    ('33333333-3333-3333-3333-333333333333', '09:00:00+08', '10:00:00+08', 'Power Mobility', 'Coach Aina', 'Studio 1', 14),
+    ('33333333-3333-3333-3333-333333333333', '14:00:00+08', '15:00:00+08', 'Recovery Yoga', 'Coach Aina', 'Studio 2', 15),
+    ('33333333-3333-3333-3333-333333333333', '19:00:00+08', '20:00:00+08', 'Sunday Flow', 'Coach Aina', 'Studio 2', 15)
+) AS c(gym_id, start_time, end_time, class_name, coach_name, location, total_spots);
 
 -- Dummy posts
 INSERT INTO public.posts (id, user_id, content, media_url, created_at, updated_at)

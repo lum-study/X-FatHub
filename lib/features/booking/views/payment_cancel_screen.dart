@@ -3,14 +3,14 @@ import 'package:provider/provider.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/routes/main_navigation_screen.dart';
 
-class PaymentSuccessScreen extends StatefulWidget {
-  const PaymentSuccessScreen({super.key});
+class PaymentCancelScreen extends StatefulWidget {
+  const PaymentCancelScreen({super.key});
 
   @override
-  State<PaymentSuccessScreen> createState() => _PaymentSuccessScreenState();
+  State<PaymentCancelScreen> createState() => _PaymentCancelScreenState();
 }
 
-class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
+class _PaymentCancelScreenState extends State<PaymentCancelScreen> {
   @override
   void initState() {
     super.initState();
@@ -33,13 +33,13 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
             children: [
               const Spacer(),
               const Icon(
-                Icons.check_circle,
-                color: Color(0xFFFFA500),
+                Icons.cancel_outlined,
+                color: Colors.red,
                 size: 72,
               ),
               const SizedBox(height: 14),
               const Text(
-                'Payment Successful',
+                'Payment Failed',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -49,7 +49,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Your package has been purchased successfully.',
+                'Your payment was cancelled or failed. No charges were made.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13),
               ),

@@ -53,3 +53,4 @@ app.*.map.json
 /.github
 opencode.json
 *.md
+*.backup

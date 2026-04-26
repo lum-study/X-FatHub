@@ -61,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         centerTitle: true,
         title: Padding(
-          padding: const EdgeInsets.only(top: 15, left: 15),
+          padding: const EdgeInsets.all(15),
           child: SvgPicture.asset(
             'lib/assets/img/logo_wordmark_dark.svg',
             height: 67,

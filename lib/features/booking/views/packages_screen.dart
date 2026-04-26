@@ -208,7 +208,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     const SizedBox(height: 16),
                     _buildSearchBar(),
                     const SizedBox(height: 14),
-                    _buildCategoryPills(),
+                    _buildCategoryPills(provider),
                     const SizedBox(height: 14),
                     ..._buildPackagesList(provider),
                     const SizedBox(height: 24),
@@ -476,8 +476,39 @@ class _PackagesScreenState extends State<PackagesScreen> {
     );
   }
 
-  Widget _buildCategoryPills() {
-    final categories = ['All', 'Gym', 'Yoga', 'HIIT', 'Swim'];
+  Widget _buildCategoryPills(BookingViewModel provider) {
+    final defaultCategories = ['All', 'Gym', 'Yoga', 'HIIT', 'Swim'];
+
+    // Collect unique categories from all packages
+    final allPackages = [
+      ...provider.activePackages,
+      ...provider.availablePackages,
+      ...provider.inactivePackages,
+    ];
+
+    final Set<String> extraCategories = {};
+    for (var p in allPackages) {
+      final cat = p.category.trim();
+      if (cat.isEmpty) continue;
+
+      bool isDefault = defaultCategories.any(
+        (dc) => dc.toLowerCase() == cat.toLowerCase(),
+      );
+
+      if (!isDefault) {
+        // Add to extraCategories, but avoid case-insensitive duplicates
+        bool alreadyAdded = extraCategories.any(
+          (ec) => ec.toLowerCase() == cat.toLowerCase(),
+        );
+        if (!alreadyAdded) {
+          extraCategories.add(cat);
+        }
+      }
+    }
+
+    final sortedExtra = extraCategories.toList()..sort();
+    final categories = [...defaultCategories, ...sortedExtra];
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(

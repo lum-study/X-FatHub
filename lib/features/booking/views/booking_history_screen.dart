@@ -175,9 +175,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         itemCount: bookings.length,
         itemBuilder: (context, index) {
           final booking = bookings[index];
+          final packageNameFallback = provider.packageNameForBooking(booking.id) ?? 'Package';
           return _BookingCard(
             booking: booking,
             package: provider.packages.where((p) => p.id == booking.packageId).firstOrNull,
+            packageNameFallback: packageNameFallback,
             provider: provider,
           );
         },
@@ -189,11 +191,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 class _BookingCard extends StatelessWidget {
   final BookingModel booking;
   final PackageModel? package;
+  final String packageNameFallback;
   final BookingViewModel provider;
 
   const _BookingCard({
     required this.booking,
     this.package,
+    required this.packageNameFallback,
     required this.provider,
   });
 
@@ -228,7 +232,7 @@ class _BookingCard extends StatelessWidget {
             builder: (_) => BookingDetailScreen(
               booking: booking,
               package: package,
-              packageNameFallback: package?.name ?? 'Package',
+              packageNameFallback: package?.name ?? packageNameFallback,
               slotLocation: booking.slotLocation,
               slotCoach: booking.slotCoach,
             ),
@@ -297,7 +301,7 @@ class _BookingCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            package?.name ?? 'Package',
+            package?.name ?? packageNameFallback,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
