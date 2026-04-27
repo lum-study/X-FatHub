@@ -58,7 +58,6 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      // Error is handled by the ViewModel and displayed in the UI
       if (_isLoginMode) {
         _passwordController.clear();
       }
@@ -70,7 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final profileProvider = context.watch<ProfileViewModel>();
 
     return Scaffold(
+      backgroundColor: Colors.black, // Ensure background matches
       body: Container(
+        width: double.infinity,  // Fill full width
+        height: double.infinity, // Fill full height
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -83,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
             child: Form(
               key: _formKey,
@@ -284,6 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

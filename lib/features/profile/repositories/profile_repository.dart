@@ -11,39 +11,42 @@ class ProfileRepository {
   Future<AuthResponse> signUp({required String email, required String password}) async {
     const String webUrl = 'https://xfathub.vercel.app/verified.html';
 
-    final response = await _supabase.auth.signUp(
-      email: email, 
-      password: password,
-      emailRedirectTo: kIsWeb ? null : webUrl,
-    );
+    try {
+      final response = await _supabase.auth.signUp(
+        email: email, 
+        password: password,
+        emailRedirectTo: kIsWeb ? null : webUrl,
+      );
 
-    if (response.user != null && 
-        response.user!.identities != null && 
-        response.user!.identities!.isEmpty) {
-      throw const AuthException('User already registered', statusCode: '400');
+      // Supabase trick: If identities is empty, the user already exists.
+      if (response.user != null && 
+          response.user!.identities != null && 
+          response.user!.identities!.isEmpty) {
+        throw const AuthException('user_already_exists', statusCode: '400');
+      }
+
+      return response;
+    } on AuthException catch (e) {
+      // Catch rate limit and return a cleaner message
+      if (e.message.contains('rate_limit') || e.statusCode == '429') {
+        throw const AuthException('Too many attempts. If you already have an account, please try logging in or wait a few minutes.', statusCode: '429');
+      }
+      rethrow;
     }
-
-    return response;
   }
 
   Future<bool> isEmailRegistered(String email) async {
     try {
-      final profileResponse = await _supabase
+      // We check the profiles table. Note: This may return false if RLS is strict.
+      final response = await _supabase
           .from('profiles')
           .select('email')
           .eq('email', email)
           .maybeSingle();
       
-      if (profileResponse != null) return true;
-
-      final res = await _supabase.auth.signUp(
-        email: email,
-        password: 'check_only_password_12345',
-      );
-      
-      return res.user?.identities?.isEmpty ?? false;
+      return response != null;
     } catch (e) {
-      return e.toString().contains('already registered');
+      return false;
     }
   }
 
@@ -61,11 +64,7 @@ class ProfileRepository {
 
   Future<void> deleteAccount() async {
     try {
-      // 1. Call the Edge Function to delete the user from Auth
-      // This is the secure way to delete an account
       await _supabase.functions.invoke('delete-user');
-      
-      // 2. Sign out locally
       await _supabase.auth.signOut();
     } catch (e) {
       throw Exception('Failed to delete account: $e');

@@ -144,17 +144,7 @@ class ProfileViewModel extends ChangeNotifier {
     _setLoading(true);
     _error = null;
     try {
-      // 1. Check if email is already registered in profiles table
-      final isRegistered = await _repository.isEmailRegistered(email);
-      if (isRegistered) {
-        throw Exception('user_already_exists');
-      }
-
-      // 2. Proceed with Supabase sign up
       await _repository.signUp(email: email, password: password);
-      
-      // We sign out immediately because we want them to verify first 
-      // and then sign in manually
       await _repository.signOut();
     } catch (e) {
       _error = _getReadableErrorMessage(e);
@@ -179,14 +169,32 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   String _getReadableErrorMessage(dynamic e) {
-    String msg = e.toString();
-    if (msg.contains('invalid_credentials')) return 'Invalid email or password';
-    if (msg.contains('email_not_confirmed')) return 'Please verify your email first';
-    if (msg.contains('user_already_exists')) return 'This email is already registered. PLease Proceed to Login';
-    if (msg.contains('over_email_send_rate_limit')) {
-      return 'Too many requests. Please wait a few minutes before trying again.';
+    if (e is AuthException) {
+      final message = e.message.toLowerCase();
+      if (message.contains('invalid_credentials')) {
+        return 'Invalid email or password';
+      }
+      if (message.contains('email not confirmed') || message.contains('email_not_confirmed')) {
+        return 'Please verify your email first';
+      }
+      if (message.contains('already registered') || message.contains('user_already_exists')) {
+        return 'This email is already registered. Please Proceed to Login';
+      }
+      if (e.statusCode == '429' || message.contains('rate_limit')) {
+        return 'Too many requests. Please wait a few minutes before trying again.';
+      }
+      return e.message;
     }
-    return msg;
+    
+    String msg = e.toString().toLowerCase();
+    if (msg.contains('user_already_exists')) {
+      return 'This email is already registered. Please Proceed to Login';
+    }
+    if (msg.contains('email not confirmed') || msg.contains('email_not_confirmed')) {
+      return 'Please verify your email first';
+    }
+    
+    return e.toString();
   }
 
   Future<void> signOut() async {
