@@ -172,7 +172,9 @@ class ProfileViewModel extends ChangeNotifier {
 
   Future<void> signUp(String email, String password) async {
     if (!_isOnline) {
-      throw Exception('No internet connection. Please connect and try again.');
+      _error = 'No internet connection. Please connect and try again.';
+      notifyListeners();
+      throw Exception(_error);
     }
     _setLoading(true);
     _error = null;
@@ -189,9 +191,12 @@ class ProfileViewModel extends ChangeNotifier {
 
   Future<void> signIn(String email, String password) async {
     if (!_isOnline) {
-      throw Exception('No internet connection. Please connect and try again.');
+      _error = 'No internet connection. Please connect and try again.';
+      notifyListeners();
+      throw Exception(_error);
     }
     _setLoading(true);
+    _error = null; // Clear previous error
     try {
       await _repository.signIn(email: email, password: password);
       await init();
@@ -223,7 +228,7 @@ class ProfileViewModel extends ChangeNotifier {
       return 'Too many requests. Please wait a few minutes before trying again.';
     }
 
-    if (e is Exception && e.toString().contains('No internet connection')) {
+    if (e is Exception && (e.toString().contains('No internet connection') || e.toString().contains('offline'))) {
       return 'No internet connection. Please connect and try again.';
     }
 
