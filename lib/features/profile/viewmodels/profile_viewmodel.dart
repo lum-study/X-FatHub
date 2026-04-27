@@ -213,7 +213,7 @@ class ProfileViewModel extends ChangeNotifier {
     final String message = (e is AuthException ? e.message : e.toString()).toLowerCase();
 
     if (message.contains('invalid') && message.contains('credentials')) {
-      return 'Invalid email or password';
+      return 'Invalid password or email address';
     }
     
     if (message.contains('email not confirmed') || message.contains('email_not_confirmed')) {
@@ -251,24 +251,34 @@ class ProfileViewModel extends ChangeNotifier {
       throw Exception('Cannot change password while offline');
     }
     _setLoading(true);
+    _error = null;
     try {
       final user = _repository.currentUser;
       if (user?.email == null) {
         throw Exception('User not authenticated');
       }
 
-      await _repository.signIn(
-        email: user!.email!,
-        password: currentPassword,
-      );
+      // Verify current password by attempting to sign in
+      try {
+        await _repository.signIn(
+          email: user!.email!,
+          password: currentPassword,
+        );
+      } catch (e) {
+        _error = 'Incorrect current password';
+        notifyListeners();
+        throw Exception(_error);
+      }
 
       await _supabase.auth.updateUser(
         UserAttributes(password: newPassword),
       );
 
       _error = null;
+      notifyListeners();
     } catch (e) {
-      _error = _getReadableErrorMessage(e);
+      _error ??= _getReadableErrorMessage(e);
+      notifyListeners();
       rethrow;
     } finally {
       _setLoading(false);

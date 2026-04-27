@@ -738,21 +738,40 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                       _newPasswordController.text.isEmpty ||
                       _confirmPasswordController.text.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please fill all fields')),
+                      const SnackBar(
+                        content: Text('Please fill all fields'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     return;
                   }
 
                   if (_newPasswordController.text != _confirmPasswordController.text) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('New passwords do not match')),
+                      const SnackBar(
+                        content: Text('New passwords do not match'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (_newPasswordController.text == _currentPasswordController.text) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('New password cannot be the same as current password'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     return;
                   }
 
                   if (_newPasswordController.text.length < 6) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Password must be at least 6 characters')),
+                      const SnackBar(
+                        content: Text('Password must be at least 6 characters'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     return;
                   }
@@ -777,8 +796,12 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                     }
                   } catch (e) {
                     if (mounted) {
+                      final errorMessage = context.read<ProfileViewModel>().error ?? e.toString();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
+                        SnackBar(
+                          content: Text(errorMessage),
+                          backgroundColor: Colors.red,
+                        ),
                       );
                     }
                   } finally {
