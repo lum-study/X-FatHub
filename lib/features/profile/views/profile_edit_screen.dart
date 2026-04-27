@@ -180,30 +180,54 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     try {
       final nameText = _nameController.text.trim();
       if (nameText.isEmpty) {
-        throw Exception('Name cannot be empty');
+        throw Exception('Name is required');
       }
       if (nameText.length > 15) {
         throw Exception('Name must be 15 characters or less');
       }
 
       final bioText = _bioController.text.trim();
+      if (bioText.isEmpty) {
+        throw Exception('Bio is required');
+      }
       if (bioText.length > 30) {
         throw Exception('Bio must be 30 characters or less');
       }
 
-      final height = _heightController.text.isNotEmpty ? double.tryParse(_heightController.text) : null;
-      if (height != null && height <= 0) {
-         throw Exception('Height must be greater than 0');
+      if (_selectedBirthdate == null) {
+        throw Exception('Birthdate is required');
       }
 
-      final initialWeight = _initialWeightController.text.isNotEmpty ? double.tryParse(_initialWeightController.text) : null;
-      if (initialWeight != null && initialWeight <= 0) {
-         throw Exception('Initial Weight must be greater than 0');
+      if (_selectedGender == null) {
+        throw Exception('Gender is required');
       }
 
-      final goalWeight = _goalWeightController.text.isNotEmpty ? double.tryParse(_goalWeightController.text) : null;
-      if (goalWeight != null && goalWeight <= 0) {
-         throw Exception('Goal Weight must be greater than 0');
+      if (_heightController.text.trim().isEmpty) {
+        throw Exception('Height is required');
+      }
+      final height = double.tryParse(_heightController.text);
+      if (height == null || height <= 0) {
+         throw Exception('Enter a valid height');
+      }
+
+      if (_initialWeightController.text.trim().isEmpty) {
+        throw Exception('Initial Weight is required');
+      }
+      final initialWeight = double.tryParse(_initialWeightController.text);
+      if (initialWeight == null || initialWeight <= 0) {
+         throw Exception('Enter a valid initial weight');
+      }
+
+      if (_goalWeightController.text.trim().isEmpty) {
+        throw Exception('Goal Weight is required');
+      }
+      final goalWeight = double.tryParse(_goalWeightController.text);
+      if (goalWeight == null || goalWeight <= 0) {
+         throw Exception('Enter a valid goal weight');
+      }
+
+      if (initialWeight == goalWeight) {
+        throw Exception('Goal weight cannot be the same as initial weight');
       }
 
       final provider = context.read<ProfileViewModel>();
@@ -220,7 +244,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
       await provider.updateProfile(
         name: nameText,
-        bio: bioText.isEmpty ? null : bioText,
+        bio: bioText,
         age: calculatedAge,
         gender: _selectedGender,
         birthdate: _selectedBirthdate,
