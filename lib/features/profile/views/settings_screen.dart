@@ -12,7 +12,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
-  bool _emailNotifications = true;
 
   void _showChangePasswordDialog() {
     showDialog(
@@ -240,14 +239,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: _notificationsEnabled,
               onChanged: (value) {
                 setState(() => _notificationsEnabled = value);
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildNotificationTile(
-              title: 'Email Notifications',
-              value: _emailNotifications,
-              onChanged: (value) {
-                setState(() => _emailNotifications = value);
               },
             ),
             const SizedBox(height: 32),
