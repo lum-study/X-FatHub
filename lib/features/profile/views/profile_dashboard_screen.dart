@@ -42,11 +42,20 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
   }
 
   int _calculatePurchaseCount(BookingViewModel bookingVM) {
-    // Union of unique package IDs from bookings history and current active packages
     return {
       ...bookingVM.userBookings.map((b) => b.packageId),
       ...bookingVM.activePackages.map((p) => p.id)
     }.where((id) => id.isNotEmpty).length;
+  }
+
+  void _showOfflineSnackBar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You are offline now. Some features are disabled.'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -54,6 +63,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     final profileViewModel = context.watch<ProfileViewModel>();
     final bookingViewModel = context.watch<BookingViewModel>();
     final profile = profileViewModel.profile;
+    final isOnline = profileViewModel.isOnline;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -100,7 +110,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       body: profileViewModel.isLoading && profile == null
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
           : RefreshIndicator(
-              onRefresh: _handleRefresh,
+              onRefresh: isOnline ? _handleRefresh : () async => _showOfflineSnackBar(context),
               color: Colors.orange,
               backgroundColor: const Color(0xFF1E1E1E),
               child: SingleChildScrollView(
@@ -109,8 +119,30 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Profile Header - Passing bookingViewModel to make it reactive
-                    _buildProfileHeader(profile, bookingViewModel),
+                    if (!isOnline)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.cloud_off, color: Colors.orange, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              'Offline Mode',
+                              style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    
+                    _buildProfileHeader(profile, bookingViewModel, isOnline),
                     const SizedBox(height: 24),
 
                     // Membership Section (Expandable)
@@ -169,6 +201,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                       firstChild: const SizedBox(width: double.infinity),
                       secondChild: GestureDetector(
                         onTap: () {
+                          if (!isOnline) {
+                            _showOfflineSnackBar(context);
+                            return;
+                          }
                           final height = profile?.height ?? 0.0;
                           final initialWeight = profile?.initialWeight ?? 0.0;
                           final weightGoal = profile?.weightGoal ?? 0.0;
@@ -184,7 +220,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                             );
                           }
                         },
-                        child: _buildWeightProgressSection(profile),
+                        child: _buildWeightProgressSection(profile, isOnline),
                       ),
                       crossFadeState: _isWeightExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                       duration: const Duration(milliseconds: 300),
@@ -605,10 +641,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
   }
 
-  Widget _buildProfileHeader(profile, BookingViewModel bookingVM) {
+  Widget _buildProfileHeader(profile, BookingViewModel bookingVM, bool isOnline) {
     final purchaseCount = _calculatePurchaseCount(bookingVM);
     
-    Color tierColor = Colors.orange; // Default orange for Basic
+    Color tierColor = Colors.orange;
     IconData? badgeIcon;
 
     if (purchaseCount >= 5) {
@@ -631,7 +667,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       ),
       child: Column(
         children: [
-          // Profile picture logic
           Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
@@ -643,7 +678,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   shape: BoxShape.circle,
                   color: Colors.orange.withOpacity(0.2),
                   border: Border.all(
-                    color: Colors.orange, // Standard orange for everyone
+                    color: Colors.orange,
                     width: 3
                   ),
                   image: (profile?.profilePictureUrl != null &&
@@ -708,7 +743,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           const Divider(color: Color(0xFF333333)),
           const SizedBox(height: 16),
 
-          // Personal Info Section
           _buildInfoSection('Personal Information', [
             _buildInfoRow(Icons.email, 'Email', profile?.email ?? '-'),
             _buildInfoRow(Icons.info_outline, 'Bio', profile?.bio?.isNotEmpty == true ? profile!.bio! : '-'),
@@ -719,7 +753,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
           const SizedBox(height: 16),
 
-          // Body Info Section
           _buildInfoSection('Body Information', [
             _buildInfoRow(Icons.height, 'Height', profile?.height != null ? '${profile.height} cm' : '-'),
             _buildInfoRow(Icons.flag, 'Initial Weight', profile?.initialWeight != null ? '${profile.initialWeight} kg' : '-'),
@@ -729,25 +762,27 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
           const SizedBox(height: 20),
 
-          // Edit Profile Button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () async {
+                if (!isOnline) {
+                  _showOfflineSnackBar(context);
+                  return;
+                }
                 await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const ProfileEditScreen()),
                 );
-                // Refresh after returning from edit
                 if (mounted) {
                   _handleRefresh();
                 }
               },
-              icon: const Icon(Icons.edit),
-              label: const Text('Edit Profile'),
+              icon: Icon(isOnline ? Icons.edit : Icons.lock_outline),
+              label: Text(isOnline ? 'Edit Profile' : 'Edit Profile (Offline)'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
+                backgroundColor: isOnline ? Colors.orange : Colors.grey[800],
+                foregroundColor: isOnline ? Colors.white : Colors.grey[500],
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -843,13 +878,12 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
   }
 
-  Widget _buildWeightProgressSection(profile) {
+  Widget _buildWeightProgressSection(profile, bool isOnline) {
     final currentWeight = profile?.currentWeight ?? 0.0;
     final initialWeight = profile?.initialWeight ?? 0.0;
     final weightGoal = profile?.weightGoal ?? 0.0;
     final height = profile?.height ?? 0.0;
 
-    // Calculate progress percentage (0-100)
     double progressPercent = 0.0;
     String progressText = 'Please Complete Body Information before Tracking';
     bool hasBodyData = currentWeight > 0 && weightGoal > 0 && initialWeight > 0 && height > 0;
@@ -859,7 +893,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     Color bmiColor = Colors.grey;
 
     if (hasBodyData) {
-      // BMI Calculation: weight / (height/100)^2
       bmi = currentWeight / ((height / 100) * (height / 100));
       
       if (bmi < 18.5) {
@@ -916,15 +949,14 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                   ),
                 ),
                 Icon(
-                  hasBodyData ? Icons.monitor_weight_outlined : Icons.lock_outline,
-                  color: hasBodyData ? Colors.orange : Colors.grey,
+                  hasBodyData ? (isOnline ? Icons.monitor_weight_outlined : Icons.lock_outline) : Icons.lock_outline,
+                  color: hasBodyData ? (isOnline ? Colors.orange : Colors.grey) : Colors.grey,
                 ),
               ],
             ),
             const SizedBox(height: 16),
 
             if (hasBodyData) ...[
-              // BMI Display
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -971,11 +1003,9 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 ),
               ),
 
-              // All three weights display
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Initial Weight
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -996,7 +1026,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                       Icon(Icons.arrow_downward, size: 16, color: Colors.blue.withOpacity(0.7)),
                     ],
                   ),
-                  // Current Weight (center, highlighted)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -1017,7 +1046,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                       Icon(Icons.arrow_forward, size: 16, color: Colors.orange.withOpacity(0.7)),
                     ],
                   ),
-                  // Goal Weight
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -1071,7 +1099,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
             
             const SizedBox(height: 12),
 
-            // Progress bar
             if (hasBodyData) ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -1085,9 +1112,8 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
               const SizedBox(height: 8),
             ],
 
-            // Progress text
             Text(
-              progressText,
+              isOnline ? progressText : '$progressText (Offline)',
               style: TextStyle(
                 fontSize: 12,
                 color: hasBodyData ? Colors.grey[300] : Colors.red[300],
@@ -1139,57 +1165,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
     );
   }
 
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required String goal,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey,
-                ),
-              ),
-              Icon(icon, color: color, size: 20),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Goal: $goal',
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCircularProgressCard({
     required String title,
     required String current,
@@ -1211,7 +1186,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Title with icon
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1229,7 +1203,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           ),
           const SizedBox(height: 12),
           
-          // Circular progress
           Stack(
             alignment: Alignment.center,
             children: [
@@ -1245,7 +1218,7 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                 children: [
                   Text(
                     '$current$unit',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -1265,7 +1238,6 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
           ),
           const SizedBox(height: 8),
           
-          // Goal text
           Text(
             'Goal: $goal$unit',
             style: const TextStyle(
@@ -1309,9 +1281,13 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
 
   Future<void> _showWeightUpdateDialog(BuildContext context, profile) async {
     final provider = context.read<ProfileViewModel>();
-    final profileCopy = provider.profile;
-    final userId = profileCopy?.id ?? '';
+    final userId = profile?.id ?? '';
     final messenger = ScaffoldMessenger.of(context);
+
+    if (!provider.isOnline) {
+      _showOfflineSnackBar(context);
+      return;
+    }
 
     final newWeight = await showDialog<double>(
       context: context,
@@ -1462,7 +1438,6 @@ class _WeightUpdateDialogState extends State<WeightUpdateDialog> {
                   ? widget.initialWeight
                   : widget.weightGoal;
 
-              // Enforce strict range validation: current weight must be between initial and goal.
               if (parsedWeight < minWeight || parsedWeight > maxWeight) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -1497,7 +1472,6 @@ class _CircleProgressPainter extends CustomPainter {
     final radius = size.width / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Background grey ring
     final backgroundPaint = Paint()
       ..color = const Color(0xFF262626)
       ..style = PaintingStyle.stroke
@@ -1505,7 +1479,6 @@ class _CircleProgressPainter extends CustomPainter {
 
     canvas.drawArc(rect, -3.142 / 2, 2 * 3.142, false, backgroundPaint);
 
-    // Color progress ring
     final progressPaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke

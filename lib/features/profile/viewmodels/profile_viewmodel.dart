@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
 import '../../activity_health/repositories/step_tracker_repository.dart';
@@ -15,14 +17,36 @@ class ProfileViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _weightHistory = [];
+  
+  bool _isOnline = true;
+  StreamSubscription? _connectivitySubscription;
 
   ProfileViewModel({ProfileRepository? repository}) 
-      : _repository = repository ?? ProfileRepository();
+      : _repository = repository ?? ProfileRepository() {
+    _checkInitialConnectivity();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      _isOnline = results.isNotEmpty && !results.contains(ConnectivityResult.none);
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkInitialConnectivity() async {
+    final List<ConnectivityResult> results = await Connectivity().checkConnectivity();
+    _isOnline = results.isNotEmpty && !results.contains(ConnectivityResult.none);
+    notifyListeners();
+  }
 
   ProfileModel? get profile => _profile;
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<Map<String, dynamic>> get weightHistory => _weightHistory;
+  bool get isOnline => _isOnline;
   
   bool get isAuthenticated => Supabase.instance.client.auth.currentSession != null;
   
@@ -40,11 +64,15 @@ class ProfileViewModel extends ChangeNotifier {
     _setLoading(true);
     try {
       final localProfile = await LocalProfileDatabase.getProfile(userId);
-      _profile = await _repository.getProfile(userId);
       
-      if (_profile != null) {
-        await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
-      } else if (localProfile != null) {
+      if (_isOnline) {
+        _profile = await _repository.getProfile(userId);
+        if (_profile != null) {
+          await LocalProfileDatabase.saveProfile(_profile!.toMap(), synced: true);
+        }
+      }
+      
+      if (_profile == null && localProfile != null) {
         _profile = ProfileModel.fromMap(localProfile);
       }
       
@@ -80,6 +108,10 @@ class ProfileViewModel extends ChangeNotifier {
     String? profilePictureUrl,
     bool? profileCompleted,
   }) async {
+    if (!_isOnline) {
+      throw Exception('Cannot update profile while offline');
+    }
+
     final user = _repository.currentUser;
     if (user == null) return;
 
@@ -113,9 +145,8 @@ class ProfileViewModel extends ChangeNotifier {
     _setLoading(true);
     _error = null;
     try {
-      await LocalProfileDatabase.saveProfile(updatedProfile.toMap(), synced: false);
       await _repository.updateProfile(updatedProfile);
-      await LocalProfileDatabase.updateSyncStatus(user.id, true);
+      await LocalProfileDatabase.saveProfile(updatedProfile.toMap(), synced: true);
       
       _profile = updatedProfile;
       notifyListeners();
@@ -132,7 +163,6 @@ class ProfileViewModel extends ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
-      _profile = updatedProfile;
       notifyListeners();
       rethrow;
     } finally {
@@ -141,6 +171,11 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> signUp(String email, String password) async {
+    if (!_isOnline) {
+      _error = 'No internet connection. Please connect and try again.';
+      notifyListeners();
+      throw Exception(_error);
+    }
     _setLoading(true);
     _error = null;
     try {
@@ -155,7 +190,13 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> signIn(String email, String password) async {
+    if (!_isOnline) {
+      _error = 'No internet connection. Please connect and try again.';
+      notifyListeners();
+      throw Exception(_error);
+    }
     _setLoading(true);
+    _error = null; // Clear previous error
     try {
       await _repository.signIn(email: email, password: password);
       await init();
@@ -169,11 +210,8 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   String _getReadableErrorMessage(dynamic e) {
-    // 1. Get the raw message string regardless of error type
     final String message = (e is AuthException ? e.message : e.toString()).toLowerCase();
 
-    // 2. Check for specific patterns
-    // Use keywords 'invalid' and 'credentials' separately to catch "Invalid login credentials", "invalid_credentials", etc.
     if (message.contains('invalid') && message.contains('credentials')) {
       return 'Invalid email or password';
     }
@@ -190,7 +228,10 @@ class ProfileViewModel extends ChangeNotifier {
       return 'Too many requests. Please wait a few minutes before trying again.';
     }
 
-    // Fallback: return the original message
+    if (e is Exception && (e.toString().contains('No internet connection') || e.toString().contains('offline'))) {
+      return 'No internet connection. Please connect and try again.';
+    }
+
     if (e is AuthException) return e.message;
     return e.toString();
   }
@@ -206,6 +247,9 @@ class ProfileViewModel extends ChangeNotifier {
     required String currentPassword,
     required String newPassword,
   }) async {
+    if (!_isOnline) {
+      throw Exception('Cannot change password while offline');
+    }
     _setLoading(true);
     try {
       final user = _repository.currentUser;
@@ -232,6 +276,9 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> deleteAccount() async {
+    if (!_isOnline) {
+      throw Exception('Cannot delete account while offline');
+    }
     _setLoading(true);
     try {
       await _repository.deleteAccount();
@@ -259,6 +306,9 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> uploadProfilePicture(String imagePath) async {
+    if (!_isOnline) {
+      throw Exception('Cannot upload profile picture while offline');
+    }
     if (_profile == null) {
       throw Exception('Profile not loaded');
     }
@@ -280,6 +330,9 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   Future<void> updateCurrentWeightOnly(double newWeight) async {
+    if (!_isOnline) {
+      throw Exception('Cannot update weight while offline');
+    }
     final user = _repository.currentUser;
     if (user == null || _profile == null) {
       throw Exception('Profile not loaded');

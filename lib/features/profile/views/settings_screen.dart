@@ -13,6 +13,16 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
 
+  void _showOfflineSnackBar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You are offline now. This feature is disabled.'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _showChangePasswordDialog() {
     showDialog(
       context: context,
@@ -164,6 +174,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profileVM = context.watch<ProfileViewModel>();
+    final isOnline = profileVM.isOnline;
+
     return Scaffold(
       backgroundColor: Colors.black87,
       appBar: AppBar(
@@ -207,17 +220,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.lock_outlined, color: Colors.orange, size: 20),
+                      Icon(Icons.lock_outlined, 
+                        color: isOnline ? Colors.orange : Colors.grey[600], 
+                        size: 20),
                       const SizedBox(width: 12),
-                      const Text(
+                      Text(
                         'Change Password',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: isOnline ? Colors.white : Colors.grey[600]),
                       ),
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
-                    onPressed: _showChangePasswordDialog,
+                    icon: Icon(Icons.arrow_forward_ios, 
+                      color: isOnline ? Colors.grey : Colors.grey[800], 
+                      size: 16),
+                    onPressed: isOnline ? _showChangePasswordDialog : () => _showOfflineSnackBar(context),
                   ),
                 ],
               ),
@@ -306,19 +323,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                border: Border.all(color: Colors.red.withOpacity(0.5)),
+                color: isOnline ? Colors.red.withOpacity(0.1) : Colors.grey[900],
+                border: Border.all(color: isOnline ? Colors.red.withOpacity(0.5) : Colors.grey[800]!),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Danger Zone',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      color: isOnline ? Colors.red : Colors.grey[600],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -326,18 +343,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: double.infinity,
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.red),
+                        side: BorderSide(color: isOnline ? Colors.red : Colors.grey[800]!),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: _showDeleteAccountDialog,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
+                      onPressed: isOnline ? _showDeleteAccountDialog : () => _showOfflineSnackBar(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Text(
                           'Delete Account',
                           style: TextStyle(
-                            color: Colors.red,
+                            color: isOnline ? Colors.red : Colors.grey[600],
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -346,11 +363,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Permanently delete your account and all associated data. This action cannot be undone.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.red,
+                      color: isOnline ? Colors.red : Colors.grey[700],
                     ),
                   ),
                 ],
