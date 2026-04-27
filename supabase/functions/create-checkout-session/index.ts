@@ -26,11 +26,11 @@ serve(async (req) => {
     const successUrl =
       (body.success_url as string | undefined) ??
       Deno.env.get("STRIPE_CHECKOUT_SUCCESS_URL") ??
-      "https://example.com/success";
+      "xfathub://payment/success";
     const cancelUrl =
       (body.cancel_url as string | undefined) ??
       Deno.env.get("STRIPE_CHECKOUT_CANCEL_URL") ??
-      "https://example.com/cancel";
+      "xfathub://payment/cancel";
 
     if (!packageId) {
       return new Response(JSON.stringify({ error: "package_id is required" }), {

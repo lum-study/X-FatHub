@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:xfathub/core/config/env_config.dart';
 import 'package:xfathub/core/service/supabase_service.dart';
@@ -9,6 +11,8 @@ import 'package:xfathub/routes/app_routes.dart';
 import 'package:xfathub/core/service/background_service.dart';
 import 'package:xfathub/core/service/work_manager_service.dart';
 import 'package:xfathub/features/activity_health/views/hydration_log_screen.dart';
+import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
+import 'package:xfathub/features/profile/viewmodels/profile_viewmodel.dart';
 import 'package:xfathub/routes/main_navigation_screen.dart';
 
 Future<void> main() async {
@@ -39,10 +43,13 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   static const deepLinkChannel = MethodChannel('com.example.xfathub/deep_link');
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _wasOffline = false;
 
   @override
   void initState() {
     super.initState();
+    _initConnectivityListener();
     // Listen for deep link calls from Android
     deepLinkChannel.setMethodCallHandler((call) async {
       if (call.method == 'navigate') {
@@ -64,6 +71,46 @@ class _MyAppState extends State<MyApp> {
         }
       }
     });
+  }
+
+  void _initConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      final isOnline = results.any((result) => result != ConnectivityResult.none);
+      
+      if (isOnline && _wasOffline) {
+        debugPrint('🌐 Network restored. Refreshing app data...');
+        _refreshAppData();
+      }
+      
+      _wasOffline = !isOnline;
+    });
+  }
+
+  void _refreshAppData() {
+    // Wrap in microtask to ensure context is available if needed, 
+    // though using provider via context in initState/listeners requires caution.
+    Future.microtask(() {
+      if (!mounted) return;
+      
+      final context = navigatorKey.currentContext;
+      if (context == null) return;
+
+      // Refresh Booking Data
+      final bookingVM = Provider.of<BookingViewModel>(context, listen: false);
+      bookingVM.refreshPackagesPage();
+      
+      // Refresh Profile Data
+      final profileVM = Provider.of<ProfileViewModel>(context, listen: false);
+      profileVM.init();
+
+      // You can add more viewmodels here as needed
+    });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 
   @override
