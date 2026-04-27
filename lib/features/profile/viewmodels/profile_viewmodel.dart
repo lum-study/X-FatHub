@@ -169,31 +169,29 @@ class ProfileViewModel extends ChangeNotifier {
   }
 
   String _getReadableErrorMessage(dynamic e) {
-    if (e is AuthException) {
-      final message = e.message.toLowerCase();
-      if (message.contains('invalid_credentials')) {
-        return 'Invalid email or password';
-      }
-      if (message.contains('email not confirmed') || message.contains('email_not_confirmed')) {
-        return 'Please verify your email first';
-      }
-      if (message.contains('already registered') || message.contains('user_already_exists')) {
-        return 'This email is already registered. Please Proceed to Login';
-      }
-      if (e.statusCode == '429' || message.contains('rate_limit')) {
-        return 'Too many requests. Please wait a few minutes before trying again.';
-      }
-      return e.message;
+    // 1. Get the raw message string regardless of error type
+    final String message = (e is AuthException ? e.message : e.toString()).toLowerCase();
+
+    // 2. Check for specific patterns
+    // Use keywords 'invalid' and 'credentials' separately to catch "Invalid login credentials", "invalid_credentials", etc.
+    if (message.contains('invalid') && message.contains('credentials')) {
+      return 'Invalid email or password';
     }
     
-    String msg = e.toString().toLowerCase();
-    if (msg.contains('user_already_exists')) {
-      return 'This email is already registered. Please Proceed to Login';
-    }
-    if (msg.contains('email not confirmed') || msg.contains('email_not_confirmed')) {
+    if (message.contains('email not confirmed') || message.contains('email_not_confirmed')) {
       return 'Please verify your email first';
     }
     
+    if (message.contains('already registered') || message.contains('user_already_exists')) {
+      return 'This email is already registered. Please Proceed to Login';
+    }
+    
+    if ((e is AuthException && e.statusCode == '429') || message.contains('rate_limit')) {
+      return 'Too many requests. Please wait a few minutes before trying again.';
+    }
+
+    // Fallback: return the original message
+    if (e is AuthException) return e.message;
     return e.toString();
   }
 
