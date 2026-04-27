@@ -9,7 +9,6 @@ class ProfileRepository {
   // --- Authentication ---
   
   Future<AuthResponse> signUp({required String email, required String password}) async {
-    // Replace with your actual hosted URL when you deploy
     const String webUrl = 'https://xfathub.vercel.app/verified.html';
 
     final response = await _supabase.auth.signUp(
@@ -18,7 +17,6 @@ class ProfileRepository {
       emailRedirectTo: kIsWeb ? null : webUrl,
     );
 
-    // Supabase returns a user but empty identities if the email is already taken
     if (response.user != null && 
         response.user!.identities != null && 
         response.user!.identities!.isEmpty) {
@@ -30,7 +28,6 @@ class ProfileRepository {
 
   Future<bool> isEmailRegistered(String email) async {
     try {
-      // 1. Check if user exists in the profiles table (public)
       final profileResponse = await _supabase
           .from('profiles')
           .select('email')
@@ -39,24 +36,14 @@ class ProfileRepository {
       
       if (profileResponse != null) return true;
 
-      // 2. Check Auth identities via a dummy signup
       final res = await _supabase.auth.signUp(
         email: email,
         password: 'check_only_password_12345',
       );
       
-      if (res.user != null && 
-          res.user!.identities != null && 
-          res.user!.identities!.isEmpty) {
-        return true;
-      }
-
-      return false;
+      return res.user?.identities?.isEmpty ?? false;
     } catch (e) {
-      if (e.toString().contains('already registered') || e.toString().contains('user_already_exists')) {
-        return true;
-      }
-      return false;
+      return e.toString().contains('already registered');
     }
   }
 
@@ -71,6 +58,19 @@ class ProfileRepository {
   User? get currentUser => _supabase.auth.currentUser;
 
   // --- Profile CRUD ---
+
+  Future<void> deleteAccount() async {
+    try {
+      // 1. Call the Edge Function to delete the user from Auth
+      // This is the secure way to delete an account
+      await _supabase.functions.invoke('delete-user');
+      
+      // 2. Sign out locally
+      await _supabase.auth.signOut();
+    } catch (e) {
+      throw Exception('Failed to delete account: $e');
+    }
+  }
 
   Future<ProfileModel?> getProfile(String userId) async {
     try {
@@ -96,22 +96,6 @@ class ProfileRepository {
           .upsert(data, onConflict: 'id');
     } catch (e) {
       throw Exception('Failed to update profile: $e');
-    }
-  }
-
-  Future<void> deleteAccount() async {
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId != null) {
-        await _supabase.from('profiles').delete().eq('id', userId);
-        try {
-          await _supabase.auth.admin.deleteUser(userId);
-        } catch (e) {
-        }
-        await _supabase.auth.signOut();
-      }
-    } catch (e) {
-      throw Exception('Failed to delete account: $e');
     }
   }
 
