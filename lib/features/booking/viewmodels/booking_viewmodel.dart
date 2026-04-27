@@ -433,6 +433,10 @@ class BookingViewModel extends ChangeNotifier {
       _userBookings = bookings;
       _errorMessage = null;
       _isUsingLocalBookingCache = false;
+
+      // Sync missed bookings to backend
+      await _repository.syncMissedBookings(userId, bookings);
+      
       await _syncAllBookingsToLocalCache(userId);
       return bookings.isNotEmpty;
     } catch (e) {
@@ -537,6 +541,9 @@ class BookingViewModel extends ChangeNotifier {
       final bookings = await _repository.fetchUserBookings(userId);
       _userBookings = bookings;
       _isUsingLocalBookingCache = false;
+
+      // Sync missed bookings to backend
+      await _repository.syncMissedBookings(userId, bookings);
       
       // Update local cache with fresh data
       await _syncAllBookingsToLocalCache(userId);

@@ -474,6 +474,33 @@ class BookingRepository {
     }
   }
 
+  Future<void> syncMissedBookings(String userId, List<BookingModel> bookings) async {
+    final now = DateTime.now();
+    final toUpdate = bookings
+        .where((b) => b.status == BookingStatus.upcoming && b.bookingDate.isBefore(now))
+        .map((b) => b.id)
+        .toList();
+
+    if (toUpdate.isEmpty) return;
+
+    try {
+      await _supabase
+          .from('bookings')
+          .update({'status': 'missed'})
+          .inFilter('id', toUpdate)
+          .eq('user_id', userId);
+      
+      // Also update local cache if possible
+      for (final id in toUpdate) {
+        try {
+          await LocalBookingDatabase.updateCachedBookingStatus(id, 'missed');
+        } catch (_) {}
+      }
+    } catch (_) {
+      // Fail silently as this is a background sync
+    }
+  }
+
   Future<Map<String, dynamic>?> getSlotDetails(String slotId) async {
     try {
       final response = await _supabase

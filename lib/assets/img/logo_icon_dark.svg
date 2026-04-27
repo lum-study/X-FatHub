@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -15 150 150" width="150" height="150" role="img" aria-label="X-FatHub Main Logo Dark">
+  <title>X-FatHub Main Logo - Dark</title>
+  <defs>
+    <!-- Background Gradient matching loading screen -->
+    <linearGradient id="bg-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1000"/>
+      <stop offset="100%" stop-color="#0d0d0d"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer soft orange glow shadow -->
+  <rect x="2" y="2" width="116" height="116" rx="32" ry="32" fill="none" stroke="#ffa500" stroke-width="10" opacity="0.18"/>
+  
+  <!-- Main shell: dark background + solid orange border -->
+  <rect x="5" y="5" width="110" height="110" rx="30" ry="30" fill="url(#bg-dark)"/>
+  <rect x="5" y="5" width="110" height="110" rx="30" ry="30" fill="none" stroke="#ffa500" stroke-width="2"/>
+
+  <!-- Core Icon (centered) -->
+  <g transform="translate(24, 24)">
+    <line x1="18" y1="18" x2="54" y2="54" stroke="#ffa500" stroke-width="7" stroke-linecap="round"/>
+    <line x1="54" y1="18" x2="18" y2="54" stroke="#ffa500" stroke-width="7" stroke-linecap="round"/>
+    <polyline points="10,36 20,36 26,22 32,50 38,28 44,42 50,36 62,36"
+      stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="36" cy="36" r="4.5" fill="#ffa500"/>
+  </g>
+</svg>

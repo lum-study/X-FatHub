@@ -114,19 +114,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             _buildTab(4, (_) => const ProfileDashboardScreen()), // Profile tab shows dashboard, settings via icon
           ],
         ),
-        bottomNavigationBar: BottomAppBar(
-          color: const Color(0xFF0D0D0D),
-          child: SizedBox(
-            height: 60,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(child: _buildNavItem(0, Icons.grid_view_rounded, "Community")),
-                Expanded(child: _buildNavItem(1, Icons.card_giftcard, "Packages")),
-                Expanded(child: _buildHomeNavItem()),
-                Expanded(child: _buildNavItem(3, Icons.fitness_center, "Tracker")),
-                Expanded(child: _buildNavItem(4, Icons.person_outline, "Profile")),
-              ],
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0D0D0D),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(30),
+              topRight: Radius.circular(30),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.transparent,
+                blurRadius: 0,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: BottomAppBar(
+            color: Colors.transparent,
+            elevation: 0,
+            child: SizedBox(
+              height: 60,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: _buildNavItem(0, Icons.grid_view_rounded, "Community")),
+                  Expanded(child: _buildNavItem(1, Icons.card_giftcard, "Packages")),
+                  Expanded(child: _buildHomeNavItem()),
+                  Expanded(child: _buildNavItem(3, Icons.fitness_center, "Tracker")),
+                  Expanded(child: _buildNavItem(4, Icons.person_outline, "Profile")),
+                ],
+              ),
             ),
           ),
         ),
@@ -227,10 +244,8 @@ class _BouncyHomeButtonState extends State<_BouncyHomeButton> with SingleTickerP
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 100),
-      lowerBound: 0.0,
-      upperBound: 0.1,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(_controller);
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(_controller);
   }
 
   @override
@@ -244,7 +259,10 @@ class _BouncyHomeButtonState extends State<_BouncyHomeButton> with SingleTickerP
     return GestureDetector(
       onTapDown: (_) => _controller.forward(),
       onTapUp: (_) {
-        _controller.reverse();
+        _controller.animateTo(0.0, 
+          curve: Curves.elasticOut, 
+          duration: const Duration(milliseconds: 500)
+        );
         widget.onTap();
       },
       onTapCancel: () => _controller.reverse(),
@@ -258,22 +276,22 @@ class _BouncyHomeButtonState extends State<_BouncyHomeButton> with SingleTickerP
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFA500),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFFA500).withOpacity(0.3),
-                      blurRadius: 8,
+                      color: const Color(0xFFFFA500).withOpacity(0.4),
+                      blurRadius: 10,
                       spreadRadius: 2,
                     ),
                   ],
                 ),
                 child: Icon(
                   Icons.home,
-                  size: 24,
+                  size: 28,
                   color: widget.isSelected ? Colors.black : Colors.black.withOpacity(0.7),
                 ),
               ),

@@ -215,7 +215,10 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                     const SizedBox(height: 8),
                     Builder(
                       builder: (context) {
-                        final totalSessions = bookingViewModel.sessionsRemainingByPackage.values.fold(0, (sum, s) => sum + s);
+                        final activePackageIds = bookingViewModel.activePackages.map((p) => p.id).toSet();
+                        final totalSessions = bookingViewModel.sessionsRemainingByPackage.entries
+                            .where((entry) => activePackageIds.contains(entry.key))
+                            .fold(0, (sum, entry) => sum + entry.value);
                         return AnimatedCrossFade(
                           firstChild: const SizedBox(width: double.infinity),
                           secondChild: Container(

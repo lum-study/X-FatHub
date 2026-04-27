@@ -56,15 +56,28 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        centerTitle: true,
-        title: Padding(
-          padding: const EdgeInsets.all(15),
-          child: SvgPicture.asset(
-            'lib/assets/img/logo_wordmark_dark.svg',
-            height: 67,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(70),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0D0D0D),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(30),
+              bottomRight: Radius.circular(30),
+            ),
+          ),
+          child: AppBar(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            centerTitle: true,
+            title: Padding(
+              padding: const EdgeInsets.only(top: 15),
+              child: SvgPicture.asset(
+                'lib/assets/img/logo_wordmark_dark.svg',
+                height: 67,
+              ),
+            ),
           ),
         ),
       ),
