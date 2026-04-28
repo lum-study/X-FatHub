@@ -35,6 +35,7 @@ dependencies:
   video_player: ^2.11.1
   geocoding: ^4.0.0
   flutter_svg: ^2.2.4
+  flutter_local_notifications: ^21.0.0
 
 dev_dependencies:
   flutter_test:

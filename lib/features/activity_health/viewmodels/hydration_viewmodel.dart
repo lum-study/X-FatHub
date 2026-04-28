@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../models/hydration_model.dart';
 import '../repositories/hydration_repository.dart';
+import '../../../core/service/notification_service.dart';
 
 /// ViewModel for Hydration Tracker feature
 /// Handles business logic, state management, and data flow between Model and View
@@ -53,6 +54,15 @@ class HydrationViewModel extends ChangeNotifier {
       await loadHydrationData();
       // Sync goal to remote on page load
       await _repository.syncGoalToRemote();
+      
+      // Initialize hydration reminder scheduling
+      try {
+        await NotificationService.scheduleHydrationReminder();
+        print('✓ Hydration reminder initialized');
+      } catch (e) {
+        print('⚠️ Could not initialize hydration reminder: $e');
+      }
+      
       _initCompleter?.complete();
     } catch (e) {
       _initCompleter?.completeError(e);
@@ -84,6 +94,14 @@ class HydrationViewModel extends ChangeNotifier {
       
       // Reload data silently to update UI
       await loadHydrationData(silent: true);
+      
+      // Reschedule hydration reminder (reset the timer now that entry was added)
+      try {
+        await NotificationService.scheduleHydrationReminder();
+        print('✓ Hydration reminder rescheduled');
+      } catch (e) {
+        print('⚠️ Could not reschedule hydration reminder: $e');
+      }
       
       print('✓ Added $amountMl ml hydration entry');
     } catch (e) {

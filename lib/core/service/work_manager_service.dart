@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/env_config.dart';
 import 'supabase_service.dart';
 import 'pedometer_service.dart';
+import 'notification_service.dart';
 import '../../features/activity_health/repositories/step_tracker_repository.dart';
 
 class WorkManagerService {
@@ -24,7 +25,7 @@ class WorkManagerService {
   static Future<void> scheduleNextDailySync() async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
-    final targetTime = DateTime(now.year, now.month, now.day, 23, 59);
+    final targetTime = DateTime(now.year, now.month, now.day, 23, 45);
 
     DateTime nextRun;
     if (targetTime.isAfter(now)) {
@@ -160,6 +161,14 @@ Future<void> _executeDailyFinalStepsSaveTask() async {
   final repository = StepTrackerRepository();
   await repository.saveTodaySteps(stepsToSave);
   print('✅ [SYNC SUCCESS] Saved $stepsToSave steps for $dateToSave');
+
+  // Show notification about today's steps
+  try {
+    await NotificationService.showStepsNotification(stepsToSave);
+    print('✅ Step notification sent: $stepsToSave steps');
+  } catch (e) {
+    print('⚠️ Failed to send step notification: $e');
+  }
 
   await PedometerService.resetTodaySteps();
 }
