@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/hydration_model.dart';
@@ -223,6 +224,64 @@ class HydrationRepository {
     } catch (e) {
       print('Error deleting hydration entry from Supabase: $e');
       rethrow;
+    }
+  }
+
+  /// Get the time since the last hydration entry (in minutes)
+  /// Returns null if no entries exist today
+  /// Returns 0 if last entry was less than a minute ago
+  Future<int?> getMinutesSinceLastEntry() async {
+    try {
+      final entries = await getTodayEntries();
+      if (entries.isEmpty) {
+        return null;
+      }
+
+      final lastEntry = entries.first; // Already ordered by time descending
+      final lastTime = _parseTimeString(lastEntry.time);
+      final now = DateTime.now();
+
+      // Calculate minutes difference
+      final lastDateTime = DateTime(now.year, now.month, now.day, lastTime.hour, lastTime.minute);
+      final minutesDiff = now.difference(lastDateTime).inMinutes;
+
+      return minutesDiff;
+    } catch (e) {
+      print('Error getting minutes since last entry: $e');
+      return null;
+    }
+  }
+
+  /// Parse time string (HH:MM) to DateTime components
+  static TimeOfDay _parseTimeString(String timeStr) {
+    try {
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      }
+    } catch (e) {
+      print('Error parsing time string: $e');
+    }
+    return const TimeOfDay(hour: 0, minute: 0);
+  }
+
+  /// Check if user should be reminded to log hydration (no entry in last hour)
+  Future<bool> shouldRemindHydration({int hoursThreshold = 1}) async {
+    try {
+      final minutesSinceLastEntry = await getMinutesSinceLastEntry();
+      
+      if (minutesSinceLastEntry == null) {
+        // No entries today - remind if it's past morning hours
+        final now = DateTime.now();
+        // Remind if it's 8 AM or later and no entries yet
+        return now.hour >= 8;
+      }
+
+      // Remind if more than threshold hours have passed
+      return minutesSinceLastEntry >= (hoursThreshold * 60);
+    } catch (e) {
+      print('Error checking should remind hydration: $e');
+      return false;
     }
   }
 

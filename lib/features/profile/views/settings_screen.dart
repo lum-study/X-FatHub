@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/profile_viewmodel.dart';
 import '../../../routes/app_routes.dart';
+import '../../../core/service/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,6 +13,19 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationSetting();
+  }
+
+  Future<void> _loadNotificationSetting() async {
+    final isEnabled = await NotificationService.areNotificationsEnabled();
+    setState(() {
+      _notificationsEnabled = isEnabled;
+    });
+  }
 
   void _showOfflineSnackBar(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -254,8 +268,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildNotificationTile(
               title: 'Push Notifications',
               value: _notificationsEnabled,
-              onChanged: (value) {
+              onChanged: (value) async {
                 setState(() => _notificationsEnabled = value);
+                await NotificationService.setNotificationsEnabled(value);
               },
             ),
             const SizedBox(height: 32),
