@@ -18,7 +18,7 @@ class ProfileRepository {
         emailRedirectTo: kIsWeb ? null : webUrl,
       );
 
-      // Supabase trick: If identities is empty, the user already exists.
+      // Supabase trick, If identities is empty, the user already exists.
       if (response.user != null && 
           response.user!.identities != null && 
           response.user!.identities!.isEmpty) {
@@ -37,7 +37,7 @@ class ProfileRepository {
 
   Future<bool> isEmailRegistered(String email) async {
     try {
-      // We check the profiles table. Note: This may return false if RLS is strict.
+      // Check the profiles table. This may return false if RLS is strict.
       final response = await _supabase
           .from('profiles')
           .select('email')
