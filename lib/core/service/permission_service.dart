@@ -2,6 +2,29 @@ import 'package:permission_handler/permission_handler.dart';
 import 'location_tracking_service.dart';
 
 class PermissionService {
+  /// Request notification permission for Android 13+
+  static Future<bool> requestNotificationPermission() async {
+    final status = await Permission.notification.request();
+
+    if (status.isDenied) {
+      print('⚠️ Notification permission denied');
+      return false;
+    } else if (status.isPermanentlyDenied) {
+      print('🔔 Notification permission permanently denied. Opening app settings...');
+      openAppSettings();
+      return false;
+    }
+
+    print('✓ Notification permission granted');
+    return true;
+  }
+
+  /// Check if notification permission is already granted
+  static Future<bool> hasNotificationPermission() async {
+    final status = await Permission.notification.status;
+    return status.isGranted;
+  }
+
   /// Request activity recognition permission for step counting
   static Future<bool> requestActivityPermission() async {
     final status = await Permission.activityRecognition.request();

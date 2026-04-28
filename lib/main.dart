@@ -15,6 +15,8 @@ import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/profile/viewmodels/profile_viewmodel.dart';
 import 'package:xfathub/routes/main_navigation_screen.dart';
 
+import 'core/service/notification_service.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -29,7 +31,12 @@ Future<void> main() async {
   
   // Request permissions early (Activity recognition for step tracking)
   await PermissionService.requestStepTrackerPermissions();
+  
+  // Request notification permission (Android 13+)
+  await PermissionService.requestNotificationPermission();
 
+  // Initialize Notification Service
+  await NotificationService.init();
   runApp(const MyApp());
 }
 

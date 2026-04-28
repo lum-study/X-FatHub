@@ -17,7 +17,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    
+    <!-- Notification permission -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <!-- Required for url_launcher on Android 11+ -->
     <queries>
         <intent>
