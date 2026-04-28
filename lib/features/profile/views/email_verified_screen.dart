@@ -1,16 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class EmailVerifiedScreen extends StatelessWidget {
   const EmailVerifiedScreen({super.key});
-
-  Future<void> _openApp() async {
-    final Uri url = Uri.parse('xfathub://auth/verified');
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      // If it fails to open the app, we can show a message or just do nothing
-      debugPrint('Could not launch $url');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,18 +87,6 @@ class EmailVerifiedScreen extends StatelessWidget {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              TextButton(
-                onPressed: _openApp,
-                child: const Text(
-                  'Open X-FatHub App',
-                  style: TextStyle(
-                    color: Colors.orange,
-                    decoration: TextDecoration.underline,
                   ),
                 ),
               ),
