@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
+import 'package:xfathub/features/booking/models/gym_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/views/checkout_screen.dart';
 import 'package:xfathub/features/booking/views/booking_success_screen.dart';
@@ -585,6 +586,14 @@ class _BookAndPayScreenState extends State<BookAndPayScreen> {
           _buildSlotMetaRow(
             Icons.person,
             slot.coachName.isEmpty ? '-' : slot.coachName,
+          ),
+          const SizedBox(height: 6),
+          _buildSlotMetaRow(
+            Icons.business,
+            provider.selectedPackageGyms
+                .where((g) => g.id == slot.gymId)
+                .firstOrNull
+                ?.name ?? '-',
           ),
           const SizedBox(height: 6),
           _buildSlotMetaRow(

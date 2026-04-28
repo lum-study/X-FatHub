@@ -398,6 +398,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => BookingDetailScreen(
                       booking: nearest,
                       packageNameFallback: bookingVM.packageNameForBooking(nearest.id),
+                      gymName: nearest.gymName,
+                      gymAddress: nearest.gymAddress,
                       slotLocation: nearest.slotLocation,
                       slotCoach: nearest.slotCoach,
                     ),

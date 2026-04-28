@@ -5,6 +5,7 @@ import 'package:xfathub/features/booking/models/booking_model.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/views/booking_detail_screen.dart';
+import 'package:xfathub/features/booking/views/gym_location_view_screen.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -233,6 +234,8 @@ class _BookingCard extends StatelessWidget {
               booking: booking,
               package: package,
               packageNameFallback: package?.name ?? packageNameFallback,
+              gymName: booking.gymName,
+              gymAddress: booking.gymAddress,
               slotLocation: booking.slotLocation,
               slotCoach: booking.slotCoach,
             ),
@@ -327,6 +330,39 @@ class _BookingCard extends StatelessWidget {
               Text(
                 DateFormat('hh:mm a').format(bookingTime),
                 style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on, color: Color(0xFF888888), size: 14),
+              const SizedBox(width: 6),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GymLocationViewScreen(
+                          gymName: booking.gymName ?? 'Gym Location',
+                          gymAddress: booking.gymAddress,
+                          slotLocation: booking.slotLocation,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    booking.gymName ?? booking.slotLocation ?? 'View Location',
+                    style: const TextStyle(
+                      color: Color(0xFFFFA500),
+                      fontSize: 12,
+                      decoration: TextDecoration.underline,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ],
           ),

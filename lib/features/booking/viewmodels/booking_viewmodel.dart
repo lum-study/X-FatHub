@@ -437,6 +437,17 @@ class BookingViewModel extends ChangeNotifier {
       // Sync missed bookings to backend
       await _repository.syncMissedBookings(userId, bookings);
       
+      // Update memory cache for package names
+      final packages = await _repository.fetchPackages();
+      final packageNameById = {for (final p in packages) p.id: p.name};
+      
+      for (final b in bookings) {
+        final name = packageNameById[b.packageId];
+        if (name != null) {
+          _cachedPackageNameByBookingId[b.id] = name;
+        }
+      }
+
       await _syncAllBookingsToLocalCache(userId);
       return bookings.isNotEmpty;
     } catch (e) {
@@ -574,12 +585,14 @@ class BookingViewModel extends ChangeNotifier {
               'id': b.id,
               'user_id': b.userId,
               'package_id': b.packageId,
-              'package_name': packageNameById[b.packageId] ?? _cachedPackageNameByBookingId[b.id] ?? '',
+              'package_name': b.packageName ?? packageNameById[b.packageId] ?? _cachedPackageNameByBookingId[b.id] ?? '',
               'slot_id': b.slotId,
               'slot_location': b.slotLocation,
               'slot_coach': b.slotCoach,
               'booking_date': b.bookingDate.toIso8601String(),
               'status': b.status.name,
+              'gym_name': b.gymName,
+              'gym_address': b.gymAddress,
               'qr_code_data': b.qrCodeData,
               'session_number': b.sessionNumber,
               'total_paid': b.totalPaid,
@@ -624,6 +637,9 @@ class BookingViewModel extends ChangeNotifier {
           bookingDate:
               DateTime.tryParse(bookingDateRaw)?.toLocal() ?? DateTime.now(),
           status: status,
+          gymName: row[LocalBookingDatabase.colGymName]?.toString(),
+          gymAddress: row[LocalBookingDatabase.colGymAddress]?.toString(),
+          packageName: row[LocalBookingDatabase.colPackageName]?.toString(),
           totalPaid:
               double.tryParse(
                 row[LocalBookingDatabase.colTotalPaid]?.toString() ?? '0',
@@ -723,6 +739,8 @@ class BookingViewModel extends ChangeNotifier {
       );
 
       _latestQrCodeData = createdBooking.qrCodeData;
+      
+      // Force immediate re-fetch and sync to local DB
       await fetchUserBookings(userId, setLoading: false);
       await fetchCreditBalance(setLoading: false);
 

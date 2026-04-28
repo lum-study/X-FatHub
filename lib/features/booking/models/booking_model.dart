@@ -7,6 +7,9 @@ class BookingModel {
   final String? slotId;
   final String? slotLocation;
   final String? slotCoach;
+  final String? gymName;
+  final String? gymAddress;
+  final String? packageName;
   final DateTime bookingDate;
   final BookingStatus status;
   final double totalPaid;
@@ -21,6 +24,9 @@ class BookingModel {
     this.slotId,
     this.slotLocation,
     this.slotCoach,
+    this.gymName,
+    this.gymAddress,
+    this.packageName,
     required this.bookingDate,
     this.status = BookingStatus.upcoming,
     required this.totalPaid,
@@ -32,6 +38,9 @@ class BookingModel {
   BookingModel copyWith({
     String? slotLocation,
     String? slotCoach,
+    String? gymName,
+    String? gymAddress,
+    String? packageName,
   }) {
     return BookingModel(
       id: id,
@@ -40,6 +49,9 @@ class BookingModel {
       slotId: slotId,
       slotLocation: slotLocation ?? this.slotLocation,
       slotCoach: slotCoach ?? this.slotCoach,
+      gymName: gymName ?? this.gymName,
+      gymAddress: gymAddress ?? this.gymAddress,
+      packageName: packageName ?? this.packageName,
       bookingDate: bookingDate,
       status: status,
       totalPaid: totalPaid,
@@ -57,6 +69,9 @@ class BookingModel {
       slotId: map['slot_id']?.toString(),
       slotLocation: map['slot_location']?.toString(),
       slotCoach: map['slot_coach']?.toString(),
+      gymName: map['gym_name']?.toString(),
+      gymAddress: map['gym_address']?.toString(),
+      packageName: map['package_name']?.toString(),
       bookingDate: DateTime.tryParse(map['booking_date']?.toString() ?? '') ?? DateTime.now(),
       status: BookingStatus.values.byName(map['status']?.toString() ?? 'upcoming'),
       totalPaid: double.tryParse(map['total_paid']?.toString() ?? '0') ?? 0.0,

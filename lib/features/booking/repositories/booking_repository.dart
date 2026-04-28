@@ -316,23 +316,35 @@ class BookingRepository {
         throw Exception('Booking was created but response payload was missing.');
       }
 
+      // Fetch the full booking details to ensure we have gym metadata for local cache
+      final fullBookings = await fetchUserBookings(userId);
+      final updatedBooking = fullBookings.firstWhere(
+        (b) => b.id == booking!.id,
+        orElse: () => booking!,
+      );
+
       final qrCodeData = 'QR-${const Uuid().v4()}';
       await _supabase
           .from('bookings')
           .update({'qr_code_data': qrCodeData})
-          .eq('id', booking.id);
+          .eq('id', updatedBooking.id);
 
       return BookingModel(
-        id: booking.id,
-        userId: booking.userId,
-        packageId: booking.packageId,
-        slotId: booking.slotId,
-        bookingDate: booking.bookingDate,
-        status: booking.status,
-        totalPaid: booking.totalPaid,
-        receiptUrl: booking.receiptUrl,
-        qrCodeData: qrCodeData,
-        sessionNumber: booking.sessionNumber,
+        id: updatedBooking.id,
+        userId: updatedBooking.userId,
+        packageId: updatedBooking.packageId,
+        slotId: updatedBooking.slotId,
+        slotLocation: updatedBooking.slotLocation,
+        slotCoach: updatedBooking.slotCoach,
+        gymName: updatedBooking.gymName,
+        gymAddress: updatedBooking.gymAddress,
+        packageName: updatedBooking.packageName,
+        bookingDate: updatedBooking.bookingDate,
+        status: updatedBooking.status,
+        totalPaid: updatedBooking.totalPaid,
+        receiptUrl: updatedBooking.receiptUrl,
+        qrCodeData: updatedBooking.qrCodeData,
+        sessionNumber: updatedBooking.sessionNumber,
       );
     } catch (e) {
       throw Exception('Failed to create booking: $e');
@@ -341,10 +353,10 @@ class BookingRepository {
 
   Future<List<BookingModel>> fetchUserBookings(String userId) async {
     try {
-      // Use joined query to fetch booking and slot details in one go
+      // Use joined query to fetch booking, slot and package details in one go
       final response = await _supabase
           .from('bookings')
-          .select('*, gym_slots(class_name, location, coach_name, start_time)')
+          .select('*, packages(name), gym_slots(class_name, location, coach_name, start_time, gyms(name, address))')
           .eq('user_id', userId)
           .order('booking_date', ascending: false);
 
@@ -353,6 +365,7 @@ class BookingRepository {
 
       for (final data in rows) {
         final slotData = data['gym_slots'];
+        final packageData = data['packages'];
         
         var qrCodeData = data['qr_code_data']?.toString();
         if (qrCodeData == null || qrCodeData.isEmpty) {
@@ -369,20 +382,46 @@ class BookingRepository {
         String? slotLocation;
         String? slotCoach;
         DateTime? slotStartTime;
+        String? gymName;
+        String? gymAddress;
+        String? packageName;
+
+        if (packageData != null) {
+          if (packageData is Map) {
+            packageName = packageData['name']?.toString();
+          } else if (packageData is List && packageData.isNotEmpty) {
+            packageName = packageData.first['name']?.toString();
+          }
+        }
 
         if (slotData != null) {
+          final Map<String, dynamic> sData;
           if (slotData is Map) {
-            slotLocation = slotData['location']?.toString();
-            slotCoach = slotData['coach_name']?.toString();
-            if (slotData['start_time'] != null) {
-              slotStartTime = DateTime.tryParse(slotData['start_time'].toString())?.toLocal();
-            }
+            sData = Map<String, dynamic>.from(slotData);
           } else if (slotData is List && slotData.isNotEmpty) {
-            final firstSlot = slotData.first as Map;
-            slotLocation = firstSlot['location']?.toString();
-            slotCoach = firstSlot['coach_name']?.toString();
-            if (firstSlot['start_time'] != null) {
-              slotStartTime = DateTime.tryParse(firstSlot['start_time'].toString())?.toLocal();
+            sData = Map<String, dynamic>.from(slotData.first);
+          } else {
+            sData = {};
+          }
+
+          if (sData.isNotEmpty) {
+            slotLocation = sData['location']?.toString();
+            slotCoach = sData['coach_name']?.toString();
+            if (sData['start_time'] != null) {
+              slotStartTime =
+                  DateTime.tryParse(sData['start_time'].toString())?.toLocal();
+            }
+
+            final gymData = sData['gyms'];
+            if (gymData != null) {
+              if (gymData is Map) {
+                gymName = gymData['name']?.toString();
+                gymAddress = gymData['address']?.toString();
+              } else if (gymData is List && gymData.isNotEmpty) {
+                final firstGym = gymData.first as Map;
+                gymName = firstGym['name']?.toString();
+                gymAddress = firstGym['address']?.toString();
+              }
             }
           }
         }
@@ -394,7 +433,13 @@ class BookingRepository {
           slotId: data['slot_id']?.toString(),
           slotLocation: slotLocation,
           slotCoach: slotCoach,
-          bookingDate: slotStartTime ?? DateTime.tryParse(data['booking_date']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+          gymName: gymName,
+          gymAddress: gymAddress,
+          packageName: packageName,
+          bookingDate: slotStartTime ??
+              DateTime.tryParse(data['booking_date']?.toString() ?? '')
+                  ?.toLocal() ??
+              DateTime.now(),
           status: BookingStatus.values.byName(data['status']?.toString() ?? 'upcoming'),
           totalPaid: double.tryParse(data['total_paid']?.toString() ?? '0') ?? 0,
           receiptUrl: data['receipt_url']?.toString(),

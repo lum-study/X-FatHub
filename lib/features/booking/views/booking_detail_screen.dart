@@ -7,11 +7,14 @@ import 'package:xfathub/features/booking/models/booking_model.dart';
 import 'package:xfathub/features/booking/models/package_model.dart';
 import 'package:xfathub/features/booking/viewmodels/booking_viewmodel.dart';
 import 'package:xfathub/features/booking/repositories/booking_repository.dart';
+import 'package:xfathub/features/booking/views/gym_location_view_screen.dart';
 
 class BookingDetailScreen extends StatelessWidget {
   final BookingModel booking;
   final PackageModel? package;
   final String? packageNameFallback;
+  final String? gymName;
+  final String? gymAddress;
   final String? slotLocation;
   final String? slotCoach;
 
@@ -20,6 +23,8 @@ class BookingDetailScreen extends StatelessWidget {
     required this.booking,
     this.package,
     this.packageNameFallback,
+    this.gymName,
+    this.gymAddress,
     this.slotLocation,
     this.slotCoach,
   });
@@ -80,7 +85,7 @@ class BookingDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      package?.name ?? packageNameFallback ?? 'Package',
+                      package?.name ?? booking.packageName ?? packageNameFallback ?? 'Package',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -138,10 +143,42 @@ class BookingDetailScreen extends StatelessWidget {
                 value: DateFormat('hh:mm a').format(bookingTime),
               ),
               const SizedBox(height: 10),
+              FutureBuilder<List<ConnectivityResult>>(
+                future: Connectivity().checkConnectivity(),
+                builder: (context, snapshot) {
+                  final isOffline = snapshot.data?.contains(ConnectivityResult.none) ?? false;
+                  final finalGymName = gymName ?? booking.gymName;
+                  final hasGymData = finalGymName != null && finalGymName != '-';
+
+                  return GestureDetector(
+                    onTap: (isOffline || !hasGymData)
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => GymLocationViewScreen(
+                                  gymName: finalGymName,
+                                  gymAddress: gymAddress ?? booking.gymAddress,
+                                  slotLocation: slotLocation ?? booking.slotLocation,
+                                ),
+                              ),
+                            );
+                          },
+                    child: _buildDetailRow(
+                      icon: Icons.business,
+                      label: 'Gym',
+                      value: finalGymName ?? '-',
+                      valueColor: (!isOffline && hasGymData) ? const Color(0xFFFFA500) : null,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
               _buildDetailRow(
                 icon: Icons.location_on,
                 label: 'Location',
-                value: slotLocation ?? '-',
+                value: slotLocation ?? booking.slotLocation ?? '-',
               ),
               const SizedBox(height: 10),
               _buildDetailRow(
