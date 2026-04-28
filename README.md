@@ -1,128 +1,81 @@
 # X-FatHub
 
-X-FatHub is a Flutter-based fitness platform designed to support healthier lifestyles through social interaction, class access, activity tracking, and motivation features.
+X-FatHub is a Flutter fitness app that combines activity tracking, class booking, community features, and user profile management in one mobile-first experience.
 
-## Project Description
-
-The project focuses on combining fitness engagement with community and progress visibility. It helps users stay active by making it easier to join activities, track performance, and maintain motivation through achievements and social support.
-
-## Feature Description
+## Modules
 
 ### 1. Community Management
 
-- Encourages social support and motivation.
-- Improves mental well-being through interaction.
+Builds the social side of the app and supports engagement through:
+
+- Feed screens for browsing posts and media
+- Post creation, comments, and community interaction
+- Profile views tied to community activity
+- Media playback and map/location selection helpers
 
 ### 2. Booking Management
 
-- Makes fitness classes easily accessible.
-- Promotes consistent participation in physical activities.
+Handles the fitness class and gym booking flow:
+
+- Gym, package, and booking browsing screens
+- Booking detail and checkout flow
+- Payment success and cancellation states
+- Local booking data storage and repository access
 
 ### 3. Activity Health Management
 
-- Tracks workouts, calories, and progress.
-- Encourages regular exercise and healthy habits.
+Tracks fitness and wellness activity across the app:
+
+- Step tracking and workout/activity summaries
+- Hydration logging and history views
+- Background and native activity services
+- Location, pedometer, and notification integrations
 
 ### 4. User Profile
 
-- Records achievements to maintain user motivation.
-- Encourages continuous participation in fitness activities.
+Manages user account and personal settings:
 
-## Folder Structure
+- Login, profile dashboard, and profile editing
+- Settings and email verification screens
+- Profile data models and repository layer
+- Shared authentication and account state support
 
-The project folder structure is:
+## Project Structure
 
 ```text
-lib/
-├── core/                         # Global app configurations and utilities
-│   ├── constants/                # Colors, text styles, and API keys
-│   ├── database/                 # SQLite initialization and helpers
-│   ├── network/                  # Supabase client setup
-│   └── utils/                    # Form input validators
-│
-├── shared/                       # Reusable components and global services
-│   ├── services/
-│   │   ├── location_service.dart # Location tracking implementation
-│   │   ├── shared_prefs.dart     # Local storage for small data
-│   │   └── file_service.dart     # Image Picker and Data File handling
-│   └── widgets/                  # Reusable UI like buttons and text fields
-│
-├── features/                     # Core Application Modules
-│   ├── activity_health/          # Tracking steps, workouts, and hydration
-│   │   ├── models/
-│   │   ├── repository/           # Data access and integration layer
-│   │   ├── providers/            # State Management
-│   │   └── views/                # Screens including Open Street Map
-│   │
-│   ├── booking/                  # Fitness class booking
-│   │   ├── models/
-│   │   ├── repository/           # Data access and integration layer
-│   │   ├── providers/            # State Management
-│   │   └── views/                # Class selection and booking screens
-│   │
-│   ├── community/                # Social feed and interactions
-│   │   ├── models/
-│   │   ├── repository/           # Data access and integration layer
-│   │   ├── providers/            # State Management
-│   │   └── views/                # Feed and post screens
-│   │
-│   ├── profile/                  # User profile and achievements
-│   │   ├── models/
-│   │   ├── repository/           # Data access and integration layer
-│   │   ├── providers/            # State Management
-│   │   └── views/                # Forms for updating profile
-│   │
-│   └── weather/                  # Weather module for outdoor activities
-│       ├── models/
-│       ├── repository/           # Data access and integration layer
-│       ├── providers/
-│       └── views/                # Weather Forecast screen using Web API
-│
-├── routes/
-│   ├── app_routes.dart           # Navigation handling
-│   └── main_screen.dart          # Main screen container
-│
-└── main.dart                     # Application entry point
+android/                     Android app shell
+ios/                         iOS app shell
+web/                         Web entry files and assets
+lib/                         Main Flutter application code
+├── core/                    Shared config, database, services, and providers
+├── features/
+│   ├── activity_health/     Step, hydration, workout, and tracking flows
+│   ├── booking/             Gym, package, booking, checkout, and payment screens
+│   ├── community/           Feed, posts, comments, map picker, and media widgets
+│   └── profile/             Login, dashboard, edit, settings, and verification screens
+├── routes/                  App navigation and main container screens
+└── main.dart                App entry point
+test/                        Flutter tests
+supabase/                    Edge functions and backend helpers
+supabase_migrations/        SQL schema, seed, and reset scripts
 ```
 
-## Installation Guide
+## Tech Stack
 
-### Prerequisites
+- Flutter / Dart
+- Provider state management
+- Supabase backend
+- SQLite for local storage
+- Background services, notifications, location, and sensor integrations
 
-- Flutter SDK compatible with Dart SDK `^3.10.7`
-- A device/emulator for Android, iOS, Web, Windows, Linux, or macOS
+## Setup
 
-### 1. Clone the repository
+1. Install Flutter SDK.
+2. Copy `example.env` to `.env` and add your Supabase values.
+3. Run `flutter pub get`.
+4. Start the app with `flutter run`.
 
-```bash
-git clone <your-repository-url>
-cd X-FatHub
-```
+## Notes
 
-### 2. Configure environment variables
-
-This project uses `flutter_dotenv` and expects a `.env` file.
-
-```bash
-copy example.env .env
-```
-
-If you are using Git Bash, use:
-
-```bash
-cp example.env .env
-```
-
-Then update `.env` with your actual configuration values, for example Supabase keys.
-
-### 3. Install dependencies
-
-```bash
-flutter pub get
-```
-
-### 4. Run the app
-
-```bash
-flutter run
-```
+- The app supports multiple targets, including Android, iOS, Web, and desktop platforms.
+- Assets are configured in `pubspec.yaml` under `.env` and `lib/assets/img/`.
