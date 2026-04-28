@@ -8,12 +8,12 @@ class ProfileModel {
   final String? gender;
   final DateTime? birthdate;
   final double? currentWeight; // in kg
-  final double? initialWeight; // in kg - starting weight for progress calculation
-  final double? weightGoal; // in kg - renamed from goalWeight for consistency
+  final double? initialWeight; // in kg
+  final double? weightGoal; // in kg
   final double? height; // in cm
-  final int? stepsGoal; // steps per day - renamed from stepGoal for consistency
-  final int? hydrationGoal; // in ML (integer for DB)
-  final bool profileCompleted; // flag to track if user completed initial setup
+  final int? stepsGoal;
+  final int? hydrationGoal;
+  final bool profileCompleted;
   final DateTime? createdAt;
 
   ProfileModel({
